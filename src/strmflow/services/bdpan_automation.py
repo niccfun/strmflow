@@ -90,6 +90,7 @@ class BdpanAutomationService:
         self._running_item_id = ""
         self._manual_check_pending = False
         self._status_cache: tuple[float, dict[str, Any]] | None = None
+        self._quota_cache: tuple[float, int, dict[str, Any]] | None = None
 
     async def initialize(self) -> None:
         stored_config = await self.repository.load_bdpan()
@@ -147,6 +148,35 @@ class BdpanAutomationService:
             "watches": watches,
         }
 
+    async def quota(self, *, refresh: bool = False) -> dict[str, Any]:
+        """Return a short-lived account-capacity snapshot from bdpan CLI."""
+        loop_time = asyncio.get_running_loop().time()
+        selected = str(self.config["binary"])
+        if (
+            not refresh
+            and self._quota_cache
+            and loop_time - self._quota_cache[0] < self._quota_cache[1]
+            and self._quota_cache[2].get("configuredBinary") == selected
+        ):
+            return dict(self._quota_cache[2])
+        try:
+            quota = await self.cli.quota(selected)
+        except Exception as exc:  # noqa: BLE001 - overview remains available on CLI failure
+            quota = {
+                "available": False,
+                "supported": True,
+                "totalBytes": 0,
+                "usedBytes": 0,
+                "freeBytes": 0,
+                "usedPercent": 0,
+                "source": "bdpan CLI",
+                "error": str(exc)[:300],
+            }
+        quota["configuredBinary"] = selected
+        ttl = 300 if quota.get("available") else 60
+        self._quota_cache = (loop_time, ttl, quota)
+        return dict(quota)
+
     async def update_config(self, value: BdpanAutomationConfigUpdate) -> dict[str, Any]:
         config = self._normalize_config(value.model_dump(by_alias=True))
         if config["enabled"]:
@@ -156,6 +186,8 @@ class BdpanAutomationService:
             if not status["loggedIn"]:
                 raise AppError(409, "bdpan 尚未完成百度网盘授权")
         self.config = config
+        self._status_cache = None
+        self._quota_cache = None
         await self.repository.save_bdpan(config)
         if config["enabled"]:
             now = self._iso_now()
@@ -189,6 +221,7 @@ class BdpanAutomationService:
         except BdpanCliError as exc:
             raise AppError(502, str(exc)) from exc
         self._status_cache = None
+        self._quota_cache = None
         self._wake.set()
         self._log("success", "百度网盘授权已完成")
         return result
@@ -632,6 +665,8 @@ class BdpanAutomationService:
                 "available": self.cli.executable(selected) is not None,
                 "loggedIn": False,
                 "username": "",
+                "expiresAt": "",
+                "tokenExpiresIn": "",
                 "version": "",
                 "binary": selected,
                 "error": str(exc)[:300],

@@ -6,7 +6,7 @@ import pytest
 
 from strmflow.core.config import Settings
 from strmflow.core.runtime_logs import RuntimeLogStore
-from strmflow.services.bdpan import BdpanCli, BdpanRunResult
+from strmflow.services.bdpan import BdpanCli, BdpanCliError, BdpanRunResult
 from strmflow.services.bdpan_automation import BdpanAutomationService, ShareMediaFile
 
 
@@ -158,12 +158,13 @@ async def test_cli_status_reads_account_name_from_whoami_json(monkeypatch) -> No
         assert require_json is True
         return BdpanRunResult(
             0,
-            '{"authenticated":true,"username":"测试账号","has_valid_token":true}',
+            '{"authenticated":true,"username":"测试账号","has_valid_token":true,"expires_at":"2026-10-01T08:00:00+08:00"}',
             "",
             {
                 "authenticated": True,
                 "username": "测试账号",
                 "has_valid_token": True,
+                "expires_at": "2026-10-01T08:00:00+08:00",
             },
         )
 
@@ -173,6 +174,7 @@ async def test_cli_status_reads_account_name_from_whoami_json(monkeypatch) -> No
 
     assert status["loggedIn"] is True
     assert status["username"] == "测试账号"
+    assert status["expiresAt"] == "2026-10-01T08:00:00+08:00"
     whoami = next(command for command in commands if "whoami" in command)
     assert "--json" in whoami
 
@@ -209,6 +211,67 @@ async def test_cli_status_omits_account_name_when_token_is_invalid(monkeypatch) 
 
     assert status["loggedIn"] is False
     assert status["username"] == ""
+
+
+@pytest.mark.asyncio
+async def test_cli_quota_uses_json_command_and_normalizes_capacity(monkeypatch) -> None:
+    cli = BdpanCli(Settings())
+    monkeypatch.setattr(cli, "executable", lambda _binary: "/usr/local/bin/bdpan")
+    commands: list[list[str]] = []
+
+    async def execute(
+        argv: list[str],
+        *,
+        timeout: float | None = None,
+        stdin: str | None = None,
+        require_json: bool = False,
+    ) -> BdpanRunResult:
+        del stdin
+        commands.append(argv)
+        assert timeout == 30
+        assert require_json is True
+        return BdpanRunResult(
+            0,
+            '{"data":{"quota":{"total":"1000","used":250}}}',
+            "",
+            {"data": {"quota": {"total": "1000", "used": 250}}},
+        )
+
+    monkeypatch.setattr(cli, "execute", execute)
+
+    quota = await cli.quota("bdpan")
+
+    assert quota == {
+        "available": True,
+        "supported": True,
+        "totalBytes": 1_000,
+        "usedBytes": 250,
+        "freeBytes": 750,
+        "usedPercent": 25.0,
+        "source": "bdpan CLI",
+        "error": "",
+    }
+    assert commands[0][:2] == ["/usr/local/bin/bdpan", "quota"]
+    assert "--json" in commands[0]
+    assert "--no-check-update" in commands[0]
+
+
+@pytest.mark.asyncio
+async def test_cli_quota_reports_unsupported_command_without_other_credentials(monkeypatch) -> None:
+    cli = BdpanCli(Settings())
+    monkeypatch.setattr(cli, "executable", lambda _binary: "/usr/local/bin/bdpan")
+
+    async def execute(*_args: Any, **_kwargs: Any) -> BdpanRunResult:
+        raise BdpanCliError('unknown command "quota" for "bdpan"')
+
+    monkeypatch.setattr(cli, "execute", execute)
+
+    quota = await cli.quota("bdpan")
+
+    assert quota["available"] is False
+    assert quota["supported"] is False
+    assert quota["source"] == "bdpan CLI"
+    assert quota["error"] == "当前 bdpan CLI 版本未提供容量查询命令"
 
 
 @pytest.mark.asyncio

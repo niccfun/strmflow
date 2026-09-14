@@ -71,7 +71,7 @@ def request_category(path: str) -> str:
         return "media"
     if path.startswith("/api/transfers"):
         return "transfer"
-    if path.startswith("/api/health"):
+    if path.startswith(("/api/health", "/api/status")):
         return "system"
     return "http"
 

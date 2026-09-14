@@ -21,6 +21,7 @@ src/strmflow/
 │   ├── emby.py          # Emby 客户端
 │   ├── bdpan.py         # 百度官方 CLI 安全适配器
 │   ├── bdpan_automation.py # 分享检查、增量转存与自动同步调度
+│   ├── system_status.py # OpenList、Emby、网盘容量与运行状态聚合
 │   └── transfers/       # 可插拔转存 Provider
 ├── web/templates/       # 原项目管理页面
 ├── container.py         # 服务装配
@@ -125,6 +126,22 @@ Docker 容器的内网地址；`OPENLIST_WEB_URL`、`EMBY_WEB_URL` 是用户浏�
 左侧“运行日志”会合并服务端 HTTP 访问记录和浏览器操作记录，显示状态码（包括 302
 跳转）、客户端、耗时、协议、响应大小及 User-Agent；使用紧凑列表展示，并支持手动
 刷新和实时刷新。服务日志接口为 `GET /api/logs`，清空接口为 `DELETE /api/logs`。
+
+## 状态总览
+
+左侧“状态总览”集中显示以下运行信息，并在页面停留期间每 30 秒自动刷新：
+
+- OpenList 在线状态、版本、响应耗时及全部挂载状态；
+- Emby 在线状态、服务器名称、版本、操作系统及响应耗时；
+- `bdpan` CLI 状态、百度网盘授权账号和授权有效期；
+- 百度网盘已用、总计、剩余容量及使用比例；
+- 自动追更调度、媒体与同步数量、转存任务、SQLite 和 302 网关状态；
+- OpenList/Emby 内外网地址，以及只读源与目标 STRM 根目录。
+
+容量信息只通过已配置并完成授权的 `bdpan` CLI 查询；StrmFlow 不读取 CLI 配置文件，
+也不复用 OpenList 挂载中的 OAuth Token。安装的 CLI 尚未提供容量查询子命令时，容量卡片
+会明确显示版本能力状态，不会回退到读取其他服务凭据。状态接口为
+`GET /api/status/overview`，附加 `?refresh=1` 可跳过短时缓存并立即刷新全部状态。
 
 ## Emby 302 播放网关
 

@@ -21,6 +21,7 @@ from strmflow.services.media import MediaService
 from strmflow.services.openlist import OpenListClient
 from strmflow.services.path_config import PathConfigService
 from strmflow.services.storage import StorageService
+from strmflow.services.system_status import SystemStatusService
 from strmflow.services.transfers import BdpanTransferProvider, TransferManager
 
 
@@ -36,6 +37,7 @@ class ServiceContainer:
     path_config: PathConfigService
     emby302: Emby302Gateway
     bdpan: BdpanAutomationService
+    system_status: SystemStatusService
 
 
 def build_container(
@@ -73,6 +75,17 @@ def build_container(
         path_config,
         runtime_logs,
     )
+    system_status = SystemStatusService(
+        settings,
+        database,
+        openlist,
+        emby,
+        bdpan,
+        emby302,
+        media,
+        transfers,
+        path_config,
+    )
     return ServiceContainer(
         database=database,
         openlist=openlist,
@@ -84,4 +97,5 @@ def build_container(
         path_config=path_config,
         emby302=emby302,
         bdpan=bdpan,
+        system_status=system_status,
     )

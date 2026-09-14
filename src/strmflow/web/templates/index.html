@@ -456,6 +456,72 @@
     .about-card { display: grid; gap: 3px; padding: 13px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
     .about-card strong { font-size: 13px; }
     .about-card span { color: var(--muted); font-size: 11px; }
+    .status-nav-dot { width: 8px; height: 8px; margin-left: auto; border-radius: 50%; background: var(--border-strong); box-shadow: 0 0 0 3px var(--panel-soft); }
+    .status-nav-dot.healthy { background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
+    .status-nav-dot.degraded { background: var(--warning); box-shadow: 0 0 0 3px var(--warning-soft); }
+    .status-nav-dot.offline { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+    .system-status-page { display: grid; gap: 16px; }
+    .status-service-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .status-service-card { min-width: 0; display: grid; grid-template-rows: auto auto minmax(36px, auto) auto; gap: 8px; padding: 18px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-sm); }
+    .status-service-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .status-service-icon { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-soft); color: var(--muted); }
+    .status-service-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+    .status-service-state { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 999px; background: var(--panel-soft); color: var(--muted); font-size: 10px; font-weight: 750; white-space: nowrap; }
+    .status-service-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .status-service-card[data-state="online"] { border-color: color-mix(in srgb, var(--success) 25%, var(--border)); }
+    .status-service-card[data-state="online"] .status-service-icon, .status-service-card[data-state="online"] .status-service-state { border-color: var(--success-border); background: var(--success-soft); color: var(--success-text); }
+    .status-service-card[data-state="degraded"] { border-color: var(--warning-border); }
+    .status-service-card[data-state="degraded"] .status-service-icon, .status-service-card[data-state="degraded"] .status-service-state { border-color: var(--warning-border); background: var(--warning-soft); color: var(--warning-text); }
+    .status-service-card[data-state="offline"] { border-color: var(--danger-border); }
+    .status-service-card[data-state="offline"] .status-service-icon, .status-service-card[data-state="offline"] .status-service-state { border-color: var(--danger-border); background: var(--danger-soft); color: var(--danger-text); }
+    .status-service-title { min-width: 0; display: grid; gap: 2px; }
+    .status-service-title span { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .status-service-title strong { overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
+    .status-service-summary { color: var(--muted); font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
+    .status-service-meta { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding-top: 9px; border-top: 1px solid var(--border); }
+    .status-service-meta div { min-width: 0; display: grid; gap: 1px; }
+    .status-service-meta span { color: var(--muted); font-size: 9px; font-weight: 700; }
+    .status-service-meta strong { overflow: hidden; font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+    .status-detail-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
+    .status-detail-panel { min-width: 0; display: grid; align-content: start; gap: 16px; }
+    .status-capacity-panel { grid-column: span 7; }
+    .status-automation-panel { grid-column: span 5; }
+    .status-data-panel, .status-gateway-panel { grid-column: span 6; }
+    .status-storage-panel, .status-connections-panel { grid-column: 1 / -1; }
+    .status-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 11px; border-bottom: 1px solid var(--border); }
+    .status-panel-head div { min-width: 0; }
+    .status-panel-head h3 { margin: 0; font-size: 15px; }
+    .status-panel-head p { margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .status-inline-badge { flex: 0 0 auto; padding: 3px 8px; border-radius: 999px; background: var(--panel-soft); color: var(--muted); font-size: 10px; font-weight: 750; }
+    .status-inline-badge.online { background: var(--success-soft); color: var(--success-text); }
+    .status-inline-badge.warning { background: var(--warning-soft); color: var(--warning-text); }
+    .status-inline-badge.error { background: var(--danger-soft); color: var(--danger-text); }
+    .capacity-reading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
+    .capacity-reading strong { font-size: clamp(26px, 3vw, 38px); line-height: 1; letter-spacing: -.04em; }
+    .capacity-reading span { color: var(--muted); font-size: 13px; }
+    .capacity-meter { height: 10px; overflow: hidden; border-radius: 999px; background: var(--panel-soft); box-shadow: inset 0 0 0 1px var(--border); }
+    .capacity-meter-bar { width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--primary), #0ea5e9); transition: width .35s ease; }
+    .capacity-meter-bar.warning { background: linear-gradient(90deg, var(--warning), #f97316); }
+    .capacity-meter-bar.danger { background: linear-gradient(90deg, var(--danger), #f43f5e); }
+    .capacity-stats, .status-metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+    .capacity-stat, .status-metric { min-width: 0; display: grid; gap: 2px; padding: 10px 11px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .capacity-stat span, .status-metric span { color: var(--muted); font-size: 9px; font-weight: 750; letter-spacing: .04em; }
+    .capacity-stat strong, .status-metric strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+    .capacity-source { color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
+    .status-storage-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+    .status-storage-item { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 10px 11px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .status-storage-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); }
+    .status-storage-dot.error { background: var(--danger); }
+    .status-storage-dot.disabled { background: var(--border-strong); }
+    .status-storage-name { min-width: 0; display: grid; }
+    .status-storage-name strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .status-storage-name span, .status-storage-state { color: var(--muted); font-size: 9px; }
+    .status-storage-empty { grid-column: 1 / -1; padding: 22px; color: var(--muted); text-align: center; border: 1px dashed var(--border-strong); border-radius: var(--radius-md); }
+    .status-connections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .status-connection { min-width: 0; display: grid; gap: 5px; padding: 11px 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .status-connection span { color: var(--muted); font-size: 9px; font-weight: 750; }
+    .status-connection code { overflow: hidden; color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    .status-updated { color: var(--muted); font-size: 10px; text-align: right; }
     .source-picker-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
     .target-head { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
     .target-head, .target-panel .wide, #targetPreview, .modal-actions { grid-column: 1 / -1; }
@@ -506,6 +572,7 @@
     .preview-error.show { display: block; }
 
     @media (max-width: 1280px) {
+      .status-service-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .gateway-config-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .gateway-url-field { grid-column: 1 / -1; }
       .bdpan-settings-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -555,6 +622,8 @@
       .preview-head { display: none; }
       .preview-row { grid-template-columns: 1fr; }
       .about-grid { grid-template-columns: 1fr; }
+      .status-capacity-panel, .status-automation-panel, .status-data-panel, .status-gateway-panel { grid-column: 1 / -1; }
+      .status-connections { grid-template-columns: 1fr; }
       .media-detail-paths { grid-template-columns: 1fr; }
       .target-panel.detail-mode { width: min(880px, calc(100vw - 28px)); max-height: calc(100vh - 28px); grid-template-columns: 1fr; padding: 18px; overflow: auto; }
       .target-panel.detail-mode .baidu-link-field { grid-column: 1; }
@@ -597,6 +666,7 @@
       .page-form-actions button { width: 100%; }
       #newButton { position: fixed; right: 18px; bottom: 18px; z-index: 10; padding: 12px 18px; box-shadow: var(--shadow-lg); }
       .list { grid-template-columns: 1fr; }
+      .status-service-grid, .capacity-stats, .status-metric-grid { grid-template-columns: 1fr; }
       .utility-toolbar { display: grid; }
       .path-row.has-open { grid-template-columns: minmax(0, 1fr) auto; }
       .path-row.has-open .openlist-path-button { grid-column: 1 / -1; }
@@ -623,6 +693,11 @@
         <button id="mediaNavButton" class="sidebar-link active" type="button" aria-current="page">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="m10 9 5 3-5 3V9Z"></path></svg>
           <span class="nav-label">媒体管理</span>
+        </button>
+        <button id="systemStatusButton" class="sidebar-link" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 13h3l2-7 4 12 2-5h5"></path><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"></path></svg>
+          <span class="nav-label">状态总览</span>
+          <span id="systemStatusNavDot" class="status-nav-dot" aria-label="状态尚未读取"></span>
         </button>
         <button id="emby302Button" class="sidebar-link" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 7h10a4 4 0 0 1 4 4v1M15 9l3-3 3 3M19 17H9a4 4 0 0 1-4-4v-1M9 15l-3 3-3-3"></path></svg>
@@ -690,6 +765,140 @@
             </div>
           </div>
         </section>
+      </section>
+
+      <section id="systemStatusView" class="app-view" aria-labelledby="systemStatusViewTitle" hidden>
+        <header class="page-header">
+          <div class="page-heading">
+            <p class="eyebrow">SYSTEM HEALTH</p>
+            <div class="page-title-row">
+              <h2 id="systemStatusViewTitle" class="page-title">状态总览</h2>
+              <span id="systemStatusOverall" class="gateway-status pending">正在检查</span>
+            </div>
+            <p class="muted hero-copy">集中查看 OpenList、Emby、百度网盘和 StrmFlow 的运行状态。</p>
+          </div>
+          <div class="toolbar">
+            <button id="systemStatusRefreshButton" type="button">刷新全部状态</button>
+          </div>
+        </header>
+
+        <div class="system-status-page" aria-live="polite">
+          <section class="status-service-grid" aria-label="核心服务状态">
+            <article class="status-service-card" data-service="openlist" data-state="loading">
+              <div class="status-service-head">
+                <span class="status-service-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5h14v5H5zM5 14h14v5H5z"></path><path d="M8 7.5h.01M8 16.5h.01"></path></svg></span>
+                <span class="status-service-state" data-role="state">检查中</span>
+              </div>
+              <div class="status-service-title"><span>OPENLIST</span><strong data-role="primary">正在连接…</strong></div>
+              <p class="status-service-summary" data-role="summary">正在读取服务和存储状态。</p>
+              <div class="status-service-meta"><div><span>响应</span><strong data-role="meta-left">—</strong></div><div><span>存储</span><strong data-role="meta-right">—</strong></div></div>
+            </article>
+
+            <article class="status-service-card" data-service="emby" data-state="loading">
+              <div class="status-service-head">
+                <span class="status-service-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 4 8 4v8l-8 4-4-8 4-8Z"></path><path d="m10 9 4 3-4 3V9Z"></path></svg></span>
+                <span class="status-service-state" data-role="state">检查中</span>
+              </div>
+              <div class="status-service-title"><span>EMBY</span><strong data-role="primary">正在连接…</strong></div>
+              <p class="status-service-summary" data-role="summary">正在读取媒体服务器信息。</p>
+              <div class="status-service-meta"><div><span>响应</span><strong data-role="meta-left">—</strong></div><div><span>版本</span><strong data-role="meta-right">—</strong></div></div>
+            </article>
+
+            <article class="status-service-card" data-service="baidu" data-state="loading">
+              <div class="status-service-head">
+                <span class="status-service-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8.2 11.2c1.5 0 2.7-1.7 2.7-3.8S9.7 4 8.2 4 5.5 5.4 5.5 7.4s1.2 3.8 2.7 3.8ZM15.8 11.2c1.5 0 2.7-1.7 2.7-3.8S17.3 4 15.8 4s-2.7 1.4-2.7 3.4 1.2 3.8 2.7 3.8Z"></path><path d="M12 10.5c-3.3 0-6.5 4.2-6.5 6.5 0 1.8 2 3 3.7 3 .9 0 1.8-.5 2.8-.5s1.9.5 2.8.5c1.7 0 3.7-1.2 3.7-3 0-2.3-3.2-6.5-6.5-6.5Z"></path></svg></span>
+                <span class="status-service-state" data-role="state">检查中</span>
+              </div>
+              <div class="status-service-title"><span>BAIDU NETDISK</span><strong data-role="primary">正在读取账号…</strong></div>
+              <p class="status-service-summary" data-role="summary">正在检查 bdpan CLI 授权。</p>
+              <div class="status-service-meta"><div><span>CLI</span><strong data-role="meta-left">—</strong></div><div><span>授权有效期</span><strong data-role="meta-right">—</strong></div></div>
+            </article>
+
+            <article class="status-service-card" data-service="strmflow" data-state="loading">
+              <div class="status-service-head">
+                <span class="status-service-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"></path><path d="M8 10h8M8 14h5"></path></svg></span>
+                <span class="status-service-state" data-role="state">检查中</span>
+              </div>
+              <div class="status-service-title"><span>STRMFLOW</span><strong data-role="primary">服务运行中</strong></div>
+              <p class="status-service-summary" data-role="summary">正在读取应用和数据库状态。</p>
+              <div class="status-service-meta"><div><span>运行时间</span><strong data-role="meta-left">—</strong></div><div><span>数据库</span><strong data-role="meta-right">—</strong></div></div>
+            </article>
+          </section>
+
+          <div class="status-detail-grid">
+            <section class="panel status-detail-panel status-capacity-panel">
+              <div class="status-panel-head">
+                <div><h3>百度网盘空间</h3><p>通过已配置的 bdpan CLI 读取当前授权账号容量，手动刷新可立即更新。</p></div>
+                <span class="status-inline-badge" data-status-field="quota-badge">读取中</span>
+              </div>
+              <div class="capacity-reading"><strong data-status-field="quota-used">—</strong><span>/ <span data-status-field="quota-total">—</span></span></div>
+              <div class="capacity-meter" role="progressbar" aria-label="百度网盘空间使用率" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="capacity-meter-bar" data-status-field="quota-bar"></div></div>
+              <div class="capacity-stats">
+                <div class="capacity-stat"><span>已用比例</span><strong data-status-field="quota-percent">—</strong></div>
+                <div class="capacity-stat"><span>剩余空间</span><strong data-status-field="quota-free">—</strong></div>
+                <div class="capacity-stat"><span>数据来源</span><strong data-status-field="quota-source-name">—</strong></div>
+              </div>
+              <p class="capacity-source" data-status-field="quota-source">正在读取容量来源…</p>
+            </section>
+
+            <section class="panel status-detail-panel status-automation-panel">
+              <div class="status-panel-head">
+                <div><h3>自动追更</h3><p>百度分享检查、转存和同步调度状态。</p></div>
+                <span class="status-inline-badge" data-status-field="automation-badge">读取中</span>
+              </div>
+              <div class="status-metric-grid">
+                <div class="status-metric"><span>追更媒体</span><strong data-status-field="automation-watched">—</strong></div>
+                <div class="status-metric"><span>已建立基线</span><strong data-status-field="automation-initialized">—</strong></div>
+                <div class="status-metric"><span>等待同步</span><strong data-status-field="automation-pending">—</strong></div>
+                <div class="status-metric"><span>检查间隔</span><strong data-status-field="automation-interval">—</strong></div>
+                <div class="status-metric"><span>下次检查</span><strong data-status-field="automation-next">—</strong></div>
+                <div class="status-metric"><span>最近检查</span><strong data-status-field="automation-last">—</strong></div>
+              </div>
+            </section>
+
+            <section class="panel status-detail-panel status-data-panel">
+              <div class="status-panel-head"><div><h3>媒体与数据</h3><p>媒体配置、同步文件和转存任务统计。</p></div><span class="status-inline-badge" data-status-field="database-badge">读取中</span></div>
+              <div class="status-metric-grid">
+                <div class="status-metric"><span>全部媒体</span><strong data-status-field="data-media">—</strong></div>
+                <div class="status-metric"><span>更新中</span><strong data-status-field="data-ongoing">—</strong></div>
+                <div class="status-metric"><span>已完结</span><strong data-status-field="data-completed">—</strong></div>
+                <div class="status-metric"><span>同步文件</span><strong data-status-field="data-synced">—</strong></div>
+                <div class="status-metric"><span>转存任务</span><strong data-status-field="data-transfers">—</strong></div>
+                <div class="status-metric"><span>任务异常</span><strong data-status-field="data-failed">—</strong></div>
+              </div>
+            </section>
+
+            <section class="panel status-detail-panel status-gateway-panel">
+              <div class="status-panel-head"><div><h3>302 播放网关</h3><p>监听、跳转、缓存和错误统计。</p></div><span class="status-inline-badge" data-status-field="gateway-badge">读取中</span></div>
+              <div class="status-metric-grid">
+                <div class="status-metric"><span>监听地址</span><strong data-status-field="gateway-listen">—</strong></div>
+                <div class="status-metric"><span>累计请求</span><strong data-status-field="gateway-requests">—</strong></div>
+                <div class="status-metric"><span>302 跳转</span><strong data-status-field="gateway-redirects">—</strong></div>
+                <div class="status-metric"><span>缓存命中率</span><strong data-status-field="gateway-hit-rate">—</strong></div>
+                <div class="status-metric"><span>当前缓存</span><strong data-status-field="gateway-cache">—</strong></div>
+                <div class="status-metric"><span>错误</span><strong data-status-field="gateway-errors">—</strong></div>
+              </div>
+            </section>
+
+            <section class="panel status-detail-panel status-storage-panel">
+              <div class="status-panel-head"><div><h3>OpenList 挂载</h3><p data-status-field="storage-summary">正在读取挂载状态…</p></div><span class="status-inline-badge" data-status-field="storage-badge">读取中</span></div>
+              <div id="systemStatusStorageList" class="status-storage-list"></div>
+            </section>
+
+            <section class="panel status-detail-panel status-connections-panel">
+              <div class="status-panel-head"><div><h3>连接与目录</h3><p>仅展示地址和路径，不显示 Token、API Key 等凭据。</p></div></div>
+              <div class="status-connections">
+                <div class="status-connection"><span>OpenList 内网地址</span><code data-status-field="openlist-internal">—</code></div>
+                <div class="status-connection"><span>OpenList 外网地址</span><code data-status-field="openlist-external">—</code></div>
+                <div class="status-connection"><span>Emby 内网地址</span><code data-status-field="emby-internal">—</code></div>
+                <div class="status-connection"><span>Emby 外网地址</span><code data-status-field="emby-external">—</code></div>
+                <div class="status-connection"><span>只读源 STRM 根目录</span><code data-status-field="source-root">—</code></div>
+                <div class="status-connection"><span>目标 STRM 根目录</span><code data-status-field="target-root">—</code></div>
+              </div>
+            </section>
+          </div>
+          <p id="systemStatusUpdatedAt" class="status-updated">尚未刷新</p>
+        </div>
       </section>
 
       <section id="emby302View" class="app-view" aria-labelledby="emby302ViewTitle" hidden>
@@ -1188,6 +1397,9 @@
       bdpanSnapshot: '',
       bdpanLoading: false,
       bdpanTimer: null,
+      systemStatusData: null,
+      systemStatusLoading: false,
+      systemStatusTimer: null,
     };
 
     const elements = {
@@ -1207,6 +1419,13 @@
       logout: document.querySelector('#logoutButton'),
       mediaNav: document.querySelector('#mediaNavButton'),
       mediaView: document.querySelector('#mediaView'),
+      systemStatus: document.querySelector('#systemStatusButton'),
+      systemStatusNavDot: document.querySelector('#systemStatusNavDot'),
+      systemStatusView: document.querySelector('#systemStatusView'),
+      systemStatusOverall: document.querySelector('#systemStatusOverall'),
+      systemStatusRefresh: document.querySelector('#systemStatusRefreshButton'),
+      systemStatusStorageList: document.querySelector('#systemStatusStorageList'),
+      systemStatusUpdatedAt: document.querySelector('#systemStatusUpdatedAt'),
       emby302: document.querySelector('#emby302Button'),
       emby302View: document.querySelector('#emby302View'),
       emby302HeaderStatus: document.querySelector('#emby302HeaderStatus'),
@@ -1995,9 +2214,276 @@
       }
     }
 
+    function systemStatusField(name) {
+      return elements.systemStatusView.querySelector('[data-status-field="' + name + '"]');
+    }
+
+    function setSystemStatusField(name, value, title = '') {
+      const field = systemStatusField(name);
+      if (!field) return;
+      field.textContent = String(value ?? '—');
+      field.title = title || '';
+    }
+
+    function setSystemStatusBadge(name, value, tone = '') {
+      const badge = systemStatusField(name);
+      if (!badge) return;
+      badge.className = 'status-inline-badge' + (tone ? ' ' + tone : '');
+      badge.textContent = value;
+    }
+
+    function formatByteSize(value) {
+      const bytes = Number(value || 0);
+      if (!Number.isFinite(bytes) || bytes < 0) return '—';
+      if (bytes === 0) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+      const unit = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+      const amount = bytes / (1024 ** unit);
+      const digits = amount >= 100 ? 0 : amount >= 10 ? 1 : 2;
+      return amount.toLocaleString('zh-CN', { maximumFractionDigits: digits }) + ' ' + units[unit];
+    }
+
+    function formatUptime(value) {
+      let seconds = Math.max(0, Number(value || 0));
+      if (!Number.isFinite(seconds)) return '—';
+      const days = Math.floor(seconds / 86400);
+      seconds %= 86400;
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      if (days) return days + ' 天 ' + hours + ' 小时';
+      if (hours) return hours + ' 小时 ' + minutes + ' 分钟';
+      return Math.max(1, minutes) + ' 分钟';
+    }
+
+    function formatStatusDateTime(value) {
+      if (!value) return '—';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      const pad = (number) => String(number).padStart(2, '0');
+      return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate())
+        + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+    }
+
+    function renderStatusService(name, values) {
+      const card = elements.systemStatusView.querySelector('[data-service="' + name + '"]');
+      if (!card) return;
+      const stateName = ['online', 'degraded'].includes(values.state) ? values.state : 'offline';
+      card.dataset.state = stateName;
+      card.querySelector('[data-role="state"]').textContent = values.stateLabel;
+      const primary = card.querySelector('[data-role="primary"]');
+      primary.textContent = values.primary;
+      primary.title = values.primary;
+      const summary = card.querySelector('[data-role="summary"]');
+      summary.textContent = values.summary;
+      summary.title = values.summary;
+      card.querySelector('[data-role="meta-left"]').textContent = values.metaLeft;
+      card.querySelector('[data-role="meta-right"]').textContent = values.metaRight;
+    }
+
+    function renderSystemStatus(data) {
+      if (!data) return;
+      const openList = data.openList || {};
+      const emby = data.emby || {};
+      const baidu = data.baidu || {};
+      const app = data.app || {};
+      const automation = data.automation || {};
+      const gateway = data.gateway302 || {};
+      const metrics = data.data || {};
+      const paths = data.paths || {};
+      const overallLabels = {
+        healthy: ['全部正常', 'online'],
+        degraded: ['部分服务需处理', 'pending'],
+        offline: ['依赖服务异常', 'error'],
+      };
+      const [overallLabel, overallTone] = overallLabels[data.overall] || overallLabels.degraded;
+      elements.systemStatusOverall.className = 'gateway-status ' + overallTone;
+      elements.systemStatusOverall.textContent = overallLabel;
+      elements.systemStatusNavDot.className = 'status-nav-dot ' + (data.overall || 'degraded');
+      elements.systemStatusNavDot.setAttribute('aria-label', overallLabel);
+
+      const openListState = openList.connected
+        ? (openList.status === 'degraded' ? 'degraded' : 'online') : 'offline';
+      renderStatusService('openlist', {
+        state: openListState,
+        stateLabel: openListState === 'online' ? '在线' : openListState === 'degraded' ? '部分异常' : '离线',
+        primary: openList.connected
+          ? (openList.siteTitle || 'OpenList') + (openList.version ? ' · ' + openList.version : '')
+          : '连接失败',
+        summary: openList.error || (String(openList.activeStorageCount || 0) + ' / ' + String(openList.storageCount || 0) + ' 个挂载可用'),
+        metaLeft: openList.connected ? String(openList.latencyMs || 0) + ' ms' : '—',
+        metaRight: String(openList.activeStorageCount || 0) + ' / ' + String(openList.storageCount || 0),
+      });
+
+      const embyState = emby.connected ? 'online' : emby.configured ? 'offline' : 'degraded';
+      renderStatusService('emby', {
+        state: embyState,
+        stateLabel: emby.connected ? '在线' : emby.configured ? '连接失败' : '未配置',
+        primary: emby.connected ? (emby.serverName || 'Emby') : emby.configured ? '连接失败' : '尚未配置',
+        summary: emby.error || emby.operatingSystem || '媒体服务器连接正常',
+        metaLeft: emby.connected ? String(emby.latencyMs || 0) + ' ms' : '—',
+        metaRight: emby.version || '—',
+      });
+
+      const baiduState = baidu.available && baidu.loggedIn ? 'online' : baidu.available ? 'degraded' : 'offline';
+      const expiry = baidu.expiresAt
+        ? formatStatusDateTime(baidu.expiresAt)
+        : baidu.tokenExpiresIn || '—';
+      renderStatusService('baidu', {
+        state: baiduState,
+        stateLabel: baidu.loggedIn ? '已授权' : baidu.available ? '待授权' : 'CLI 不可用',
+        primary: baidu.loggedIn ? baidu.username || '已授权账号' : '未授权',
+        summary: baidu.error || (baidu.loggedIn ? '百度网盘授权有效，自动追更可正常调用。' : '请前往系统设置完成网盘授权。'),
+        metaLeft: baidu.version ? 'bdpan ' + baidu.version : '—',
+        metaRight: expiry,
+      });
+
+      const appState = app.databaseConnected ? 'online' : 'degraded';
+      renderStatusService('strmflow', {
+        state: appState,
+        stateLabel: app.databaseConnected ? '运行中' : '数据库异常',
+        primary: 'StrmFlow ' + (app.version ? 'v' + app.version.replace(/^v/, '') : ''),
+        summary: app.databaseConnected ? '服务与 SQLite 数据库运行正常。' : 'SQLite 连接检查未通过。',
+        metaLeft: formatUptime(app.uptimeSeconds),
+        metaRight: app.databaseConnected ? (app.database || 'SQLite') + ' 正常' : '连接异常',
+      });
+
+      const quota = baidu.quota || {};
+      const quotaPercent = Math.max(0, Math.min(100, Number(quota.usedPercent || 0)));
+      setSystemStatusBadge(
+        'quota-badge',
+        quota.available ? '已更新' : quota.supported === false ? 'CLI 未提供' : '暂不可用',
+        quota.available ? 'online' : 'warning',
+      );
+      setSystemStatusField('quota-used', quota.available ? formatByteSize(quota.usedBytes) : '—');
+      setSystemStatusField('quota-total', quota.available ? formatByteSize(quota.totalBytes) : '—');
+      setSystemStatusField('quota-percent', quota.available ? quotaPercent.toFixed(1) + '%' : '—');
+      setSystemStatusField('quota-free', quota.available ? formatByteSize(quota.freeBytes) : '—');
+      setSystemStatusField('quota-source-name', quota.source || 'bdpan CLI');
+      setSystemStatusField('quota-source', quota.available
+        ? '当前账号：' + (baidu.username || '已授权账号') + ' · 容量由 ' + (quota.source || 'bdpan CLI') + ' 返回'
+        : quota.error || '暂未获取网盘容量');
+      const quotaBar = systemStatusField('quota-bar');
+      quotaBar.style.width = (quota.available ? quotaPercent : 0) + '%';
+      quotaBar.className = 'capacity-meter-bar' + (quotaPercent >= 90 ? ' danger' : quotaPercent >= 75 ? ' warning' : '');
+      quotaBar.parentElement.setAttribute('aria-valuenow', String(Math.round(quotaPercent)));
+
+      const automationActive = Boolean(automation.enabled && automation.schedulerRunning);
+      setSystemStatusBadge(
+        'automation-badge',
+        automation.checking ? '正在检查' : automationActive ? '自动追更中' : automation.enabled ? '调度异常' : '未启用',
+        automation.checking || automationActive ? 'online' : automation.enabled ? 'error' : '',
+      );
+      setSystemStatusField('automation-watched', String(automation.watchedCount || 0) + ' 个');
+      setSystemStatusField('automation-initialized', String(automation.initializedCount || 0) + ' 个');
+      setSystemStatusField('automation-pending', String(automation.pendingSyncCount || 0) + ' 个');
+      setSystemStatusField('automation-interval', automation.checkIntervalMinutes ? String(automation.checkIntervalMinutes) + ' 分钟' : '—');
+      setSystemStatusField('automation-next', automation.enabled ? formatStatusDateTime(automation.nextCheckAt) : '自动检查已关闭');
+      setSystemStatusField('automation-last', formatStatusDateTime(automation.lastCheckedAt));
+
+      setSystemStatusBadge('database-badge', metrics.databaseConnected ? 'SQLite 正常' : '数据库异常', metrics.databaseConnected ? 'online' : 'error');
+      setSystemStatusField('data-media', String(metrics.mediaCount || 0) + ' 个');
+      setSystemStatusField('data-ongoing', String(metrics.ongoingCount || 0) + ' 个');
+      setSystemStatusField('data-completed', String(metrics.completedCount || 0) + ' 个');
+      setSystemStatusField('data-synced', String(metrics.syncedFileCount || 0) + ' 个');
+      const activeTransfers = Number(metrics.queuedTransferCount || 0) + Number(metrics.runningTransferCount || 0);
+      setSystemStatusField('data-transfers', String(metrics.transferCount || 0) + (activeTransfers ? ' · ' + activeTransfers + ' 进行中' : ' 个'));
+      setSystemStatusField('data-failed', String(metrics.failedTransferCount || 0) + ' 个');
+
+      const gatewayTone = gateway.running ? 'online' : gateway.enabled ? 'error' : '';
+      setSystemStatusBadge('gateway-badge', gateway.running ? '运行中' : gateway.enabled ? '启动异常' : '未启用', gatewayTone);
+      setSystemStatusField('gateway-listen', gateway.listenAddress || '—', gateway.listenAddress || '');
+      setSystemStatusField('gateway-requests', Number(gateway.totalRequests || 0).toLocaleString('zh-CN'));
+      setSystemStatusField('gateway-redirects', Number(gateway.redirects || 0).toLocaleString('zh-CN'));
+      setSystemStatusField('gateway-hit-rate', String(gateway.cacheHitRate || 0) + '%');
+      setSystemStatusField('gateway-cache', String(gateway.cacheEntries || 0) + ' 个');
+      setSystemStatusField('gateway-errors', String(gateway.errors || 0) + ' 个');
+
+      const storages = Array.isArray(openList.storages) ? openList.storages : [];
+      elements.systemStatusStorageList.replaceChildren();
+      setSystemStatusField('storage-summary', openList.connected
+        ? String(openList.activeStorageCount || 0) + ' 个正常，' + String(openList.failedStorageCount || 0) + ' 个异常，共 ' + String(openList.storageCount || 0) + ' 个挂载。'
+        : openList.error || 'OpenList 未连接。');
+      setSystemStatusBadge(
+        'storage-badge',
+        openList.connected ? String(openList.activeStorageCount || 0) + ' / ' + String(openList.storageCount || 0) + ' 正常' : '读取失败',
+        !openList.connected ? 'error' : Number(openList.failedStorageCount || 0) > 0 ? 'warning' : 'online',
+      );
+      if (storages.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'status-storage-empty';
+        empty.textContent = openList.connected ? '暂无 OpenList 挂载' : '连接 OpenList 后显示挂载状态';
+        elements.systemStatusStorageList.append(empty);
+      } else {
+        for (const storage of storages) {
+          const row = document.createElement('div');
+          row.className = 'status-storage-item';
+          const dot = document.createElement('span');
+          dot.className = 'status-storage-dot' + (storage.status === 'online' ? '' : ' ' + (storage.status || 'error'));
+          const name = document.createElement('div');
+          name.className = 'status-storage-name';
+          const path = document.createElement('strong');
+          path.textContent = storage.mountPath || '/';
+          path.title = path.textContent;
+          const driver = document.createElement('span');
+          driver.textContent = storage.driver || '未知驱动';
+          name.append(path, driver);
+          const stateLabel = document.createElement('span');
+          stateLabel.className = 'status-storage-state';
+          stateLabel.textContent = storage.status === 'online' ? '正常' : storage.status === 'disabled' ? '已禁用' : '异常';
+          row.append(dot, name, stateLabel);
+          elements.systemStatusStorageList.append(row);
+        }
+      }
+
+      setSystemStatusField('openlist-internal', openList.internalUrl || '未配置', openList.internalUrl || '');
+      setSystemStatusField('openlist-external', openList.externalUrl || '未配置', openList.externalUrl || '');
+      setSystemStatusField('emby-internal', emby.internalUrl || '未配置', emby.internalUrl || '');
+      setSystemStatusField('emby-external', emby.externalUrl || '未配置', emby.externalUrl || '');
+      setSystemStatusField('source-root', paths.sourceRoot || '未配置', paths.sourceRoot || '');
+      setSystemStatusField('target-root', paths.targetRoot || '未配置', paths.targetRoot || '');
+      elements.systemStatusUpdatedAt.textContent = '状态更新于 ' + formatStatusDateTime(data.checkedAt)
+        + ' · 每 30 秒自动刷新';
+    }
+
+    function scheduleSystemStatusRefresh() {
+      clearTimeout(state.systemStatusTimer);
+      state.systemStatusTimer = null;
+      if (elements.systemStatusView.hidden) return;
+      state.systemStatusTimer = setTimeout(() => loadSystemStatus(false), 30000);
+    }
+
+    async function loadSystemStatus(refresh = false) {
+      if (state.systemStatusLoading) return;
+      state.systemStatusLoading = true;
+      elements.systemStatusRefresh.disabled = true;
+      try {
+        const data = await api('/api/status/overview' + (refresh ? '?refresh=1' : ''));
+        state.systemStatusData = data;
+        renderSystemStatus(data);
+        if (refresh) setStatus('全部状态已刷新。', 'success');
+      } catch (error) {
+        elements.systemStatusOverall.className = 'gateway-status error';
+        elements.systemStatusOverall.textContent = '读取失败';
+        elements.systemStatusNavDot.className = 'status-nav-dot offline';
+        elements.systemStatusNavDot.setAttribute('aria-label', '状态读取失败');
+        elements.systemStatusUpdatedAt.textContent = '状态读取失败：' + error.message;
+      } finally {
+        state.systemStatusLoading = false;
+        elements.systemStatusRefresh.disabled = state.busy;
+        scheduleSystemStatusRefresh();
+      }
+    }
+
+    async function openSystemStatus() {
+      showView('status');
+      if (state.systemStatusData) renderSystemStatus(state.systemStatusData);
+      await loadSystemStatus(false);
+    }
+
     function setActiveNav(name) {
       const navigation = [
         ['media', elements.mediaNav],
+        ['status', elements.systemStatus],
         ['emby302', elements.emby302],
         ['logs', elements.logs],
         ['settings', elements.settings],
@@ -2014,6 +2500,7 @@
     function showView(name) {
       const views = [
         ['media', elements.mediaView],
+        ['status', elements.systemStatusView],
         ['emby302', elements.emby302View],
         ['logs', elements.logsView],
         ['settings', elements.settingsView],
@@ -2023,6 +2510,10 @@
       if (name !== 'settings') {
         clearTimeout(state.bdpanTimer);
         state.bdpanTimer = null;
+      }
+      if (name !== 'status') {
+        clearTimeout(state.systemStatusTimer);
+        state.systemStatusTimer = null;
       }
       setActiveNav(name);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -3516,6 +4007,8 @@
       if (event.target === elements.modal) requestCloseEditor();
     });
     elements.mediaNav.addEventListener('click', () => showView('media'));
+    elements.systemStatus.addEventListener('click', openSystemStatus);
+    elements.systemStatusRefresh.addEventListener('click', () => loadSystemStatus(true));
     elements.emby302.addEventListener('click', openEmby302);
     elements.emby302Refresh.addEventListener('click', () => loadEmby302(false));
     elements.emby302CacheClear.addEventListener('click', clearEmby302Cache);

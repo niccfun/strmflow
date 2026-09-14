@@ -14,6 +14,11 @@ async def health() -> dict[str, Any]:
     return ok({"ok": True})
 
 
+@router.get("/status/overview")
+async def status_overview(request: Request, refresh: int = Query(default=0)) -> dict[str, Any]:
+    return ok(await services(request).system_status.snapshot(refresh=refresh == 1))
+
+
 @router.get("/config")
 async def config(request: Request) -> dict[str, Any]:
     container = services(request)

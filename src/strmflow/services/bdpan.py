@@ -251,6 +251,8 @@ class BdpanCli:
                 "available": False,
                 "loggedIn": False,
                 "username": "",
+                "expiresAt": "",
+                "tokenExpiresIn": "",
                 "version": "",
                 "binary": selected,
             }
@@ -261,6 +263,8 @@ class BdpanCli:
         version_match = re.search(r"bdpan:\s*([^\s]+)", version_result.stdout)
         logged_in = False
         username = ""
+        expires_at = ""
+        token_expires_in = ""
         try:
             identity = await self.execute(
                 self.command(
@@ -276,6 +280,8 @@ class BdpanCli:
             logged_in = bool(payload.get("authenticated") and payload.get("has_valid_token", True))
             if logged_in:
                 username = str(payload.get("username") or "").strip()[:100]
+                expires_at = str(payload.get("expires_at") or "").strip()[:100]
+                token_expires_in = str(payload.get("token_expires_in") or "").strip()[:100]
         except BdpanCliError:
             # Older bdpan releases may not support JSON output for whoami.
             try:
@@ -287,12 +293,19 @@ class BdpanCli:
                 match = re.search(r"(?:用户名|账号)\s*[：:]\s*([^\r\n]+)", identity.stdout)
                 if logged_in and match:
                     username = match.group(1).strip()[:100]
+                expiry_match = re.search(
+                    r"Token\s*有效期至\s*[：:]\s*([^\r\n]+)", identity.stdout, re.IGNORECASE
+                )
+                if logged_in and expiry_match:
+                    expires_at = expiry_match.group(1).strip()[:100]
             except BdpanCliError:
                 pass
         return {
             "available": True,
             "loggedIn": logged_in,
             "username": username,
+            "expiresAt": expires_at,
+            "tokenExpiresIn": token_expires_in,
             "version": (
                 version_match.group(1)
                 if version_match
@@ -300,6 +313,44 @@ class BdpanCli:
             ),
             "binary": executable,
         }
+
+    async def quota(self, binary: str | None = None) -> dict[str, Any]:
+        """Read account capacity exclusively through the configured bdpan CLI.
+
+        The adapter does not inspect bdpan's credential file or borrow an OAuth
+        token from another service. Different CLI builds may return quota values
+        at the top level or wrap them in ``data``/``quota``; all three layouts
+        are accepted here.
+        """
+        selected = str(binary or self.settings.bdpan_binary)
+        executable = self.executable(selected)
+        if not executable:
+            return self._empty_quota(
+                f"未找到 bdpan 二进制：{selected}",
+                supported=False,
+            )
+        try:
+            result = await self.execute(
+                self.command(
+                    ["quota"],
+                    binary=executable,
+                    json_output=True,
+                ),
+                timeout=30,
+                require_json=True,
+            )
+        except BdpanCliError as exc:
+            message = str(exc).strip()
+            unsupported = "unknown command" in message.casefold()
+            return self._empty_quota(
+                "当前 bdpan CLI 版本未提供容量查询命令" if unsupported else message,
+                supported=not unsupported,
+            )
+
+        quota = self._quota_values(result.payload)
+        if quota is None:
+            return self._empty_quota("bdpan CLI 返回的容量数据格式不受支持")
+        return quota
 
     async def start_login(self, binary: str | None = None) -> str:
         argv = self.command(
@@ -345,6 +396,77 @@ class BdpanCli:
                 if secret:
                     result = result.replace(secret, "[提取码已隐藏]")
         return result
+
+    @classmethod
+    def _quota_values(cls, payload: Any) -> dict[str, Any] | None:
+        if not isinstance(payload, dict):
+            return None
+        candidates = [payload]
+        for key in ("data", "quota"):
+            nested = payload.get(key)
+            if isinstance(nested, dict):
+                candidates.append(nested)
+                inner_quota = nested.get("quota")
+                if isinstance(inner_quota, dict):
+                    candidates.append(inner_quota)
+
+        for candidate in candidates:
+            total = cls._quota_integer(
+                candidate,
+                "total",
+                "total_space",
+                "totalSpace",
+                "total_bytes",
+                "totalBytes",
+            )
+            used = cls._quota_integer(
+                candidate,
+                "used",
+                "used_space",
+                "usedSpace",
+                "used_bytes",
+                "usedBytes",
+            )
+            if total is None or used is None or total <= 0:
+                continue
+            total = max(0, total)
+            used = max(0, used)
+            return {
+                "available": True,
+                "supported": True,
+                "totalBytes": total,
+                "usedBytes": used,
+                "freeBytes": max(0, total - used),
+                "usedPercent": round(min(used / total * 100, 100), 1),
+                "source": "bdpan CLI",
+                "error": "",
+            }
+        return None
+
+    @staticmethod
+    def _quota_integer(payload: dict[str, Any], *keys: str) -> int | None:
+        for key in keys:
+            value = payload.get(key)
+            if isinstance(value, bool) or value is None or value == "":
+                continue
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                continue
+        return None
+
+    @staticmethod
+    def _empty_quota(error: str, *, supported: bool = True) -> dict[str, Any]:
+        return {
+            "available": False,
+            "supported": supported,
+            "totalBytes": 0,
+            "usedBytes": 0,
+            "freeBytes": 0,
+            "usedPercent": 0,
+            "source": "bdpan CLI",
+            "error": error[:300],
+        }
 
     @classmethod
     def _error_details(cls, payload: Any, fallback: str) -> tuple[str, str]:

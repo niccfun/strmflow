@@ -30,10 +30,20 @@ def test_index_has_unique_element_ids() -> None:
     sidebar_start = template.index('id="sidebar"')
     sidebar_end = template.index("</aside>", sidebar_start)
     assert sidebar_start < template.index('id="settingsButton"') < sidebar_end
+    assert sidebar_start < template.index('id="systemStatusButton"') < sidebar_end
     assert sidebar_start < template.index('id="logsButton"') < sidebar_end
     assert sidebar_start < template.index('id="emby302Button"') < sidebar_end
     assert sidebar_start < template.index('id="aboutButton"') < sidebar_end
     assert 'id="mediaView"' in template
+    assert 'id="systemStatusView"' in template
+    assert 'id="systemStatusOverall"' in template
+    assert 'id="systemStatusStorageList"' in template
+    assert 'id="systemStatusRefreshButton"' in template
+    assert "showView('status')" in template
+    assert "'/api/status/overview'" in template
+    assert 'data-status-field="quota-used"' in template
+    assert 'data-status-field="quota-total"' in template
+    assert "formatByteSize" in template
     assert "media-kind-mark" in template
     assert "episode-summary" in template
     assert "episode-total-tag" in template
