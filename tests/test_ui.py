@@ -89,6 +89,20 @@ def test_index_has_unique_element_ids() -> None:
     assert "showView('logs')" in template
     assert "showView('about')" in template
     assert "strmflow.logs" in template
+    assert 'id="bdpanSettingsTitle"' in template
+    assert 'id="bdpanEnabledInput"' in template
+    assert 'id="bdpanBinaryInput"' in template
+    assert 'id="bdpanSaveRootInput"' in template
+    assert 'id="bdpanIntervalInput"' in template
+    assert 'id="bdpanLoginStartButton"' in template
+    assert 'id="bdpanDisclaimerInput"' in template
+    assert 'id="bdpanAuthorizationCodeInput"' in template
+    assert 'id="bdpanWatchList"' in template
+    assert "'/api/bdpan'" in template
+    assert "'/api/bdpan/check'" in template
+    assert "首次检查只建立基线" in template
+    assert "百度网盘分享链接（用于自动追更）" in template
+    assert "v0.2.0" in template
     assert 'id="sourceFolderInput"' in template
     assert 'id="sourceTypeInput"' in template
     assert 'id="refreshSourcesButton"' in template

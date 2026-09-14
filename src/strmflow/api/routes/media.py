@@ -41,12 +41,17 @@ async def list_items(request: Request) -> dict[str, Any]:
 
 @router.post("/items/save")
 async def save_item(body: MediaItemInput, request: Request) -> dict[str, Any]:
-    return ok({"item": await services(request).media.save_item(body)})
+    container = services(request)
+    item = await container.media.save_item(body)
+    await container.bdpan.media_updated(item)
+    return ok({"item": item})
 
 
 @router.post("/items/delete")
 async def delete_item(body: IdRequest, request: Request) -> dict[str, Any]:
-    await services(request).media.delete_item(body.id)
+    container = services(request)
+    await container.media.delete_item(body.id)
+    await container.bdpan.forget_item(body.id)
     return ok({"deleted": True})
 
 

@@ -11,6 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from strmflow import __version__
 from strmflow.api.deps import require_auth
 from strmflow.api.router import router
 from strmflow.container import build_container
@@ -64,6 +65,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await app.state.services.legacy_importer.run_once()
                 await app.state.services.emby302.initialize()
                 await app.state.services.emby302.start_configured()
+                await app.state.services.bdpan.initialize()
                 runtime_logs.add(
                     category="system",
                     level="success",
@@ -72,6 +74,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 try:
                     yield
                 finally:
+                    await app.state.services.bdpan.close()
                     await app.state.services.emby302.close()
                     await app.state.services.transfers.close()
         finally:
@@ -79,7 +82,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="StrmFlow API",
-        version="0.1.0",
+        version=__version__,
         description="OpenList STRM 追更、Emby 发布及可插拔转存服务",
         lifespan=lifespan,
     )
@@ -167,8 +170,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             path=request.url.path,
             errorCount=len(exc.errors()),
         )
+        details = [
+            {key: value for key, value in error.items() if key not in {"input", "url"}}
+            for error in exc.errors()
+        ]
         return JSONResponse(
-            {"ok": False, "error": "请求参数不合法", "details": exc.errors()},
+            {
+                "ok": False,
+                "error": "请求参数不合法",
+                "details": details,
+            },
             status_code=422,
             headers={"Cache-Control": "no-store"},
         )

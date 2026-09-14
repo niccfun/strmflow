@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import json
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -58,30 +57,11 @@ class Settings(BaseSettings):
     bdpan_enabled: bool = False
     bdpan_binary: str = "bdpan"
     bdpan_timeout: int = Field(default=3600, gt=0)
-    bdpan_transfer_args: list[str] = Field(
-        default_factory=lambda: [
-            "transfer",
-            "--share-url",
-            "{share_url}",
-            "--destination",
-            "{destination}",
-            "--extract-code",
-            "{extract_code}",
-        ]
-    )
+    bdpan_check_interval_minutes: int = Field(default=10, ge=5, le=1440)
+    bdpan_save_root: str = "StrmFlow"
+    bdpan_settle_seconds: int = Field(default=90, ge=30, le=1800)
+    bdpan_max_new_items: int = Field(default=20, ge=1, le=100)
     transfer_job_retention: int = Field(default=200, ge=10, le=10_000)
-
-    @field_validator("bdpan_transfer_args", mode="before")
-    @classmethod
-    def parse_bdpan_args(cls, value: object) -> object:
-        if not isinstance(value, str):
-            return value
-        text = value.strip()
-        if not text:
-            return []
-        if text.startswith("["):
-            return json.loads(text)
-        return text.split()
 
     @model_validator(mode="after")
     def validate_pairs(self) -> Settings:

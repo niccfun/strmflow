@@ -12,6 +12,8 @@ from strmflow.repositories import (
     RuntimeSettingsRepository,
     TransferJobRepository,
 )
+from strmflow.services.bdpan import BdpanCli
+from strmflow.services.bdpan_automation import BdpanAutomationService
 from strmflow.services.emby import EmbyClient
 from strmflow.services.emby302 import Emby302Gateway
 from strmflow.services.legacy_import import LegacyJsonImporter
@@ -33,6 +35,7 @@ class ServiceContainer:
     legacy_importer: LegacyJsonImporter
     path_config: PathConfigService
     emby302: Emby302Gateway
+    bdpan: BdpanAutomationService
 
 
 def build_container(
@@ -47,7 +50,12 @@ def build_container(
     storage = StorageService(settings, openlist, path_config)
     media_repository = MediaRepository(database.sessions)
     transfer_repository = TransferJobRepository(database.sessions, settings.transfer_job_retention)
-    transfers = TransferManager(settings, [BdpanTransferProvider(settings)], transfer_repository)
+    bdpan_cli = BdpanCli(settings)
+    transfers = TransferManager(
+        settings, [BdpanTransferProvider(settings, bdpan_cli)], transfer_repository
+    )
+    media = MediaService(settings, openlist, storage, media_repository, path_config)
+    emby = EmbyClient(settings, emby_http)
     emby302 = Emby302Gateway(
         settings,
         emby_http,
@@ -55,14 +63,25 @@ def build_container(
         RuntimeSettingsRepository(database.sessions),
         runtime_logs,
     )
+    bdpan = BdpanAutomationService(
+        settings,
+        bdpan_cli,
+        RuntimeSettingsRepository(database.sessions),
+        media,
+        openlist,
+        emby,
+        path_config,
+        runtime_logs,
+    )
     return ServiceContainer(
         database=database,
         openlist=openlist,
         storage=storage,
-        media=MediaService(settings, openlist, storage, media_repository, path_config),
-        emby=EmbyClient(settings, emby_http),
+        media=media,
+        emby=emby,
         transfers=transfers,
         legacy_importer=LegacyJsonImporter(settings, database.sessions, media_repository, openlist),
         path_config=path_config,
         emby302=emby302,
+        bdpan=bdpan,
     )

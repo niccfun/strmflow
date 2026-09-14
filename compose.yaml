@@ -9,6 +9,8 @@ services:
       - "18096:18096"
     volumes:
       - ./data:/app/data
+      # 持久化 bdpan OAuth 配置；不要将该目录提交到仓库。
+      - ./data/bdpan:/root/.config/bdpan
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

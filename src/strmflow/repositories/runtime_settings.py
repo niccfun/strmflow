@@ -9,6 +9,8 @@ from strmflow.infrastructure.orm import AppMetadataRow
 
 PATH_CONFIG_KEY = "runtime_path_config_v1"
 EMBY302_CONFIG_KEY = "runtime_emby302_config_v1"
+BDPAN_CONFIG_KEY = "runtime_bdpan_config_v1"
+BDPAN_WATCH_STATE_KEY = "runtime_bdpan_watch_state_v1"
 
 
 class RuntimeSettingsRepository:
@@ -26,6 +28,18 @@ class RuntimeSettingsRepository:
 
     async def save_emby302(self, value: dict[str, Any]) -> None:
         await self._save(EMBY302_CONFIG_KEY, value)
+
+    async def load_bdpan(self) -> dict[str, Any] | None:
+        return await self._load(BDPAN_CONFIG_KEY)
+
+    async def save_bdpan(self, value: dict[str, Any]) -> None:
+        await self._save(BDPAN_CONFIG_KEY, value)
+
+    async def load_bdpan_watch_states(self) -> dict[str, Any] | None:
+        return await self._load(BDPAN_WATCH_STATE_KEY)
+
+    async def save_bdpan_watch_states(self, value: dict[str, Any]) -> None:
+        await self._save(BDPAN_WATCH_STATE_KEY, value)
 
     async def _load(self, key: str) -> dict[str, Any] | None:
         async with self.sessions() as session:

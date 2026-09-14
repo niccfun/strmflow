@@ -122,6 +122,23 @@ class Emby302ConfigUpdate(ApiModel):
         return url
 
 
+class BdpanAutomationConfigUpdate(ApiModel):
+    enabled: bool = False
+    binary: str = Field(default="bdpan", min_length=1, max_length=500)
+    check_interval_minutes: int = Field(default=10, ge=5, le=1440)
+    save_root: str = Field(default="StrmFlow", min_length=1, max_length=700)
+    settle_seconds: int = Field(default=90, ge=30, le=1800)
+    max_new_items: int = Field(default=20, ge=1, le=100)
+
+
+class BdpanLoginCompleteRequest(ApiModel):
+    code: str = Field(min_length=32, max_length=32, pattern=r"^[A-Fa-f0-9]{32}$")
+
+
+class BdpanLoginStartRequest(ApiModel):
+    accepted: bool = False
+
+
 class TransferJob(ApiModel):
     id: str
     provider: str

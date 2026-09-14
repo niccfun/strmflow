@@ -162,11 +162,65 @@ def test_bdpan_command_preview_is_available_while_execution_disabled(tmp_path) -
         assert preview.status_code == 200
         command = preview.json()["data"]["command"]
         assert command[0] == "bdpan"
-        assert "https://pan.baidu.com/s/example" in command
-        assert "/影视/待整理" in command
+        assert command[1:3] == ["transfer", "https://pan.baidu.com/s/example"]
+        assert command[command.index("-d") + 1] == "影视/待整理"
+        assert "--json" in command
+        assert "--no-check-update" in command
+        assert "--agentname" in command
+        assert "abcd" not in command
+        assert "[已隐藏]" in command
 
         create = client.post("/api/transfers", headers=headers, json=payload)
         assert create.status_code == 503
+
+
+def test_bdpan_runtime_config_is_available_when_cli_is_missing(tmp_path) -> None:
+    app = create_app(
+        Settings(
+            app_password="secret",
+            openlist_token="token",
+            bdpan_binary="/definitely/missing/bdpan",
+            database_url=f"sqlite+aiosqlite:///{tmp_path}/app.db",
+            legacy_json_import=False,
+        )
+    )
+    encoded = b64encode(b"admin:secret").decode()
+    headers = {"Authorization": f"Basic {encoded}"}
+    with TestClient(app) as client:
+        status = client.get("/api/bdpan", headers=headers)
+        assert status.status_code == 200
+        assert status.json()["data"]["runtime"]["available"] is False
+
+        updated = client.put(
+            "/api/bdpan",
+            headers=headers,
+            json={
+                "enabled": False,
+                "binary": "/definitely/missing/bdpan",
+                "checkIntervalMinutes": 15,
+                "saveRoot": "StrmFlow",
+                "settleSeconds": 120,
+                "maxNewItems": 10,
+            },
+        )
+        assert updated.status_code == 200
+        assert updated.json()["data"]["config"]["checkIntervalMinutes"] == 15
+
+        disclaimer = client.post(
+            "/api/bdpan/login/start",
+            headers=headers,
+            json={"accepted": False},
+        )
+        assert disclaimer.status_code == 400
+
+        secret_like_code = "a" * 31
+        invalid = client.post(
+            "/api/bdpan/login/complete",
+            headers=headers,
+            json={"code": secret_like_code},
+        )
+        assert invalid.status_code == 422
+        assert secret_like_code not in invalid.text
 
 
 def test_emby302_gateway_can_be_started_and_stopped(tmp_path) -> None:

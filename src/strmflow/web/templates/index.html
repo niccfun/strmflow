@@ -340,7 +340,8 @@
     .media-detail-edit-heading span { color: var(--muted); font-size: 10px; }
     .target-panel.detail-mode .media-detail-edit-heading { display: flex; }
     .settings-help { color: var(--muted); font-size: 12px; }
-    .settings-content { width: min(980px, 100%); display: grid; gap: 20px; }
+    .settings-page { width: min(1180px, 100%); display: grid; gap: 16px; }
+    .settings-content { width: 100%; display: grid; gap: 20px; }
     .settings-section-title { padding-bottom: 12px; border-bottom: 1px solid var(--border); }
     .settings-section-title h3 { margin: 0; font-size: 16px; }
     .settings-section-title p { margin-top: 3px; color: var(--muted); font-size: 12px; }
@@ -353,6 +354,37 @@
     .path-flow-arrow { align-self: center; justify-self: center; width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--border); border-color: color-mix(in srgb, var(--primary) 24%, var(--border)); border-radius: 50%; background: var(--primary-soft); color: var(--primary-soft-text); box-shadow: 0 8px 20px rgb(79 70 229 / 16%); }
     .path-flow-arrow svg { width: 21px; height: 21px; stroke-width: 2; }
     .page-form-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; }
+    .bdpan-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+    .bdpan-title-copy { min-width: 0; }
+    .bdpan-title-copy h3 { display: flex; align-items: center; gap: 8px; }
+    .bdpan-official-badge { display: inline-flex; padding: 2px 7px; border: 1px solid var(--success-border); border-radius: 999px; background: var(--success-soft); color: var(--success-text); font-size: 9px; font-weight: 800; letter-spacing: .04em; }
+    .bdpan-status-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .bdpan-status-card { min-width: 0; display: grid; gap: 4px; padding: 13px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .bdpan-status-card span { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .04em; }
+    .bdpan-status-card strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+    .bdpan-settings-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; }
+    .bdpan-binary-field, .bdpan-root-field { grid-column: span 3; }
+    .bdpan-binary-field input, .bdpan-root-field input { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .bdpan-callout { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 15px 16px; border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border)); border-radius: var(--radius-md); background: var(--primary-soft); }
+    .bdpan-callout-copy { display: grid; gap: 3px; min-width: 0; }
+    .bdpan-callout-copy strong { color: var(--primary-soft-text); font-size: 13px; }
+    .bdpan-callout-copy span { color: var(--muted); font-size: 11px; }
+    .bdpan-consent { display: flex; align-items: flex-start; gap: 7px; margin-top: 5px; color: var(--muted); font-size: 10px; cursor: pointer; }
+    .bdpan-consent input { width: 14px; height: 14px; flex: 0 0 auto; margin: 1px 0 0; accent-color: var(--primary); }
+    .bdpan-auth-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .bdpan-login-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, .65fr) auto; align-items: end; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .bdpan-auth-link { align-self: end; min-height: 41px; color: var(--primary-soft-text); background: var(--primary-soft); font-weight: 650; }
+    .bdpan-watch-panel { display: grid; gap: 10px; }
+    .bdpan-watch-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .bdpan-watch-head span { color: var(--muted); font-size: 11px; }
+    .bdpan-watch-list { display: grid; gap: 7px; }
+    .bdpan-watch { min-width: 0; display: grid; grid-template-columns: minmax(150px, .8fr) minmax(220px, 1.25fr) minmax(160px, .8fr) auto; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-soft); }
+    .bdpan-watch-main, .bdpan-watch-result { min-width: 0; display: grid; gap: 2px; }
+    .bdpan-watch-main strong, .bdpan-watch-result span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bdpan-watch-main small, .bdpan-watch-result small { color: var(--muted); font-size: 10px; }
+    .bdpan-watch-path { min-width: 0; overflow: hidden; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .bdpan-watch-error { color: var(--danger-text) !important; }
+    .bdpan-watch-empty { padding: 22px; border: 1px dashed var(--border-strong); border-radius: var(--radius-md); color: var(--muted); text-align: center; }
     .page-title-row { display: flex; align-items: center; gap: 10px; }
     .gateway-status { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; background: var(--panel-soft); color: var(--muted); font-size: 11px; font-weight: 700; }
     .gateway-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
@@ -476,6 +508,9 @@
     @media (max-width: 1280px) {
       .gateway-config-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .gateway-url-field { grid-column: 1 / -1; }
+      .bdpan-settings-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .bdpan-binary-field, .bdpan-root-field { grid-column: span 3; }
+      .bdpan-watch { grid-template-columns: minmax(150px, .8fr) minmax(220px, 1.2fr) minmax(160px, .8fr) auto; }
     }
     @media (max-width: 980px) {
       .app-shell { grid-template-columns: 1fr; }
@@ -530,6 +565,12 @@
       .media-detail-inline > span + span { padding-left: 0; border-left: 0; }
       .gateway-config-grid { grid-template-columns: 1fr; }
       .gateway-url-field { grid-column: auto; }
+      .bdpan-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .bdpan-settings-grid { grid-template-columns: 1fr; }
+      .bdpan-binary-field, .bdpan-root-field { grid-column: auto; }
+      .bdpan-login-panel, .bdpan-watch { grid-template-columns: 1fr; }
+      .bdpan-callout { grid-template-columns: 1fr; }
+      .bdpan-watch-path { white-space: normal; overflow-wrap: anywhere; }
     }
     @media (max-width: 880px) {
       .sidebar { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding-bottom: 8px; }
@@ -785,9 +826,10 @@
           <div class="page-heading">
             <p class="eyebrow">SETTINGS</p>
             <h2 id="settingsViewTitle" class="page-title">系统设置</h2>
-            <p class="muted hero-copy">管理只读源 STRM 根目录与目标 STRM 根目录。</p>
+            <p class="muted hero-copy">管理路径映射，以及百度网盘自动追更与同步。</p>
           </div>
         </header>
+        <div class="settings-page">
         <section class="panel settings-content">
           <div class="settings-section-title">
             <h3>路径配置</h3>
@@ -828,6 +870,96 @@
             <button id="settingsSaveButton" class="primary" type="button">保存设置</button>
           </div>
         </section>
+
+        <section class="panel settings-content" aria-labelledby="bdpanSettingsTitle">
+          <div class="bdpan-title-row settings-section-title">
+            <div class="bdpan-title-copy">
+              <h3 id="bdpanSettingsTitle">百度网盘自动追更 <span class="bdpan-official-badge">官方 bdpan CLI</span></h3>
+              <p>定时只读检查分享目录；发现新增视频后选择性转存，并自动扫描、整理和刷新 Emby。</p>
+            </div>
+            <span id="bdpanHeaderStatus" class="gateway-status offline">正在读取</span>
+          </div>
+
+          <div class="bdpan-status-grid" aria-label="百度网盘自动追更状态">
+            <article class="bdpan-status-card"><span>CLI</span><strong id="bdpanCliStatus">检查中…</strong></article>
+            <article class="bdpan-status-card"><span>网盘授权</span><strong id="bdpanLoginStatus">检查中…</strong></article>
+            <article class="bdpan-status-card"><span>追更媒体</span><strong id="bdpanWatchedStatus">0 个</strong></article>
+            <article class="bdpan-status-card"><span>下次检查</span><strong id="bdpanNextCheckStatus">—</strong></article>
+          </div>
+
+          <label class="gateway-enable-card" for="bdpanEnabledInput">
+            <span>
+              <strong>启用百度网盘自动追更</strong>
+              <small>仅处理“更新中”且已填写百度分享链接的媒体；首次检查只建立基线，不会转存历史文件。</small>
+            </span>
+            <input id="bdpanEnabledInput" type="checkbox">
+            <span class="toggle-switch" aria-hidden="true"></span>
+          </label>
+
+          <div class="bdpan-settings-grid">
+            <div class="field bdpan-binary-field">
+              <label for="bdpanBinaryInput">bdpan 二进制</label>
+              <input id="bdpanBinaryInput" type="text" value="bdpan" placeholder="bdpan 或 /usr/local/bin/bdpan" autocomplete="off">
+              <p class="gateway-field-help">Docker 镜像已安装官方 CLI；本机可运行 scripts/install-bdpan.sh。</p>
+            </div>
+            <div class="field bdpan-root-field">
+              <label for="bdpanSaveRootInput">网盘转存根目录</label>
+              <input id="bdpanSaveRootInput" type="text" value="StrmFlow" placeholder="StrmFlow" autocomplete="off">
+              <p class="gateway-field-help">相对于“我的应用数据/bdpan/”；OpenList 请将此目录挂载为上方只读源根目录。</p>
+            </div>
+            <div class="field">
+              <label for="bdpanIntervalInput">检查间隔（分钟）</label>
+              <input id="bdpanIntervalInput" type="number" value="10" min="5" max="1440" inputmode="numeric">
+            </div>
+            <div class="field">
+              <label for="bdpanSettleInput">转存等待（秒）</label>
+              <input id="bdpanSettleInput" type="number" value="90" min="30" max="1800" inputmode="numeric">
+            </div>
+            <div class="field">
+              <label for="bdpanMaxItemsInput">单次最多新增</label>
+              <input id="bdpanMaxItemsInput" type="number" value="20" min="1" max="100" inputmode="numeric">
+            </div>
+          </div>
+
+          <div class="bdpan-callout">
+            <div class="bdpan-callout-copy">
+              <strong>低频、串行、带抖动的检查策略</strong>
+              <span>最短 5 分钟；目录请求串行执行并留出间隔，失败后指数退避，避免重复提交相同文件。</span>
+              <label class="bdpan-consent" for="bdpanDisclaimerInput">
+                <input id="bdpanDisclaimerInput" type="checkbox">
+                <span>授权前已备份网盘重要数据，并确认当前是可信环境；授权配置不会显示在页面或写入日志。</span>
+              </label>
+            </div>
+            <div class="bdpan-auth-actions">
+              <button id="bdpanRefreshButton" type="button">刷新状态</button>
+              <button id="bdpanCheckButton" type="button">立即检查</button>
+              <button id="bdpanLoginStartButton" class="baidu-button" type="button">获取授权链接</button>
+            </div>
+          </div>
+
+          <div id="bdpanLoginPanel" class="bdpan-login-panel" hidden>
+            <a id="bdpanAuthorizationLink" class="button-like bdpan-auth-link" href="#" target="_blank" rel="noopener noreferrer">在百度网盘打开授权页面 ↗</a>
+            <div class="field">
+              <label for="bdpanAuthorizationCodeInput">网页返回的 32 位授权码</label>
+              <input id="bdpanAuthorizationCodeInput" type="password" minlength="32" maxlength="32" placeholder="授权码仅通过标准输入传给 bdpan" autocomplete="off">
+            </div>
+            <button id="bdpanLoginCompleteButton" class="primary" type="button">完成授权</button>
+          </div>
+
+          <div class="bdpan-watch-panel">
+            <div class="bdpan-watch-head">
+              <strong>追更队列</strong>
+              <span id="bdpanRunningHint">等待调度</span>
+            </div>
+            <div id="bdpanWatchList" class="bdpan-watch-list" aria-live="polite"></div>
+          </div>
+          <div id="bdpanError" class="editor-error" role="alert"></div>
+          <div class="page-form-actions">
+            <button id="bdpanResetButton" type="button">恢复已保存配置</button>
+            <button id="bdpanSaveButton" class="primary" type="button">保存并应用</button>
+          </div>
+        </section>
+        </div>
       </section>
 
       <section id="aboutView" class="app-view" aria-labelledby="aboutViewTitle" hidden>
@@ -842,7 +974,7 @@
           <div class="about-hero">
             <img class="about-logo" src="/static/strmflow.svg" alt="StrmFlow 图标">
             <h3 class="about-name">StrmFlow</h3>
-            <span class="version-pill">v0.1.0</span>
+            <span class="version-pill">v0.2.0</span>
             <p class="about-description">面向 OpenList 与 Emby 的轻量 STRM 媒体自动化管理工具，专注于发现、整理和追更同步。</p>
           </div>
           <div class="about-grid">
@@ -941,8 +1073,9 @@
         </select>
       </div>
       <div class="field wide baidu-link-field">
-        <label for="baiduLinkInput">百度网盘链接（手动转存用）</label>
-        <input id="baiduLinkInput" type="text" placeholder="https://pan.baidu.com/s/..." autocomplete="off">
+        <label for="baiduLinkInput">百度网盘分享链接（用于自动追更）</label>
+        <input id="baiduLinkInput" type="text" placeholder="可粘贴链接与提取码，例如：https://pan.baidu.com/s/... 提取码 abcd" autocomplete="off">
+        <p class="settings-help">仅“更新中”媒体参与定时检查；也支持链接中的 ?pwd=abcd。</p>
       </div>
       <div class="path" id="targetPreview">目标目录：未选择</div>
       <div id="editorError" class="editor-error" role="alert"></div>
@@ -1051,6 +1184,10 @@
       emby302Data: null,
       emby302Snapshot: '',
       emby302Loading: false,
+      bdpanData: null,
+      bdpanSnapshot: '',
+      bdpanLoading: false,
+      bdpanTimer: null,
     };
 
     const elements = {
@@ -1115,6 +1252,30 @@
       settingsListRoot: document.querySelector('#settingsListRootInput'),
       settingsEmbyRoot: document.querySelector('#settingsEmbyRootInput'),
       settingsError: document.querySelector('#settingsError'),
+      bdpanHeaderStatus: document.querySelector('#bdpanHeaderStatus'),
+      bdpanCliStatus: document.querySelector('#bdpanCliStatus'),
+      bdpanLoginStatus: document.querySelector('#bdpanLoginStatus'),
+      bdpanWatchedStatus: document.querySelector('#bdpanWatchedStatus'),
+      bdpanNextCheckStatus: document.querySelector('#bdpanNextCheckStatus'),
+      bdpanEnabled: document.querySelector('#bdpanEnabledInput'),
+      bdpanBinary: document.querySelector('#bdpanBinaryInput'),
+      bdpanSaveRoot: document.querySelector('#bdpanSaveRootInput'),
+      bdpanInterval: document.querySelector('#bdpanIntervalInput'),
+      bdpanSettle: document.querySelector('#bdpanSettleInput'),
+      bdpanMaxItems: document.querySelector('#bdpanMaxItemsInput'),
+      bdpanRefresh: document.querySelector('#bdpanRefreshButton'),
+      bdpanCheck: document.querySelector('#bdpanCheckButton'),
+      bdpanLoginStart: document.querySelector('#bdpanLoginStartButton'),
+      bdpanDisclaimer: document.querySelector('#bdpanDisclaimerInput'),
+      bdpanLoginPanel: document.querySelector('#bdpanLoginPanel'),
+      bdpanAuthorizationLink: document.querySelector('#bdpanAuthorizationLink'),
+      bdpanAuthorizationCode: document.querySelector('#bdpanAuthorizationCodeInput'),
+      bdpanLoginComplete: document.querySelector('#bdpanLoginCompleteButton'),
+      bdpanRunningHint: document.querySelector('#bdpanRunningHint'),
+      bdpanWatchList: document.querySelector('#bdpanWatchList'),
+      bdpanError: document.querySelector('#bdpanError'),
+      bdpanReset: document.querySelector('#bdpanResetButton'),
+      bdpanSave: document.querySelector('#bdpanSaveButton'),
       about: document.querySelector('#aboutButton'),
       aboutView: document.querySelector('#aboutView'),
       modal: document.querySelector('#editorModal'),
@@ -1223,6 +1384,7 @@
       sync: 'Emby 同步',
       settings: '系统设置',
       transfer: '网盘转存',
+      bdpan: '百度网盘',
       gateway302: '302 网关',
       activity: '界面操作',
     };
@@ -1574,6 +1736,262 @@
       }
     }
 
+    function bdpanValues() {
+      return {
+        enabled: elements.bdpanEnabled.checked,
+        binary: elements.bdpanBinary.value.trim(),
+        checkIntervalMinutes: Number(elements.bdpanInterval.value),
+        saveRoot: elements.bdpanSaveRoot.value.trim(),
+        settleSeconds: Number(elements.bdpanSettle.value),
+        maxNewItems: Number(elements.bdpanMaxItems.value),
+      };
+    }
+
+    function validateBdpan(showError = false) {
+      const values = bdpanValues();
+      const safeRoot = Boolean(values.saveRoot)
+        && !values.saveRoot.startsWith('~')
+        && !values.saveRoot.split('/').includes('..');
+      const fields = [
+        [elements.bdpanBinary, Boolean(values.binary), '请填写 bdpan 二进制名称或路径'],
+        [elements.bdpanSaveRoot, safeRoot, '转存根目录需要位于“我的应用数据/bdpan/”内'],
+        [elements.bdpanInterval, Number.isInteger(values.checkIntervalMinutes) && values.checkIntervalMinutes >= 5 && values.checkIntervalMinutes <= 1440, '检查间隔需要在 5 至 1440 分钟之间'],
+        [elements.bdpanSettle, Number.isInteger(values.settleSeconds) && values.settleSeconds >= 30 && values.settleSeconds <= 1800, '转存等待需要在 30 至 1800 秒之间'],
+        [elements.bdpanMaxItems, Number.isInteger(values.maxNewItems) && values.maxNewItems >= 1 && values.maxNewItems <= 100, '单次新增数量需要在 1 至 100 之间'],
+      ];
+      const invalid = fields.find(([, valid]) => !valid);
+      for (const [field, valid] of fields) field.setAttribute('aria-invalid', valid ? 'false' : 'true');
+      elements.bdpanSave.disabled = state.busy || Boolean(invalid);
+      if (showError && invalid) {
+        elements.bdpanError.textContent = invalid[2];
+        elements.bdpanError.classList.add('show');
+        invalid[0].focus();
+      } else if (!invalid) {
+        elements.bdpanError.textContent = '';
+        elements.bdpanError.classList.remove('show');
+      }
+      return !invalid;
+    }
+
+    function fillBdpanForm(config) {
+      elements.bdpanEnabled.checked = Boolean(config.enabled);
+      elements.bdpanBinary.value = config.binary || 'bdpan';
+      elements.bdpanSaveRoot.value = config.saveRoot || 'StrmFlow';
+      elements.bdpanInterval.value = String(config.checkIntervalMinutes || 10);
+      elements.bdpanSettle.value = String(config.settleSeconds || 90);
+      elements.bdpanMaxItems.value = String(config.maxNewItems || 20);
+      state.bdpanSnapshot = JSON.stringify(bdpanValues());
+      validateBdpan(false);
+    }
+
+    function formatNextCheck(value) {
+      if (!value) return '等待调度';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '等待调度';
+      const seconds = Math.ceil((date.getTime() - Date.now()) / 1000);
+      if (seconds <= 0) return '即将检查';
+      if (seconds < 60) return seconds + ' 秒后';
+      if (seconds < 3600) return Math.ceil(seconds / 60) + ' 分钟后';
+      if (seconds < 86400) return Math.ceil(seconds / 3600) + ' 小时后';
+      return date.toLocaleString('zh-CN', { hour12: false });
+    }
+
+    function renderBdpan(data) {
+      if (!data) return;
+      const config = data.config || {};
+      const runtime = data.runtime || {};
+      const watches = Array.isArray(data.watches) ? data.watches : [];
+      const ready = Boolean(runtime.available && runtime.loggedIn);
+      const running = Boolean(runtime.checking);
+      const broken = Boolean(runtime.error || !runtime.available);
+      elements.bdpanHeaderStatus.className = 'gateway-status ' + (
+        running ? 'pending' : broken ? 'error' : config.enabled && ready ? 'online' : ready ? 'offline' : 'pending'
+      );
+      elements.bdpanHeaderStatus.textContent = running
+        ? '正在检查'
+        : broken ? 'CLI 不可用' : !runtime.loggedIn ? '等待授权' : config.enabled ? '自动追更中' : '未启用';
+      elements.bdpanCliStatus.textContent = runtime.available
+        ? 'bdpan ' + (runtime.version || '已安装') : '未找到';
+      elements.bdpanCliStatus.title = runtime.binary || config.binary || '';
+      elements.bdpanLoginStatus.textContent = runtime.loggedIn ? '已授权' : '未授权';
+      elements.bdpanWatchedStatus.textContent = String(runtime.watchedCount || 0) + ' 个';
+      elements.bdpanNextCheckStatus.textContent = config.enabled
+        ? formatNextCheck(runtime.nextCheckAt) : '自动检查已关闭';
+      const runningWatch = watches.find((watch) => watch.itemId === runtime.runningItemId);
+      elements.bdpanRunningHint.textContent = running
+        ? '正在处理' + (runningWatch ? '：' + runningWatch.name : '…')
+        : watches.some((watch) => watch.pendingSync) ? '等待网盘落盘后自动同步' : '串行调度 · 无并发请求';
+      elements.bdpanCheck.disabled = state.busy || running || watches.length === 0 || !ready;
+      elements.bdpanLoginStart.disabled = state.busy || !runtime.available || runtime.loggedIn || !elements.bdpanDisclaimer.checked;
+
+      elements.bdpanWatchList.replaceChildren();
+      if (watches.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'bdpan-watch-empty';
+        empty.textContent = '暂无追更任务。请在“更新中”的媒体详情里填写百度网盘分享链接。';
+        elements.bdpanWatchList.append(empty);
+        return;
+      }
+      for (const watch of watches) {
+        const row = document.createElement('div');
+        row.className = 'bdpan-watch';
+
+        const main = document.createElement('div');
+        main.className = 'bdpan-watch-main';
+        const name = document.createElement('strong');
+        name.textContent = watch.name || '未命名媒体';
+        const count = document.createElement('small');
+        count.textContent = watch.initialized ? '已记录 ' + String(watch.seenCount || 0) + ' 个媒体文件' : '等待首次建立基线';
+        main.append(name, count);
+
+        const path = document.createElement('div');
+        path.className = 'bdpan-watch-path';
+        path.textContent = '我的应用数据/bdpan/' + String(watch.destination || '').replace(/^\/+/, '');
+        path.title = path.textContent;
+
+        const result = document.createElement('div');
+        result.className = 'bdpan-watch-result';
+        const resultText = document.createElement('span');
+        resultText.textContent = watch.lastError || watch.lastResult || '等待检查';
+        if (watch.lastError) resultText.classList.add('bdpan-watch-error');
+        const timing = document.createElement('small');
+        timing.textContent = watch.pendingSync
+          ? '等待自动扫描同步' : watch.lastCheckedAt ? '检查于 ' + formatDate(watch.lastCheckedAt) : '尚未检查';
+        result.append(resultText, timing);
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = runtime.runningItemId === watch.itemId ? '检查中…' : '检查';
+        button.disabled = state.busy || running || !ready;
+        button.addEventListener('click', () => checkBdpanNow(watch.itemId));
+        row.append(main, path, result, button);
+        elements.bdpanWatchList.append(row);
+      }
+    }
+
+    function scheduleBdpanRefresh() {
+      clearTimeout(state.bdpanTimer);
+      state.bdpanTimer = null;
+      if (elements.settingsView.hidden || !state.bdpanData) return;
+      const runtime = state.bdpanData.runtime || {};
+      const watches = Array.isArray(state.bdpanData.watches) ? state.bdpanData.watches : [];
+      if (!runtime.checking && !watches.some((watch) => watch.pendingSync)) return;
+      state.bdpanTimer = setTimeout(() => loadBdpan(false, false), 2500);
+    }
+
+    async function loadBdpan(populateForm = false, refresh = false) {
+      if (state.bdpanLoading) return;
+      state.bdpanLoading = true;
+      elements.bdpanRefresh.disabled = true;
+      try {
+        const data = await api('/api/bdpan' + (refresh ? '?refresh=1' : ''));
+        state.bdpanData = data;
+        if (populateForm || !state.bdpanSnapshot) fillBdpanForm(data.config || {});
+        renderBdpan(data);
+      } catch (error) {
+        elements.bdpanError.textContent = error.message;
+        elements.bdpanError.classList.add('show');
+      } finally {
+        state.bdpanLoading = false;
+        elements.bdpanRefresh.disabled = state.busy;
+        scheduleBdpanRefresh();
+      }
+    }
+
+    function restoreBdpan() {
+      if (!state.bdpanData?.config) return;
+      fillBdpanForm(state.bdpanData.config);
+      setStatus('已恢复当前保存的百度网盘配置。', 'success');
+    }
+
+    async function saveBdpan() {
+      if (state.busy || !validateBdpan(true)) return;
+      setBusy(true);
+      try {
+        const data = await api('/api/bdpan', {
+          method: 'PUT',
+          body: JSON.stringify(bdpanValues()),
+        });
+        state.bdpanData = data;
+        fillBdpanForm(data.config || {});
+        renderBdpan(data);
+        setStatus(data.config?.enabled ? '百度网盘自动追更已启用。' : '百度网盘配置已保存。', 'success');
+      } catch (error) {
+        elements.bdpanError.textContent = error.message;
+        elements.bdpanError.classList.add('show');
+        setStatus(error.message, 'error');
+      } finally {
+        setBusy(false);
+        validateBdpan(false);
+      }
+    }
+
+    async function startBdpanLogin() {
+      if (state.busy || !elements.bdpanDisclaimer.checked) {
+        setStatus('请先阅读并确认百度网盘安全提示。', 'error');
+        return;
+      }
+      elements.bdpanLoginStart.disabled = true;
+      setStatus('正在获取百度网盘授权链接…', 'running');
+      try {
+        const data = await api('/api/bdpan/login/start', {
+          method: 'POST',
+          body: JSON.stringify({ accepted: true }),
+        });
+        elements.bdpanAuthorizationLink.href = data.authorizationUrl;
+        elements.bdpanLoginPanel.hidden = false;
+        elements.bdpanAuthorizationLink.focus();
+        setStatus('授权链接已生成，有效期约 10 分钟。', 'success');
+      } catch (error) {
+        setStatus(error.message, 'error');
+      } finally {
+        elements.bdpanLoginStart.disabled = state.busy
+          || Boolean(state.bdpanData?.runtime?.loggedIn)
+          || !elements.bdpanDisclaimer.checked;
+      }
+    }
+
+    async function completeBdpanLogin() {
+      const code = elements.bdpanAuthorizationCode.value.trim();
+      if (!/^[a-f0-9]{32}$/i.test(code)) {
+        elements.bdpanError.textContent = '授权码需要是 32 位十六进制字符';
+        elements.bdpanError.classList.add('show');
+        elements.bdpanAuthorizationCode.focus();
+        return;
+      }
+      elements.bdpanLoginComplete.disabled = true;
+      setStatus('正在完成百度网盘授权…', 'running');
+      try {
+        await api('/api/bdpan/login/complete', {
+          method: 'POST',
+          body: JSON.stringify({ code }),
+        });
+        elements.bdpanAuthorizationCode.value = '';
+        elements.bdpanLoginPanel.hidden = true;
+        await loadBdpan(false, true);
+        setStatus('百度网盘授权已完成。', 'success');
+      } catch (error) {
+        setStatus(error.message, 'error');
+      } finally {
+        elements.bdpanLoginComplete.disabled = state.busy;
+      }
+    }
+
+    async function checkBdpanNow(itemId = '') {
+      if (state.busy || state.bdpanData?.runtime?.checking) return;
+      elements.bdpanCheck.disabled = true;
+      try {
+        const path = itemId ? '/api/bdpan/items/' + encodeURIComponent(itemId) + '/check' : '/api/bdpan/check';
+        const data = await api(path, { method: 'POST', body: '{}' });
+        setStatus(data.started ? '百度网盘检查任务已启动。' : data.message, data.started ? 'running' : '');
+        await loadBdpan(false, false);
+      } catch (error) {
+        setStatus(error.message, 'error');
+      } finally {
+        elements.bdpanCheck.disabled = state.busy || Boolean(state.bdpanData?.runtime?.checking);
+      }
+    }
+
     function setActiveNav(name) {
       const navigation = [
         ['media', elements.mediaNav],
@@ -1599,6 +2017,10 @@
         ['about', elements.aboutView],
       ];
       for (const [key, view] of views) view.hidden = key !== name;
+      if (name !== 'settings') {
+        clearTimeout(state.bdpanTimer);
+        state.bdpanTimer = null;
+      }
       setActiveNav(name);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -1683,7 +2105,21 @@
         elements.emby302Timeout,
         elements.emby302BodyLimit,
       ].forEach((input) => { input.disabled = value; });
+      [
+        elements.bdpanEnabled,
+        elements.bdpanBinary,
+        elements.bdpanSaveRoot,
+        elements.bdpanInterval,
+        elements.bdpanSettle,
+        elements.bdpanMaxItems,
+        elements.bdpanDisclaimer,
+        elements.bdpanAuthorizationCode,
+      ].forEach((input) => { input.disabled = value; });
       updateTargetPreview();
+      if (!value && state.bdpanData) {
+        renderBdpan(state.bdpanData);
+        validateBdpan(false);
+      }
     }
 
     function formatDate(value) {
@@ -2773,9 +3209,10 @@
       return true;
     }
 
-    function openSettings() {
+    async function openSettings() {
       if (!state.settingsInitialized && !resetSettingsForm()) return;
       showView('settings');
+      await loadBdpan(!state.bdpanData, false);
     }
 
     function restoreSettings() {
@@ -3102,6 +3539,26 @@
     elements.settings.addEventListener('click', openSettings);
     elements.settingsSave.addEventListener('click', saveSettings);
     elements.settingsReset.addEventListener('click', restoreSettings);
+    elements.bdpanRefresh.addEventListener('click', () => loadBdpan(false, true));
+    elements.bdpanCheck.addEventListener('click', () => checkBdpanNow());
+    elements.bdpanLoginStart.addEventListener('click', startBdpanLogin);
+    elements.bdpanDisclaimer.addEventListener('change', () => {
+      renderBdpan(state.bdpanData);
+    });
+    elements.bdpanLoginComplete.addEventListener('click', completeBdpanLogin);
+    elements.bdpanSave.addEventListener('click', saveBdpan);
+    elements.bdpanReset.addEventListener('click', restoreBdpan);
+    [
+      elements.bdpanEnabled,
+      elements.bdpanBinary,
+      elements.bdpanSaveRoot,
+      elements.bdpanInterval,
+      elements.bdpanSettle,
+      elements.bdpanMaxItems,
+    ].forEach((input) => {
+      input.addEventListener('input', () => validateBdpan(false));
+      input.addEventListener('change', () => validateBdpan(false));
+    });
     elements.about.addEventListener('click', openAbout);
     [elements.settingsListRoot, elements.settingsEmbyRoot].forEach((input) => {
       input.addEventListener('input', () => {
@@ -3114,7 +3571,9 @@
         && state.settingsSnapshot !== JSON.stringify(settingsValues());
       const emby302Dirty = Boolean(state.emby302Snapshot)
         && state.emby302Snapshot !== JSON.stringify(emby302Values());
-      if (!editorIsDirty() && !settingsDirty && !emby302Dirty) return;
+      const bdpanDirty = Boolean(state.bdpanSnapshot)
+        && state.bdpanSnapshot !== JSON.stringify(bdpanValues());
+      if (!editorIsDirty() && !settingsDirty && !emby302Dirty && !bdpanDirty) return;
       event.preventDefault();
       event.returnValue = '';
     });

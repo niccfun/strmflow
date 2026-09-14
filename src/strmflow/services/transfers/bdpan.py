@@ -1,58 +1,42 @@
 from __future__ import annotations
 
-import asyncio
-import shutil
-
 from strmflow.core.config import Settings
 from strmflow.core.errors import AppError
+from strmflow.services.bdpan import BdpanCli, BdpanCliError
 from strmflow.services.transfers.base import TransferProvider, TransferResult, TransferSpec
 
 
 class BdpanTransferProvider(TransferProvider):
     name = "bdpan"
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, cli: BdpanCli | None = None) -> None:
         self.settings = settings
+        self.cli = cli or BdpanCli(settings)
 
     def command(self, spec: TransferSpec) -> list[str]:
-        values = {
-            "share_url": spec.share_url,
-            "destination": spec.destination,
-            "extract_code": spec.extract_code,
-        }
-        try:
-            arguments = [
-                argument.format_map(values) for argument in self.settings.bdpan_transfer_args
-            ]
-        except KeyError as exc:
-            raise AppError(500, f"BDPAN_TRANSFER_ARGS 含未知占位符：{exc.args[0]}") from exc
-        return [self.settings.bdpan_binary, *arguments]
+        return self.cli.transfer_command(
+            spec.share_url,
+            spec.destination,
+            spec.extract_code,
+            binary=self.settings.bdpan_binary,
+        )
 
     async def execute(self, spec: TransferSpec) -> TransferResult:
         if not self.settings.bdpan_enabled:
             raise AppError(503, "bdpan 转存接口尚未启用，请设置 BDPAN_ENABLED=true")
-        executable = shutil.which(self.settings.bdpan_binary)
-        if not executable:
-            raise AppError(503, f"未找到 bdpan 二进制：{self.settings.bdpan_binary}")
         argv = self.command(spec)
-        argv[0] = executable
-        process = await asyncio.create_subprocess_exec(
-            *argv,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
         try:
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=self.settings.bdpan_timeout
+            result = await self.cli.execute(
+                argv,
+                timeout=self.settings.bdpan_timeout,
+                require_json=True,
             )
-        except TimeoutError as exc:
-            process.kill()
-            await process.wait()
-            raise AppError(504, "bdpan 转存执行超时") from exc
+        except BdpanCliError as exc:
+            raise AppError(502, str(exc)) from exc
         return TransferResult(
-            return_code=process.returncode or 0,
-            stdout=stdout.decode(errors="replace")[-20_000:],
-            stderr=stderr.decode(errors="replace")[-20_000:],
+            return_code=result.return_code,
+            stdout=result.stdout[-20_000:],
+            stderr=result.stderr[-20_000:],
         )
 
     def capability(self) -> dict[str, object]:
@@ -60,6 +44,7 @@ class BdpanTransferProvider(TransferProvider):
             "name": self.name,
             "enabled": self.settings.bdpan_enabled,
             "binary": self.settings.bdpan_binary,
-            "available": shutil.which(self.settings.bdpan_binary) is not None,
-            "placeholders": ["share_url", "destination", "extract_code"],
+            "available": self.cli.executable(self.settings.bdpan_binary) is not None,
+            "officialCli": True,
+            "commands": ["transfer", "transfer list", "transfer select"],
         }

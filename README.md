@@ -1,7 +1,7 @@
 # StrmFlow
 
 使用 FastAPI 重构的 OpenList STRM 追更服务。保留原项目的登录、媒体记录、OpenList
-扫描、STRM 发布和 Emby 刷新功能，并通过 Provider 接口预留 `bdpan` 二进制转存能力。
+扫描、STRM 发布和 Emby 刷新功能，并集成百度网盘官方 `bdpan` CLI 自动追更。
 
 ## 项目结构
 
@@ -19,6 +19,8 @@ src/strmflow/
 │   ├── storage.py       # STRM 存储识别与媒体发现
 │   ├── media.py         # 追更记录、预览、发布
 │   ├── emby.py          # Emby 客户端
+│   ├── bdpan.py         # 百度官方 CLI 安全适配器
+│   ├── bdpan_automation.py # 分享检查、增量转存与自动同步调度
 │   └── transfers/       # 可插拔转存 Provider
 ├── web/templates/       # 原项目管理页面
 ├── container.py         # 服务装配
@@ -152,41 +154,92 @@ EMBY_302_TIMEOUT_MS=30000
 管理接口为 `GET/PUT /api/emby302`，缓存清理接口为
 `POST /api/emby302/cache/clear`。
 
-## bdpan 转存扩展接口
+## 百度网盘自动追更
 
-转存业务与 FastAPI 路由解耦，抽象定义在
-`services/transfers/base.py`。当前 `BdpanTransferProvider` 使用
-`asyncio.create_subprocess_exec` 参数数组启动二进制，不经过 shell。
+StrmFlow 使用百度网盘官方 `bdpan` CLI 3.8.7 的 `transfer list` 和
+`transfer select` 命令。子进程通过参数数组启动，不经过 shell；提取码和会话标识不会
+写入命令预览或任务记录。
 
-默认 `BDPAN_ENABLED=false`，此时可以验证最终命令但不会执行：
+本机安装和登录：
 
 ```bash
-curl -u admin:change-me http://127.0.0.1:8787/api/transfers/capabilities
-
-curl -u admin:change-me -H 'content-type: application/json' \
-  -d '{"provider":"bdpan","shareUrl":"https://pan.baidu.com/s/xxx","extractCode":"abcd","destination":"/影视/待整理"}' \
-  http://127.0.0.1:8787/api/transfers/preview
+./scripts/install-bdpan.sh
+./scripts/login-bdpan.sh
 ```
 
-二进制就绪后，在 `.env` 中设置实际参数模板并启用：
+两个入口会从官方仓库下载固定提交中的脚本，先校验 SHA-256 再执行。Docker 镜像构建时
+会自动安装 CLI；网页登录后可在“系统设置 → 百度网盘自动追更”确认官方安全提示、生成
+OOB 授权链接并提交网页返回的 32 位授权码。授权码只通过标准输入传给 CLI。Docker
+中的授权配置持久化在宿主机 `./data/bdpan`，不要提交该目录。
 
-```env
-BDPAN_ENABLED=true
-BDPAN_BINARY=/usr/local/bin/bdpan
-BDPAN_TRANSFER_ARGS=["transfer","--share-url","{share_url}","--destination","{destination}","--extract-code","{extract_code}"]
-```
+### 工作方式
 
-创建及查询异步任务（任务状态、输出及失败原因均持久化到 SQLite）：
+1. 在媒体详情中填写百度网盘分享链接；支持链接自带 `?pwd=abcd`，也支持粘贴
+   “链接 + 提取码”整段文本。
+2. 只有“更新中”且配置了分享链接的媒体会进入队列。首次检查只记录已有视频文件作为
+   基线，不会把分享中的全部历史内容再次转存。
+3. 后续检查按字符串保存官方返回的 `fs_id`，仅将新增视频按原相对目录分组并提交
+   `transfer select`；同一文件提交后立即记入状态，避免异步任务尚未完成时重复提交。
+4. 等待文件落盘后，自动触发对应源目录的 OpenList 扫描、STRM 整理发布与 Emby
+   媒体库刷新；如果文件尚未出现，会延迟重试同步。
+
+检查器为单任务串行执行，目录翻页和递归查询之间留有间隔；检查周期最短 5 分钟，默认
+10 分钟并带 ±10% 抖动。失败会指数退避，遇到官方定义的“已有转存任务”状态至少等待
+5 分钟，单次选择数量也可限制。该设计不会并发扫多个分享，也关闭 CLI 自动版本检查。
+
+### 目录映射
+
+`bdpan` 只能写入百度网盘的 `/apps/bdpan/` 应用目录。假设系统设置如下：
 
 ```text
+网盘转存根目录：StrmFlow
+只读源 STRM 根目录：/temp_strm
+```
+
+请在 OpenList 中把 `我的应用数据/bdpan/StrmFlow` 挂载为 `/temp_strm`。例如媒体源路径
+`/temp_strm/TV/国产剧/交锋 (2026)` 对应的新增文件会转存到：
+
+```text
+我的应用数据/bdpan/StrmFlow/TV/国产剧/交锋 (2026)/Season 02/
+```
+
+系统级配置和每个媒体的基线、下次检查时间、失败退避、待同步状态均保存在 SQLite 的
+`app_metadata` 表中。默认值也可以在 `.env` 中设置：
+
+```env
+BDPAN_ENABLED=false
+BDPAN_BINARY=bdpan
+BDPAN_TIMEOUT=3600
+BDPAN_CHECK_INTERVAL_MINUTES=10
+BDPAN_SAVE_ROOT=StrmFlow
+BDPAN_SETTLE_SECONDS=90
+BDPAN_MAX_NEW_ITEMS=20
+```
+
+自动追更接口：
+
+```text
+GET  /api/bdpan
+PUT  /api/bdpan
+POST /api/bdpan/check
+POST /api/bdpan/items/{item_id}/check
+POST /api/bdpan/login/start
+POST /api/bdpan/login/complete
+```
+
+原有通用转存 Provider 接口继续保留，可用于命令预览和手动异步任务：
+
+```text
+POST /api/transfers/preview
 POST /api/transfers
 POST /api/items/{item_id}/transfer
 GET  /api/transfers
 GET  /api/transfers/{job_id}
 ```
 
-如果实际 `bdpan` CLI 参数不同，只需调整 `BDPAN_TRANSFER_ARGS`；如果其调用协议不仅是
-命令行参数，则新增一个 `TransferProvider` 实现并在 `container.py` 注册即可。
+实现依据：[百度网盘官方 bdpan-storage](https://github.com/baidu-netdisk/bdpan-storage)、
+[官方 Skill 说明](https://github.com/baidu-netdisk/bdpan-storage/blob/main/skills/baidu-drive/SKILL.md)、
+[官方命令参考](https://github.com/baidu-netdisk/bdpan-storage/blob/main/skills/baidu-drive/reference/bdpan-commands.md)。
 
 ## Docker Compose
 
@@ -204,7 +257,7 @@ docker network connect services-network openlist
 ```
 
 容器对外默认映射为 `18787:8787` 和 `18096:18096`，宿主机 `./data` 会挂载到容器
-`/app/data`。
+`/app/data`；`./data/bdpan` 另外挂载到 CLI 配置目录，以便容器重建后保留授权。
 
 备份数据库前建议先停止容器，或使用 SQLite 在线备份命令：
 

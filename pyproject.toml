@@ -1,6 +1,6 @@
 [project]
 name = "strmflow"
-version = "0.1.0"
+version = "0.2.0"
 description = "基于 FastAPI 的 OpenList STRM 追更与转存服务"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -40,4 +40,3 @@ asyncio_mode = "auto"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-

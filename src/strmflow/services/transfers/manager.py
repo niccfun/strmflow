@@ -30,7 +30,7 @@ class TransferManager:
     def preview(self, request: TransferCreateRequest) -> dict[str, Any]:
         provider = self._provider(request.provider)
         spec = self._spec(request)
-        return {"provider": provider.name, "command": provider.command(spec)}
+        return {"provider": provider.name, "command": self._redact(provider.command(spec))}
 
     async def enqueue(self, request: TransferCreateRequest) -> TransferJob:
         provider = self._provider(request.provider)
@@ -42,7 +42,7 @@ class TransferManager:
             provider=provider.name,
             status="queued",
             destination=spec.destination,
-            command=provider.command(spec),
+            command=self._redact(provider.command(spec)),
             created_at=datetime.now(UTC),
         )
         await self.repository.create(job, spec.metadata)
@@ -100,3 +100,13 @@ class TransferManager:
             extract_code=request.extract_code.strip(),
             metadata=request.metadata,
         )
+
+    @staticmethod
+    def _redact(command: list[str]) -> list[str]:
+        result = list(command)
+        for index, value in enumerate(result[:-1]):
+            if value in {"-p", "--pwd", "--extract-code"}:
+                result[index + 1] = "[已隐藏]"
+            if value == "--session-id":
+                result[index + 1] = "[会话]"
+        return result
