@@ -1,0 +1,3151 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StrmFlow</title>
+  <link rel="icon" type="image/svg+xml" href="/static/strmflow.svg">
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      --bg: #f4f6fb;
+      --bg-accent-1: rgb(99 102 241 / 14%);
+      --bg-accent-2: rgb(14 165 233 / 12%);
+      --panel: #ffffff;
+      --panel-soft: #f8fafc;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --primary-soft: #eef2ff;
+      --primary-soft-text: #4338ca;
+      --success: #16a34a;
+      --success-soft: #f0fdf4;
+      --success-border: #bbf7d0;
+      --success-text: #166534;
+      --warning: #d97706;
+      --warning-soft: #fff7ed;
+      --warning-border: #fed7aa;
+      --warning-text: #9a3412;
+      --danger: #dc2626;
+      --danger-soft: #fef2f2;
+      --danger-border: #fecaca;
+      --danger-text: #991b1b;
+      --input-bg: #ffffff;
+      --overlay: rgb(15 23 42 / 50%);
+      --radius-lg: 18px;
+      --radius-md: 12px;
+      --shadow-sm: 0 1px 2px rgb(15 23 42 / 5%);
+      --shadow: 0 10px 30px rgb(15 23 42 / 8%);
+      --shadow-lg: 0 24px 70px rgb(15 23 42 / 25%);
+      --ring: 0 0 0 3px rgb(79 70 229 / 15%);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1120;
+        --bg-accent-1: rgb(99 102 241 / 16%);
+        --bg-accent-2: rgb(14 165 233 / 10%);
+        --panel: #101830;
+        --panel-soft: #16203b;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --border: #24304d;
+        --border-strong: #334568;
+        --primary: #6366f1;
+        --primary-hover: #818cf8;
+        --primary-soft: rgb(99 102 241 / 16%);
+        --primary-soft-text: #a5b4fc;
+        --success-soft: rgb(34 197 94 / 12%);
+        --success-border: rgb(34 197 94 / 35%);
+        --success-text: #86efac;
+        --warning-soft: rgb(217 119 6 / 14%);
+        --warning-border: rgb(217 119 6 / 40%);
+        --warning-text: #fdba74;
+        --danger-soft: rgb(220 38 38 / 14%);
+        --danger-border: rgb(220 38 38 / 40%);
+        --danger-text: #fca5a5;
+        --input-bg: #0d1428;
+        --overlay: rgb(2 6 23 / 68%);
+        --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+        --shadow: 0 10px 30px rgb(0 0 0 / 35%);
+        --shadow-lg: 0 24px 70px rgb(0 0 0 / 55%);
+        --ring: 0 0 0 3px rgb(99 102 241 / 30%);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(1100px 500px at 85% -10%, var(--bg-accent-1), transparent 60%),
+        radial-gradient(900px 460px at -10% 0%, var(--bg-accent-2), transparent 55%),
+        var(--bg);
+      background-attachment: fixed;
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    .app-shell { min-height: 100vh; display: grid; grid-template-columns: 236px minmax(0, 1fr); }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      z-index: 15;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 22px 16px 18px;
+      border-right: 1px solid var(--border);
+      background: var(--panel);
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      box-shadow: 8px 0 30px rgb(15 23 42 / 3%);
+      backdrop-filter: blur(18px);
+    }
+    .sidebar-brand { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 4px 8px; }
+    .brand-icon { width: 42px; height: 42px; flex: 0 0 auto; border-radius: 11px; box-shadow: 0 8px 20px rgb(79 70 229 / 24%); }
+    h1 {
+      width: fit-content;
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      background: linear-gradient(120deg, var(--text) 30%, var(--primary));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .sidebar-subtitle { margin-top: 2px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .sidebar-nav { display: grid; gap: 5px; margin-top: 28px; }
+    .nav-section-title { margin: 0 10px 6px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .12em; }
+    .nav-section-title.system { margin-top: 18px; }
+    .sidebar-link {
+      position: relative;
+      width: 100%;
+      min-height: 42px;
+      justify-content: flex-start;
+      padding: 9px 11px;
+      border-color: transparent;
+      background: transparent;
+      color: var(--muted);
+      font-weight: 600;
+      box-shadow: none;
+    }
+    .sidebar-link:hover:not(:disabled) { border-color: transparent; background: var(--panel-soft); color: var(--text); }
+    .sidebar-link.active { background: var(--primary-soft); color: var(--primary-soft-text); }
+    .sidebar-link.active:hover:not(:disabled) { background: var(--primary-soft); color: var(--primary-soft-text); }
+    .sidebar-link svg { width: 19px; height: 19px; flex: 0 0 auto; stroke-width: 1.8; }
+    .nav-badge { min-width: 20px; margin-left: auto; padding: 1px 6px; border-radius: 999px; background: var(--border); color: var(--muted); font-size: 10px; text-align: center; }
+    .sidebar-link.active .nav-badge { background: var(--primary-soft); background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--primary-soft-text); }
+    .sidebar-footer { display: grid; gap: 8px; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); }
+    .service-status { display: flex; align-items: center; gap: 8px; padding: 2px 11px 7px; color: var(--muted); font-size: 11px; }
+    .service-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 4px var(--success-soft); }
+    .main-content { width: 100%; max-width: 1480px; min-width: 0; margin: 0 auto; padding: 30px 34px 64px; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; gap: 22px; margin-bottom: 22px; }
+    .page-heading { min-width: 220px; }
+    .eyebrow { margin-bottom: 3px; color: var(--primary-soft-text); font-size: 10px; font-weight: 800; letter-spacing: .14em; }
+    .page-title { font-size: 28px; line-height: 1.2; }
+    h2 { margin: 0; font-size: 21px; letter-spacing: -0.02em; }
+    p { margin: 0; }
+    .muted, .hero-copy { color: var(--muted); }
+    .hero-copy { margin-top: 5px; }
+    .toolbar { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .app-view { animation: view-in .18s ease; }
+    @keyframes view-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .steps { display: none; }
+    .tab-count { min-width: 19px; display: inline-grid; place-items: center; padding: 0 5px; border-radius: 999px; background: var(--border); color: var(--muted); font-size: 11px; }
+    .filter-tab.active .tab-count { background: var(--primary-soft); color: var(--primary-soft-text); }
+
+    button, input, select { font: inherit; }
+    [hidden] { display: none !important; }
+    button, .button-like {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 14px;
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+      text-decoration: none;
+      box-shadow: var(--shadow-sm);
+      transition: background .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease, transform .08s ease;
+    }
+    button:hover:not(:disabled), .button-like:hover { background: var(--panel-soft); border-color: var(--border-strong); }
+    button:active:not(:disabled), .button-like:active { transform: translateY(1px); }
+    button:focus-visible, .button-like:focus-visible { outline: none; box-shadow: var(--ring); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    button.primary, .sync-button {
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+      color: #fff;
+      font-weight: 600;
+      box-shadow: 0 4px 14px rgb(79 70 229 / 30%);
+    }
+    button.primary:hover:not(:disabled), .sync-button:hover:not(:disabled) {
+      background: var(--primary-hover);
+      border-color: transparent;
+      box-shadow: 0 6px 18px rgb(79 70 229 / 38%);
+    }
+    .danger-button { color: var(--danger-text); border-color: var(--danger-border); background: var(--panel); }
+    .danger-button:hover:not(:disabled) { background: var(--danger-soft); border-color: var(--danger-border); }
+    .danger-solid { border-color: transparent; background: var(--danger); color: #fff; font-weight: 600; }
+    .danger-solid:hover:not(:disabled) { background: #b91c1c; border-color: transparent; }
+    .baidu-button { border-color: transparent; color: var(--primary-soft-text); background: var(--primary-soft); font-weight: 600; }
+    .baidu-button:hover { background: var(--primary-soft); filter: brightness(.96); }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 22px;
+      box-shadow: var(--shadow);
+    }
+    .path-label, .field label, .stat-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .path, .item-path {
+      margin-top: 6px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--input-bg);
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+    .path-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: start; }
+    .path-row .item-path { min-width: 0; margin-top: 0; }
+    .copy-button { padding: 7px 9px; color: var(--muted); background: var(--panel-soft); box-shadow: none; font-size: 12px; }
+
+    .controls { display: grid; grid-template-columns: auto minmax(220px, 1fr) auto; gap: 10px; align-items: center; margin-bottom: 18px; }
+    input, select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: var(--input-bg);
+      color: var(--text);
+      outline: none;
+      transition: border-color .16s ease, box-shadow .16s ease;
+    }
+    input:focus, select:focus { border-color: var(--primary); box-shadow: var(--ring); }
+    input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 3px rgb(220 38 38 / 12%); }
+    input::placeholder { color: var(--muted); opacity: .7; }
+
+    .filter-tabs { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-soft); }
+    .filter-tab { border: 0; padding: 7px 13px; border-radius: 8px; background: transparent; color: var(--muted); box-shadow: none; }
+    .filter-tab:hover:not(:disabled) { background: var(--primary-soft); color: var(--primary-soft-text); }
+    .filter-tab.active { background: var(--panel); color: var(--primary-soft-text); font-weight: 600; box-shadow: var(--shadow-sm); }
+
+    .status { position: fixed; z-index: 60; right: 20px; bottom: 20px; width: min(380px, calc(100% - 28px)); padding: 11px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel); box-shadow: var(--shadow-lg); opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(12px); transition: opacity .18s ease, transform .18s ease, visibility .18s ease; }
+    .status.show { opacity: 1; visibility: visible; transform: translateY(0); }
+    .status.success { border-color: var(--success-border); background: var(--success-soft); color: var(--success-text); }
+    .status.error { border-color: var(--danger-border); background: var(--danger-soft); color: var(--danger-text); }
+    .status.running { border-color: var(--warning-border); background: var(--warning-soft); color: var(--warning-text); }
+
+    .workspace { display: grid; gap: 16px; }
+    .summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 14px 2px 12px; }
+    .summary strong { font-size: 17px; }
+    .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+    .item {
+      position: relative;
+      min-width: 0;
+      min-height: 252px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--panel);
+      box-shadow: var(--shadow-sm);
+      transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+      animation: fade-in .25s ease both;
+    }
+    .item::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: linear-gradient(90deg, var(--primary), #0ea5e9); }
+    .item.completed::before { background: linear-gradient(90deg, var(--success), #22c55e); }
+    .item:hover { border-color: var(--border-strong); box-shadow: var(--shadow); transform: translateY(-2px); }
+    @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .item-top { height: 100%; display: flex; flex-direction: column; gap: 15px; padding: 19px 19px 0; }
+    .item-info { display: grid; gap: 14px; min-width: 0; }
+    .item-title-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: start; gap: 11px; }
+    .media-kind-mark { width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border)); border-radius: 13px; background: var(--primary-soft); color: var(--primary-soft-text); font-size: 16px; font-weight: 800; box-shadow: inset 0 1px rgb(255 255 255 / 30%); }
+    .media-kind-mark.movie { border-color: var(--warning-border); background: var(--warning-soft); color: var(--warning-text); }
+    .item-title-copy { min-width: 0; display: grid; gap: 6px; }
+    .item-name { min-width: 0; margin: 0; display: -webkit-box; overflow: hidden; font-size: 18px; font-weight: 750; line-height: 1.3; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .media-tags { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; overflow: hidden; }
+    .media-tag { max-width: 120px; padding: 2px 7px; overflow: hidden; border: 1px solid var(--border); border-radius: 999px; background: var(--panel-soft); color: var(--muted); font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+    .status-pill { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--panel-soft); color: var(--muted); }
+    .status-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .status-pill.ongoing { background: var(--warning-soft); color: var(--warning); }
+    .status-pill.completed { background: var(--success-soft); color: var(--success); }
+    .episode-summary { min-height: 42px; display: flex; align-items: center; gap: 9px; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .episode-summary::before { content: ""; width: 8px; height: 8px; flex: 0 0 auto; border: 2px solid var(--primary); border-radius: 50%; box-shadow: 0 0 0 3px var(--primary-soft); }
+    .item.completed .episode-summary::before { border-color: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
+    .episode-summary strong { color: var(--text); font-size: 13px; font-weight: 700; line-height: 1.2; }
+    .episode-total-tag { margin-left: auto; padding: 3px 8px; border-radius: 999px; background: var(--primary-soft); color: var(--primary-soft-text); font-size: 10px; font-weight: 700; white-space: nowrap; }
+    .item.completed .episode-total-tag { background: var(--success-soft); color: var(--success-text); }
+    .item-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 1px 0; }
+    .stat { min-width: 0; padding: 0 11px; }
+    .stat:first-child { padding-left: 0; }
+    .stat + .stat { border-left: 1px solid var(--border); }
+    .stat-value { margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 13px; font-weight: 600; }
+    .item-actions { display: flex; align-items: center; gap: 7px; margin: auto -19px 0; padding: 12px 19px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--panel-soft) 62%, var(--panel)); }
+    .item-actions > * { min-width: 0; padding: 8px 10px; font-size: 12px; }
+    .item-actions .sync-button { flex: 1 1 auto; }
+    .item-actions .baidu-button { flex: 0 0 auto; }
+    .item-actions .media-details-button { border-color: color-mix(in srgb, var(--primary) 24%, var(--border)); background: var(--primary-soft); color: var(--primary-soft-text); font-weight: 650; }
+    .path-row.has-open { grid-template-columns: minmax(0, 1fr) auto auto; }
+    .openlist-path-button { padding: 7px 9px; color: var(--primary-soft-text); background: var(--primary-soft); box-shadow: none; font-size: 12px; white-space: nowrap; }
+    .empty { grid-column: 1 / -1; text-align: center; padding: 56px 16px; color: var(--muted); border: 1px dashed var(--border-strong); border-radius: var(--radius-lg); background: var(--panel); }
+    .spinner { display: inline-block; width: 13px; height: 13px; margin-right: 8px; border: 2px solid rgb(100 116 139 / 25%); border-top-color: currentColor; border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .modal { position: fixed; inset: 0; z-index: 20; display: none; place-items: center; padding: 18px; background: var(--overlay); backdrop-filter: blur(3px); }
+    .modal.show { display: grid; }
+    .target-panel, .confirm-panel, .preview-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      animation: modal-in .18s ease;
+    }
+    @keyframes modal-in { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+    .target-panel { width: min(880px, calc(100vw - 32px)); max-height: calc(100vh - 36px); overflow: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; padding: 24px; }
+    .target-panel.detail-mode { width: min(1180px, calc(100vw - 32px)); max-height: none; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 12px; padding: 22px; overflow: hidden; isolation: isolate; }
+    .target-panel.detail-mode .baidu-link-field { grid-column: span 2; }
+    .target-panel.detail-mode .editor-actions { position: static; bottom: auto; margin: 4px -22px -22px; padding: 13px 22px 22px; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+    .target-panel.detail-mode input, .target-panel.detail-mode select { padding-top: 8px; padding-bottom: 8px; }
+    .target-panel.detail-mode .source-hierarchy-field, .target-panel.detail-mode #targetPreview, .target-panel.detail-mode #selectedHint { display: none; }
+    .target-panel.detail-mode .media-detail-overview { gap: 10px; padding: 13px; }
+    .media-detail-overview { grid-column: 1 / -1; display: grid; gap: 13px; padding: 15px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .media-detail-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .media-detail-heading strong { font-size: 14px; }
+    .media-detail-inline { display: flex; align-items: center; justify-content: flex-end; gap: 8px; color: var(--muted); font-size: 11px; }
+    .media-detail-inline > span { white-space: nowrap; }
+    .media-detail-inline > span + span { padding-left: 8px; border-left: 1px solid var(--border); }
+    .media-detail-paths { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .media-detail-path-card { min-width: 0; display: grid; gap: 5px; }
+    .media-detail-edit-heading { display: none; grid-column: 1 / -1; align-items: baseline; justify-content: space-between; padding: 2px 1px 0; border-bottom: 1px solid var(--border); }
+    .media-detail-edit-heading strong { padding-bottom: 7px; font-size: 13px; }
+    .media-detail-edit-heading span { color: var(--muted); font-size: 10px; }
+    .target-panel.detail-mode .media-detail-edit-heading { display: flex; }
+    .settings-help { color: var(--muted); font-size: 12px; }
+    .settings-content { width: min(980px, 100%); display: grid; gap: 20px; }
+    .settings-section-title { padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    .settings-section-title h3 { margin: 0; font-size: 16px; }
+    .settings-section-title p { margin-top: 3px; color: var(--muted); font-size: 12px; }
+    .settings-path-layout { display: grid; grid-template-columns: minmax(0, 1fr) 58px minmax(0, 1fr); align-items: stretch; gap: 12px; }
+    .path-config-card { min-width: 0; display: grid; align-content: start; gap: 14px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .path-config-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .path-config-heading strong { font-size: 14px; }
+    .path-config-tag { padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel); color: var(--muted); font-size: 10px; font-weight: 700; }
+    .path-config-card.target .path-config-tag { border-color: transparent; background: var(--primary-soft); color: var(--primary-soft-text); }
+    .path-flow-arrow { align-self: center; justify-self: center; width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--border); border-color: color-mix(in srgb, var(--primary) 24%, var(--border)); border-radius: 50%; background: var(--primary-soft); color: var(--primary-soft-text); box-shadow: 0 8px 20px rgb(79 70 229 / 16%); }
+    .path-flow-arrow svg { width: 21px; height: 21px; stroke-width: 2; }
+    .page-form-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; }
+    .page-title-row { display: flex; align-items: center; gap: 10px; }
+    .gateway-status { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; background: var(--panel-soft); color: var(--muted); font-size: 11px; font-weight: 700; }
+    .gateway-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .gateway-status.online { background: var(--success-soft); color: var(--success-text); }
+    .gateway-status.error { background: var(--danger-soft); color: var(--danger-text); }
+    .gateway-status.pending { background: var(--warning-soft); color: var(--warning-text); }
+    .gateway-page { display: grid; gap: 16px; }
+    .gateway-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .gateway-stat-card { min-width: 0; display: grid; gap: 4px; padding: 15px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel); box-shadow: var(--shadow-sm); }
+    .gateway-stat-card span { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .04em; }
+    .gateway-stat-card strong { font-size: 22px; line-height: 1.2; overflow-wrap: anywhere; }
+    .gateway-stat-card small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .gateway-config-panel { width: 100%; display: grid; gap: 18px; }
+    .gateway-enable-card { display: flex; align-items: center; gap: 16px; padding: 15px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); cursor: pointer; }
+    .gateway-enable-card > span:first-child { min-width: 0; display: grid; gap: 3px; margin-right: auto; }
+    .gateway-enable-card strong { font-size: 14px; }
+    .gateway-enable-card small { color: var(--muted); }
+    .gateway-enable-card input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    .toggle-switch { position: relative; width: 42px; height: 24px; flex: 0 0 auto; border-radius: 999px; background: var(--border-strong); transition: background .18s ease; }
+    .toggle-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgb(15 23 42 / 24%); transition: transform .18s ease; }
+    .gateway-enable-card input:checked + .toggle-switch { background: var(--primary); }
+    .gateway-enable-card input:checked + .toggle-switch::after { transform: translateX(18px); }
+    .gateway-enable-card input:focus-visible + .toggle-switch { box-shadow: var(--ring); }
+    .gateway-config-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; }
+    .gateway-url-field { grid-column: span 3; }
+    .gateway-url-field input { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .gateway-field-help { margin-top: 5px; color: var(--muted); font-size: 10px; }
+    .gateway-recent-panel { display: grid; gap: 0; }
+    .compact-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md); }
+    .compact-table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 12px; }
+    .compact-table th, .compact-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+    .compact-table th { background: var(--panel-soft); color: var(--muted); font-size: 10px; letter-spacing: .04em; white-space: nowrap; }
+    .compact-table tr:last-child td { border-bottom: 0; }
+    .compact-table td { overflow-wrap: anywhere; }
+    .compact-empty { height: 100px; color: var(--muted); text-align: center !important; }
+    .utility-toolbar { display: flex; justify-content: space-between; align-items: end; gap: 14px; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+    .utility-toolbar .muted { font-size: 12px; }
+    .realtime-button .realtime-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+    .realtime-button.active { border-color: var(--success-border); background: var(--success-soft); color: var(--success-text); }
+    .realtime-button.active .realtime-dot { background: var(--success); box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 14%, transparent); animation: realtime-pulse 1.5s ease-in-out infinite; }
+    @keyframes realtime-pulse { 50% { opacity: .45; } }
+    .log-table-wrap { max-height: calc(100vh - 265px); overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-md); }
+    .log-table { width: 100%; min-width: 900px; border-spacing: 0; border-collapse: separate; font-size: 12px; }
+    .log-table th { position: sticky; top: 0; z-index: 1; padding: 8px 10px; border-bottom: 1px solid var(--border); background: var(--panel-soft); color: var(--muted); font-size: 10px; font-weight: 800; text-align: left; letter-spacing: .04em; white-space: nowrap; }
+    .log-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .log-table tr:last-child td { border-bottom: 0; }
+    .log-table tbody tr:hover { background: var(--panel-soft); }
+    .log-table .time-cell, .log-table .method-cell, .log-table .status-cell, .log-table .duration-cell, .log-table .client-cell { white-space: nowrap; }
+    .log-table th:nth-child(2), .log-table td:nth-child(2) { width: 96px; min-width: 96px; white-space: nowrap; }
+    .log-table .path-cell { width: 100%; min-width: 260px; }
+    .log-primary { overflow-wrap: anywhere; color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .log-secondary { margin-top: 2px; overflow-wrap: anywhere; color: var(--muted); font-size: 10px; }
+    .log-category, .log-method, .log-status-code { display: inline-flex; align-items: center; min-height: 19px; padding: 2px 6px; border-radius: 5px; font-size: 9px; font-weight: 800; line-height: 1; }
+    .log-category { background: var(--primary-soft); color: var(--primary-soft-text); white-space: nowrap; }
+    .log-method { border: 1px solid var(--border); background: var(--panel); color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .log-status-code { background: var(--success-soft); color: var(--success-text); }
+    .log-status-code.redirect { background: var(--primary-soft); color: var(--primary-soft-text); }
+    .log-status-code.warning { background: var(--warning-soft); color: var(--warning-text); }
+    .log-status-code.error { background: var(--danger-soft); color: var(--danger-text); }
+    .log-time { color: var(--muted); font-size: 10px; }
+    .log-empty-cell { height: 240px; color: var(--muted); text-align: center; }
+    .about-content { width: min(820px, 100%); display: grid; gap: 20px; }
+    .about-hero { display: grid; justify-items: start; gap: 8px; padding: 8px 4px 14px; text-align: left; }
+    .about-logo { width: 72px; height: 72px; border-radius: 19px; box-shadow: 0 14px 32px rgb(79 70 229 / 24%); }
+    .about-name { margin: 8px 0 0; font-size: 28px; letter-spacing: -.03em; }
+    .version-pill { display: inline-flex; padding: 3px 9px; border-radius: 999px; background: var(--primary-soft); color: var(--primary-soft-text); font-size: 11px; font-weight: 700; }
+    .about-description { max-width: 620px; color: var(--muted); }
+    .about-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .about-card { display: grid; gap: 3px; padding: 13px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .about-card strong { font-size: 13px; }
+    .about-card span { color: var(--muted); font-size: 11px; }
+    .source-picker-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+    .target-head { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
+    .target-head, .target-panel .wide, #targetPreview, .modal-actions { grid-column: 1 / -1; }
+    .field { display: grid; gap: 6px; }
+    .modal-actions, .confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+    .sync-actions { display: flex; justify-content: flex-end; align-items: center; }
+    .sync-actions button { min-width: 120px; }
+    .editor-error { display: none; grid-column: 1 / -1; padding: 9px 12px; border: 1px solid var(--danger-border); border-radius: var(--radius-md); background: var(--danger-soft); color: var(--danger-text); }
+    .editor-error.show { display: block; }
+    .editor-actions { grid-template-columns: auto 1fr 1fr; position: sticky; bottom: -24px; margin: 4px -24px -24px; padding: 14px 24px 24px; border-top: 1px solid var(--border); background: var(--panel); }
+    .editor-actions .danger-button { justify-self: start; }
+    .confirm-panel { width: min(420px, calc(100vw - 36px)); padding: 24px; }
+    .confirm-panel p { color: var(--muted); margin-top: 8px; }
+    .preview-panel { width: min(1100px, calc(100vw - 32px)); max-height: calc(100vh - 36px); display: grid; gap: 12px; padding: 24px; overflow: hidden; }
+    .preview-count { color: var(--muted); margin-top: 6px; }
+    .sync-progress { display: grid; gap: 18px; }
+    .sync-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .sync-step { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: 12px; font-weight: 600; }
+    .sync-step-number { flex: 0 0 auto; display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--border-strong); border-radius: 50%; background: var(--panel-soft); }
+    .sync-step.active { color: var(--primary-soft-text); }
+    .sync-step.active .sync-step-number { border-color: var(--primary); background: var(--primary-soft); }
+    .sync-step.complete { color: var(--success-text); }
+    .sync-step.complete .sync-step-number { border-color: var(--success-border); background: var(--success-soft); }
+    .sync-step.error { color: var(--danger-text); }
+    .sync-step.error .sync-step-number { border-color: var(--danger-border); background: var(--danger-soft); }
+    .sync-current { padding: 16px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .sync-stage-heading { display: flex; align-items: center; min-height: 22px; font-size: 16px; }
+    .sync-stage-heading.complete { color: var(--success-text); }
+    .sync-stage-detail { margin-top: 5px; color: var(--muted); overflow-wrap: anywhere; }
+    .sync-stage-detail.error { color: var(--danger-text); }
+    .sync-meter { height: 5px; margin-top: 14px; overflow: hidden; border-radius: 3px; background: var(--panel-soft); }
+    .sync-meter-bar { width: 0; height: 100%; border-radius: inherit; background: var(--primary); transition: width .25s ease; }
+    .sync-meter-bar.indeterminate { width: 42%; animation: sync-meter 1.25s ease-in-out infinite; }
+    @keyframes sync-meter { from { transform: translateX(-110%); } to { transform: translateX(260%); } }
+    .sync-result { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .sync-preview-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .sync-result-item { display: grid; gap: 3px; padding: 12px 14px; }
+    .sync-result-item + .sync-result-item { border-left: 1px solid var(--border); }
+    .sync-result-item span { color: var(--muted); font-size: 11px; font-weight: 700; }
+    .sync-result-item strong { font-size: 17px; overflow-wrap: anywhere; }
+    .preview-head, .preview-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: center; }
+    .preview-head { padding: 0 4px; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    .preview-list { display: grid; gap: 8px; max-height: min(56vh, 560px); overflow: auto; padding-right: 4px; }
+    .preview-row { padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .preview-old { min-width: 0; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; color: var(--text); font-size: 12px; }
+    .preview-new { width: 100%; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: 12px; }
+    .preview-error { display: none; padding: 9px 12px; border: 1px solid var(--danger-border); border-radius: var(--radius-md); background: var(--danger-soft); color: var(--danger-text); }
+    .preview-error.show { display: block; }
+
+    @media (max-width: 1280px) {
+      .gateway-config-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .gateway-url-field { grid-column: 1 / -1; }
+    }
+    @media (max-width: 980px) {
+      .app-shell { grid-template-columns: 1fr; }
+      .sidebar {
+        height: auto;
+        min-height: 64px;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 16px;
+        padding: 10px 16px;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+        box-shadow: 0 8px 28px rgb(15 23 42 / 5%);
+      }
+      .sidebar-brand { padding: 0; }
+      .brand-icon { width: 38px; height: 38px; border-radius: 10px; }
+      .sidebar-nav { display: flex; justify-content: center; gap: 4px; min-width: 0; margin: 0; }
+      .nav-section-title { display: none; }
+      .sidebar-link { width: auto; min-height: 40px; padding: 8px 11px; white-space: nowrap; }
+      .nav-badge { margin-left: 2px; }
+      .sidebar-footer { display: block; margin: 0; padding: 0; border: 0; }
+      .service-status { display: none; }
+      .main-content { padding: 26px 22px 56px; }
+    }
+    @media (max-width: 880px) {
+      .page-header { align-items: flex-start; flex-direction: column; }
+      .controls, .target-panel { grid-template-columns: 1fr; }
+      .settings-path-layout { grid-template-columns: 1fr; }
+      .path-flow-arrow { transform: rotate(90deg); }
+      .source-picker-row { grid-template-columns: 1fr; }
+      .arrow { display: none; }
+      .filter-tabs { width: 100%; }
+      .filter-tab { flex: 1; }
+      .summary { align-items: flex-start; flex-direction: column; }
+      .modal-actions, .confirm-actions { grid-template-columns: 1fr; }
+      .editor-actions { grid-template-columns: 1fr 1fr; }
+      .editor-actions .danger-button { grid-column: 1 / -1; justify-self: stretch; order: 3; }
+      .sync-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .sync-result { grid-template-columns: 1fr; }
+      .sync-result-item + .sync-result-item { border-left: 0; border-top: 1px solid var(--border); }
+      .preview-head { display: none; }
+      .preview-row { grid-template-columns: 1fr; }
+      .about-grid { grid-template-columns: 1fr; }
+      .media-detail-paths { grid-template-columns: 1fr; }
+      .target-panel.detail-mode { width: min(880px, calc(100vw - 28px)); max-height: calc(100vh - 28px); grid-template-columns: 1fr; padding: 18px; overflow: auto; }
+      .target-panel.detail-mode .baidu-link-field { grid-column: 1; }
+      .target-panel.detail-mode .editor-actions { position: sticky; bottom: -18px; margin: 4px -18px -18px; padding: 13px 18px 18px; }
+      .target-panel.detail-mode .media-detail-overview { grid-template-columns: 1fr; }
+      .target-panel.detail-mode .media-detail-heading, .target-panel.detail-mode .media-detail-paths { grid-column: 1; }
+      .media-detail-heading, .media-detail-inline { align-items: flex-start; flex-direction: column; }
+      .media-detail-inline > span + span { padding-left: 0; border-left: 0; }
+      .gateway-config-grid { grid-template-columns: 1fr; }
+      .gateway-url-field { grid-column: auto; }
+    }
+    @media (max-width: 880px) {
+      .sidebar { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding-bottom: 8px; }
+      .sidebar-subtitle { display: none; }
+      .sidebar-nav { grid-column: 1 / -1; grid-row: 2; justify-content: space-between; overflow-x: auto; padding-top: 2px; }
+      .sidebar-link { flex: 1 0 auto; justify-content: center; }
+      .sidebar-footer { grid-column: 2; grid-row: 1; }
+      .main-content { padding: 22px 14px 54px; }
+      .page-title { font-size: 25px; }
+      .utility-toolbar { align-items: flex-start; }
+    }
+    @media (max-width: 520px) {
+      .status { right: 14px; bottom: 78px; }
+      .sync-actions { display: grid; grid-template-columns: 1fr; }
+      .sync-actions button { width: 100%; min-width: 0; }
+      .toolbar { width: 100%; }
+      .toolbar > * { flex: 1 1 auto; }
+      .sidebar-link { min-width: 58px; flex-direction: column; gap: 2px; padding: 6px 7px; font-size: 10px; }
+      .sidebar-link svg { width: 18px; height: 18px; }
+      .sidebar-link .nav-badge { position: absolute; top: 1px; right: 3px; }
+      .panel { padding: 14px; }
+      .controls { margin-top: 8px; }
+      .page-form-actions { display: grid; grid-template-columns: 1fr; }
+      .page-form-actions button { width: 100%; }
+      #newButton { position: fixed; right: 18px; bottom: 18px; z-index: 10; padding: 12px 18px; box-shadow: var(--shadow-lg); }
+      .list { grid-template-columns: 1fr; }
+      .utility-toolbar { display: grid; }
+      .path-row.has-open { grid-template-columns: minmax(0, 1fr) auto; }
+      .path-row.has-open .openlist-path-button { grid-column: 1 / -1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+
+</head>
+<body>
+  <div class="app-shell">
+    <aside id="sidebar" class="sidebar" aria-label="侧边导航">
+      <div class="sidebar-brand">
+        <img class="brand-icon" src="/static/strmflow.svg" alt="">
+        <div>
+          <h1>StrmFlow</h1>
+          <p class="sidebar-subtitle">媒体自动化中心</p>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="主导航">
+        <p class="nav-section-title">工作区</p>
+        <button id="mediaNavButton" class="sidebar-link active" type="button" aria-current="page">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="m10 9 5 3-5 3V9Z"></path></svg>
+          <span class="nav-label">媒体管理</span>
+        </button>
+        <button id="emby302Button" class="sidebar-link" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 7h10a4 4 0 0 1 4 4v1M15 9l3-3 3 3M19 17H9a4 4 0 0 1-4-4v-1M9 15l-3 3-3-3"></path></svg>
+          <span class="nav-label">302 管理</span>
+        </button>
+        <button id="logsButton" class="sidebar-link" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10"></path><circle cx="18" cy="19" r="2"></circle></svg>
+          <span class="nav-label">运行日志</span>
+          <span id="logCount" class="nav-badge" hidden>0</span>
+        </button>
+        <p class="nav-section-title system">系统</p>
+        <button id="settingsButton" class="sidebar-link" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.09A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3V9.6h.09A1.7 1.7 0 0 0 4.6 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.5 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.12.38.34.72.64.98.3.26.68.4 1.08.42H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z"></path></svg>
+          <span class="nav-label">系统设置</span>
+        </button>
+        <button id="aboutButton" class="sidebar-link" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6M12 7.5v.5"></path></svg>
+          <span class="nav-label">关于</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="service-status">服务运行中</div>
+        <button id="logoutButton" class="sidebar-link" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M10 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h5M14 8l4 4-4 4M8 12h10"></path></svg>
+          <span class="nav-label">退出登录</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <section id="mediaView" class="app-view" aria-labelledby="mediaViewTitle">
+        <header class="page-header">
+          <div class="page-heading">
+            <p class="eyebrow">MEDIA LIBRARY</p>
+            <h2 id="mediaViewTitle" class="page-title">媒体管理</h2>
+            <p class="muted hero-copy">扫描只读 STRM 源目录，将更新内容规范同步到 Emby。</p>
+          </div>
+          <div class="toolbar">
+            <a id="openListLink" class="button-like" href="#" target="_blank" rel="noopener noreferrer">OpenList <span aria-hidden="true">↗</span></a>
+            <a id="embyLink" class="button-like" href="#" target="_blank" rel="noopener noreferrer" hidden>Emby <span aria-hidden="true">↗</span></a>
+            <button id="embyButton" type="button">刷新 Emby</button>
+            <button id="reloadButton" type="button">刷新列表</button>
+            <button id="newButton" class="primary" type="button">添加媒体</button>
+          </div>
+        </header>
+
+        <section class="panel">
+          <div class="controls">
+            <div class="filter-tabs" role="tablist" aria-label="筛选状态">
+              <button class="filter-tab" type="button" role="tab" aria-selected="false" data-filter="ongoing">更新中 <span id="ongoingTabCount" class="tab-count">0</span></button>
+              <button class="filter-tab" type="button" role="tab" aria-selected="false" data-filter="completed">已完结 <span id="completedTabCount" class="tab-count">0</span></button>
+              <button class="filter-tab active" type="button" role="tab" aria-selected="true" data-filter="all">全部 <span id="allTabCount" class="tab-count">0</span></button>
+            </div>
+            <input id="searchInput" type="search" placeholder="搜索剧名，例如：太平年" autocomplete="off">
+            <button id="clearButton" type="button" hidden>清空搜索</button>
+          </div>
+
+          <div class="workspace">
+            <div>
+              <div class="summary">
+                <strong id="summary">读取中…</strong>
+              </div>
+              <div id="list" class="list"></div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section id="emby302View" class="app-view" aria-labelledby="emby302ViewTitle" hidden>
+        <header class="page-header">
+          <div class="page-heading">
+            <p class="eyebrow">EMBY DIRECT STREAM</p>
+            <div class="page-title-row">
+              <h2 id="emby302ViewTitle" class="page-title">302 管理</h2>
+              <span id="emby302HeaderStatus" class="gateway-status offline">未启用</span>
+            </div>
+            <p class="muted hero-copy">管理 Emby 302 播放网关、直链缓存和运行统计。</p>
+          </div>
+          <div class="toolbar">
+            <button id="emby302RefreshButton" type="button">刷新统计</button>
+            <button id="emby302CacheClearButton" type="button">清空缓存</button>
+          </div>
+        </header>
+
+        <div class="gateway-page">
+          <section class="gateway-stats" aria-label="302 网关统计">
+            <article class="gateway-stat-card"><span>运行状态</span><strong id="emby302RunningStat">未启用</strong><small id="emby302ListenStat">—</small></article>
+            <article class="gateway-stat-card"><span>累计请求</span><strong id="emby302RequestsStat">0</strong><small>网关接收请求</small></article>
+            <article class="gateway-stat-card"><span>302 直链</span><strong id="emby302RedirectsStat">0</strong><small id="emby302LastRedirectStat">暂无跳转</small></article>
+            <article class="gateway-stat-card"><span>缓存命中率</span><strong id="emby302HitRateStat">0%</strong><small id="emby302CacheStat">0 个缓存</small></article>
+            <article class="gateway-stat-card"><span>反代请求</span><strong id="emby302ProxyStat">0</strong><small>非直链请求</small></article>
+            <article class="gateway-stat-card"><span>错误</span><strong id="emby302ErrorsStat">0</strong><small id="emby302LastRequestStat">暂无请求</small></article>
+          </section>
+
+          <section class="panel gateway-config-panel">
+            <div class="settings-section-title">
+              <h3>网关配置</h3>
+              <p id="emby302DependencyHint">正在检查 Emby 与 OpenList 配置…</p>
+            </div>
+            <label class="gateway-enable-card" for="emby302EnabledInput">
+              <span>
+                <strong>启用 Emby 302 播放网关</strong>
+                <small>开启后使用独立端口代理 Emby，并将 STRM 播放请求重定向到 OpenList 直链。</small>
+              </span>
+              <input id="emby302EnabledInput" type="checkbox">
+              <span class="toggle-switch" aria-hidden="true"></span>
+            </label>
+            <div class="gateway-config-grid">
+              <div class="field gateway-url-field">
+                <label for="emby302EmbyUrlInput">Emby 容器内网地址</label>
+                <input id="emby302EmbyUrlInput" type="url" placeholder="例如：http://emby:8096" autocomplete="url">
+                <p class="gateway-field-help">Docker Compose 同一网络内可直接使用 Emby 服务名，不需要映射宿主机端口。</p>
+              </div>
+              <div class="field gateway-url-field">
+                <label for="emby302OpenListUrlInput">OpenList 容器内网地址</label>
+                <input id="emby302OpenListUrlInput" type="url" placeholder="例如：http://openlist:5244" autocomplete="url">
+                <p class="gateway-field-help">填写 OpenList API 的容器地址；Token 与路径密码继续读取服务环境配置。</p>
+              </div>
+              <div class="field">
+                <label for="emby302HostInput">监听地址</label>
+                <input id="emby302HostInput" type="text" value="0.0.0.0" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="emby302PortInput">监听端口</label>
+                <input id="emby302PortInput" type="number" value="18096" min="1" max="65535" inputmode="numeric">
+              </div>
+              <div class="field">
+                <label for="emby302CacheTtlInput">直链缓存时间（秒）</label>
+                <input id="emby302CacheTtlInput" type="number" value="180" min="1" max="86400" inputmode="numeric">
+              </div>
+              <div class="field">
+                <label for="emby302CacheMaxInput">最大缓存数量</label>
+                <input id="emby302CacheMaxInput" type="number" value="1000" min="1" max="100000" inputmode="numeric">
+              </div>
+              <div class="field">
+                <label for="emby302TimeoutInput">上游超时（毫秒）</label>
+                <input id="emby302TimeoutInput" type="number" value="30000" min="1000" max="600000" inputmode="numeric">
+              </div>
+              <div class="field">
+                <label for="emby302BodyLimitInput">请求体缓冲上限（字节）</label>
+                <input id="emby302BodyLimitInput" type="number" value="1048576" min="1024" max="107374182400" inputmode="numeric">
+              </div>
+            </div>
+            <div id="emby302Error" class="editor-error" role="alert"></div>
+            <div class="page-form-actions">
+              <button id="emby302ResetButton" type="button">恢复已保存配置</button>
+              <button id="emby302SaveButton" class="primary" type="button">保存并应用</button>
+            </div>
+          </section>
+
+          <section class="panel gateway-recent-panel">
+            <div class="utility-toolbar">
+              <strong>最近 302 跳转</strong>
+              <p class="muted">仅显示目标域名，不展示带鉴权参数的完整直链</p>
+            </div>
+            <div class="compact-table-wrap">
+              <table class="compact-table">
+                <thead><tr><th>时间</th><th>Emby 项目</th><th>OpenList 路径</th><th>来源</th><th>目标域名</th></tr></thead>
+                <tbody id="emby302RecentList"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="logsView" class="app-view" aria-labelledby="logsViewTitle" hidden>
+        <header class="page-header">
+          <div class="page-heading">
+            <p class="eyebrow">ACTIVITY</p>
+            <h2 id="logsViewTitle" class="page-title">运行日志</h2>
+            <p class="muted hero-copy">查看最近的扫描、同步、配置操作和错误信息。</p>
+          </div>
+          <div class="toolbar">
+            <button id="logsRefreshButton" type="button">立即刷新</button>
+            <button id="logsRealtimeButton" class="realtime-button" type="button" aria-pressed="false">
+              <span class="realtime-dot" aria-hidden="true"></span>
+              <span id="logsRealtimeLabel">开启实时刷新</span>
+            </button>
+            <button id="logsClearButton" type="button">清空日志</button>
+          </div>
+        </header>
+        <section class="panel">
+          <div class="utility-toolbar">
+            <strong>最近记录</strong>
+            <p id="logsUpdatedAt" class="muted">等待读取服务日志…</p>
+          </div>
+          <div class="log-table-wrap" role="region" aria-label="运行日志列表" tabindex="0">
+            <table class="log-table">
+              <thead>
+                <tr><th>时间</th><th>分类</th><th>方法</th><th>状态</th><th>路径 / 事件</th><th>耗时</th><th>客户端</th></tr>
+              </thead>
+              <tbody id="logsList" aria-live="polite"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="settingsView" class="app-view" aria-labelledby="settingsViewTitle" hidden>
+        <header class="page-header">
+          <div class="page-heading">
+            <p class="eyebrow">SETTINGS</p>
+            <h2 id="settingsViewTitle" class="page-title">系统设置</h2>
+            <p class="muted hero-copy">管理只读源 STRM 根目录与目标 STRM 根目录。</p>
+          </div>
+        </header>
+        <section class="panel settings-content">
+          <div class="settings-section-title">
+            <h3>路径配置</h3>
+            <p>保存后立即用于媒体发现和 Emby 发布。</p>
+          </div>
+          <div class="settings-path-layout">
+            <div class="path-config-card source">
+              <div class="path-config-heading">
+                <strong>源目录</strong>
+                <span class="path-config-tag">只读</span>
+              </div>
+              <div class="field">
+                <label for="settingsListRootInput">只读源 STRM 根目录</label>
+                <input id="settingsListRootInput" type="text" placeholder="例如：/temp_strm" autocomplete="off" required>
+                <p class="settings-help">从该 OpenList 目录读取与扫描，不会写入源文件。</p>
+              </div>
+            </div>
+
+            <div class="path-flow-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M14 7l5 5-5 5"></path></svg>
+            </div>
+
+            <div class="path-config-card target">
+              <div class="path-config-heading">
+                <strong>目标目录</strong>
+                <span class="path-config-tag">同步输出</span>
+              </div>
+              <div class="field">
+                <label for="settingsEmbyRootInput">目标 STRM 根目录</label>
+                <input id="settingsEmbyRootInput" type="text" placeholder="/local_media/emby-strm" autocomplete="off" required>
+                <p class="settings-help">整理后的 STRM 将同步到这里，供 Emby 媒体库读取。</p>
+              </div>
+            </div>
+          </div>
+          <div id="settingsError" class="editor-error" role="alert"></div>
+          <div class="page-form-actions">
+            <button id="settingsResetButton" type="button">恢复已保存设置</button>
+            <button id="settingsSaveButton" class="primary" type="button">保存设置</button>
+          </div>
+        </section>
+      </section>
+
+      <section id="aboutView" class="app-view" aria-labelledby="aboutViewTitle" hidden>
+        <header class="page-header">
+          <div class="page-heading">
+            <p class="eyebrow">ABOUT</p>
+            <h2 id="aboutViewTitle" class="page-title">关于</h2>
+            <p class="muted hero-copy">项目信息与技术栈。</p>
+          </div>
+        </header>
+        <section class="panel about-content">
+          <div class="about-hero">
+            <img class="about-logo" src="/static/strmflow.svg" alt="StrmFlow 图标">
+            <h3 class="about-name">StrmFlow</h3>
+            <span class="version-pill">v0.1.0</span>
+            <p class="about-description">面向 OpenList 与 Emby 的轻量 STRM 媒体自动化管理工具，专注于发现、整理和追更同步。</p>
+          </div>
+          <div class="about-grid">
+            <div class="about-card"><strong>FastAPI</strong><span>模块化 Web 服务</span></div>
+            <div class="about-card"><strong>SQLite</strong><span>本地持久化配置</span></div>
+            <div class="about-card"><strong>uv</strong><span>依赖与项目管理</span></div>
+          </div>
+        </section>
+      </section>
+
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+    </main>
+  </div>
+
+  <div id="editorModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+    <aside id="editorPanel" class="target-panel">
+      <div class="target-head">
+        <div>
+          <h2 id="editorTitle">添加媒体</h2>
+          <p class="muted" id="selectedHint">依次选择类型、分类和媒体目录，系统会自动完成映射。</p>
+        </div>
+        <button id="cancelButton" type="button" aria-label="关闭">关闭</button>
+      </div>
+      <section id="mediaDetailOverview" class="media-detail-overview" aria-label="当前媒体详情" hidden>
+        <div class="media-detail-heading">
+          <strong>同步与目录</strong>
+          <div class="media-detail-inline">
+            <span id="mediaDetailSynced">已同步 0 集</span>
+            <span id="mediaDetailLastSync">暂无同步记录</span>
+          </div>
+        </div>
+        <div class="media-detail-paths">
+          <div class="media-detail-path-card">
+            <span class="path-label">源目录</span>
+            <div id="mediaDetailSourcePath"></div>
+          </div>
+          <div class="media-detail-path-card">
+            <span class="path-label">目标目录</span>
+            <div id="mediaDetailTargetPath"></div>
+          </div>
+        </div>
+      </section>
+      <div class="field source-hierarchy-field">
+        <label id="sourceTypeLabel" for="sourceTypeInput">1. 一级目录</label>
+        <select id="sourceTypeInput">
+          <option value="">等待读取源目录…</option>
+        </select>
+        <input id="mediaTypeInput" type="hidden" value="tv">
+      </div>
+      <div class="field source-hierarchy-field">
+        <label id="categoryLabel" for="categoryInput">2. 二级分类</label>
+        <select id="categoryInput">
+          <option value="">等待读取源目录…</option>
+        </select>
+      </div>
+      <div class="field wide source-resource-field source-hierarchy-field">
+        <label id="sourceFolderLabel" for="sourceFolderInput">3. 媒体资源</label>
+        <div class="source-picker-row">
+          <select id="sourceFolderInput">
+            <option value="">等待读取源目录…</option>
+          </select>
+          <button id="refreshSourcesButton" type="button">重新扫描</button>
+        </div>
+        <p class="settings-help">从设置中的只读源 STRM 根目录自动读取，无需为每个媒体手动填写路径。</p>
+        <input id="sourcePathInput" type="hidden">
+      </div>
+      <div class="media-detail-edit-heading">
+        <strong>媒体配置</strong>
+        <span>仅修改需要调整的项目</span>
+      </div>
+      <div class="field">
+        <label for="titleInput">剧名 / 片名</label>
+        <input id="titleInput" type="text" placeholder="八千里路云和月" autocomplete="off" required maxlength="100">
+      </div>
+      <div class="field">
+        <label for="yearInput">年份</label>
+        <input id="yearInput" type="text" inputmode="numeric" placeholder="2026" autocomplete="off" maxlength="4" pattern="[0-9]{4}">
+      </div>
+      <div class="field">
+        <label for="totalEpisodesInput">总集数</label>
+        <input id="totalEpisodesInput" type="number" inputmode="numeric" placeholder="24" autocomplete="off" min="1" max="9999">
+      </div>
+      <div class="field">
+        <label for="seasonInput">默认季数（多季资源自动识别）</label>
+        <input id="seasonInput" type="number" inputmode="numeric" value="1" autocomplete="off" min="1" max="99">
+      </div>
+      <div class="field">
+        <label for="updateScheduleInput">更新时间 / 更新规律</label>
+        <input id="updateScheduleInput" type="text" placeholder="例如：每天 18 点、每周五更新、周一/周三 20:00" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="statusInput">追更状态</label>
+        <select id="statusInput">
+          <option value="ongoing">更新中</option>
+          <option value="completed">已完结</option>
+        </select>
+      </div>
+      <div class="field wide baidu-link-field">
+        <label for="baiduLinkInput">百度网盘链接（手动转存用）</label>
+        <input id="baiduLinkInput" type="text" placeholder="https://pan.baidu.com/s/..." autocomplete="off">
+      </div>
+      <div class="path" id="targetPreview">目标目录：未选择</div>
+      <div id="editorError" class="editor-error" role="alert"></div>
+      <div class="modal-actions editor-actions">
+        <button id="deleteButton" class="danger-button" type="button" disabled>删除配置</button>
+        <button id="editorCancelButton" type="button">取消</button>
+        <button id="saveButton" class="primary" type="button">保存配置</button>
+      </div>
+    </aside>
+  </div>
+
+  <div id="confirmModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <aside class="confirm-panel">
+      <h2 id="confirmTitle">确认删除？</h2>
+      <p id="confirmMessage">删除后只会移除追更记录，不会删除 OpenList 或 Emby 目录里的文件。</p>
+      <div class="confirm-actions">
+        <button id="confirmCancelButton" type="button">取消</button>
+        <button id="confirmOkButton" class="danger-solid" type="button">确认删除</button>
+      </div>
+    </aside>
+  </div>
+
+  <div id="renameModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="renameTitle">
+    <aside class="preview-panel">
+      <div class="target-head">
+        <div>
+          <h2 id="renameTitle">同步追更</h2>
+          <p class="preview-count" id="renameHint">正在准备同步任务…</p>
+        </div>
+        <button id="renameCloseButton" type="button" aria-label="关闭">关闭</button>
+      </div>
+      <div id="syncProgress" class="sync-progress">
+        <div class="sync-steps" aria-label="同步进度">
+          <div class="sync-step active" data-sync-step="scan"><span class="sync-step-number">1</span><span>扫描源目录</span></div>
+          <div class="sync-step" data-sync-step="preview"><span class="sync-step-number">2</span><span>确认文件名</span></div>
+          <div class="sync-step" data-sync-step="publish"><span class="sync-step-number">3</span><span>同步 Emby</span></div>
+          <div class="sync-step" data-sync-step="complete"><span class="sync-step-number">4</span><span>完成</span></div>
+        </div>
+        <div class="sync-current" role="status" aria-live="polite">
+          <div class="sync-stage-heading"><span id="syncSpinner" class="spinner"></span><strong id="syncStageTitle">正在启动扫描</strong></div>
+          <p id="syncStageDetail" class="sync-stage-detail">正在连接 OpenList…</p>
+          <div class="sync-meter" aria-hidden="true"><div id="syncMeterBar" class="sync-meter-bar indeterminate"></div></div>
+        </div>
+      </div>
+      <div id="syncResult" class="sync-result" hidden>
+        <div class="sync-result-item"><span>已更新</span><strong id="syncResultEpisodes">0 集</strong></div>
+        <div class="sync-result-item"><span>新增同步</span><strong id="syncResultNew">0 个</strong></div>
+        <div class="sync-result-item"><span>实际复制</span><strong id="syncResultCopied">0 项</strong></div>
+        <div class="sync-result-item"><span>媒体状态</span><strong id="syncResultStatus">更新中</strong></div>
+      </div>
+      <div id="syncPreviewSummary" class="sync-result sync-preview-summary" hidden>
+        <div class="sync-result-item"><span>新增同步</span><strong id="syncPreviewNew">0 个</strong></div>
+        <div class="sync-result-item"><span>缺失恢复</span><strong id="syncPreviewRecovery">0 个</strong></div>
+        <div class="sync-result-item"><span>待处理</span><strong id="syncPreviewPending">0 个</strong></div>
+      </div>
+      <div id="renameColumns" class="preview-head" aria-hidden="true" hidden>
+        <div>原文件名</div>
+        <div>同步到 Emby 的目标文件名（可修改）</div>
+      </div>
+      <div id="renameList" class="preview-list" hidden></div>
+      <div id="renameError" class="preview-error" role="alert"></div>
+      <div class="modal-actions sync-actions">
+        <button id="renameCancelButton" type="button" hidden>取消</button>
+        <button id="renameConfirmButton" class="primary" type="button" hidden>确认同步</button>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    let savedFilter = 'all';
+    try {
+      const storedFilter = localStorage.getItem('strmflow.filter');
+      if (['ongoing', 'completed', 'all'].includes(storedFilter)) savedFilter = storedFilter;
+    } catch {}
+    let savedLogs = [];
+    try {
+      const storedLogs = JSON.parse(localStorage.getItem('strmflow.logs') || '[]');
+      if (Array.isArray(storedLogs)) {
+        savedLogs = storedLogs
+          .filter((entry) => entry && typeof entry.message === 'string' && typeof entry.time === 'string')
+          .slice(0, 100);
+      }
+    } catch {}
+    const state = {
+      config: null,
+      folders: [],
+      sourceFolders: [],
+      sourceTypes: [],
+      sourceCategories: [],
+      sourcesLoaded: false,
+      sourcesLoading: false,
+      sourceLoadError: '',
+      selected: null,
+      filter: savedFilter,
+      busy: false,
+      pollTimer: null,
+      editorSnapshot: '',
+      settingsSnapshot: '',
+      settingsInitialized: false,
+      statusTimer: null,
+      logs: savedLogs,
+      serverLogs: [],
+      logsLoading: false,
+      logsRealtime: false,
+      logsTimer: null,
+      emby302Data: null,
+      emby302Snapshot: '',
+      emby302Loading: false,
+    };
+
+    const elements = {
+      list: document.querySelector('#list'),
+      summary: document.querySelector('#summary'),
+      status: document.querySelector('#status'),
+      allTabCount: document.querySelector('#allTabCount'),
+      ongoingTabCount: document.querySelector('#ongoingTabCount'),
+      completedTabCount: document.querySelector('#completedTabCount'),
+      search: document.querySelector('#searchInput'),
+      filterTabs: Array.from(document.querySelectorAll('.filter-tab')),
+      reload: document.querySelector('#reloadButton'),
+      clear: document.querySelector('#clearButton'),
+      emby: document.querySelector('#embyButton'),
+      openListLink: document.querySelector('#openListLink'),
+      embyLink: document.querySelector('#embyLink'),
+      logout: document.querySelector('#logoutButton'),
+      mediaNav: document.querySelector('#mediaNavButton'),
+      mediaView: document.querySelector('#mediaView'),
+      emby302: document.querySelector('#emby302Button'),
+      emby302View: document.querySelector('#emby302View'),
+      emby302HeaderStatus: document.querySelector('#emby302HeaderStatus'),
+      emby302Refresh: document.querySelector('#emby302RefreshButton'),
+      emby302CacheClear: document.querySelector('#emby302CacheClearButton'),
+      emby302RunningStat: document.querySelector('#emby302RunningStat'),
+      emby302ListenStat: document.querySelector('#emby302ListenStat'),
+      emby302RequestsStat: document.querySelector('#emby302RequestsStat'),
+      emby302RedirectsStat: document.querySelector('#emby302RedirectsStat'),
+      emby302LastRedirectStat: document.querySelector('#emby302LastRedirectStat'),
+      emby302HitRateStat: document.querySelector('#emby302HitRateStat'),
+      emby302CacheStat: document.querySelector('#emby302CacheStat'),
+      emby302ProxyStat: document.querySelector('#emby302ProxyStat'),
+      emby302ErrorsStat: document.querySelector('#emby302ErrorsStat'),
+      emby302LastRequestStat: document.querySelector('#emby302LastRequestStat'),
+      emby302DependencyHint: document.querySelector('#emby302DependencyHint'),
+      emby302Enabled: document.querySelector('#emby302EnabledInput'),
+      emby302EmbyUrl: document.querySelector('#emby302EmbyUrlInput'),
+      emby302OpenListUrl: document.querySelector('#emby302OpenListUrlInput'),
+      emby302Host: document.querySelector('#emby302HostInput'),
+      emby302Port: document.querySelector('#emby302PortInput'),
+      emby302CacheTtl: document.querySelector('#emby302CacheTtlInput'),
+      emby302CacheMax: document.querySelector('#emby302CacheMaxInput'),
+      emby302Timeout: document.querySelector('#emby302TimeoutInput'),
+      emby302BodyLimit: document.querySelector('#emby302BodyLimitInput'),
+      emby302Error: document.querySelector('#emby302Error'),
+      emby302Reset: document.querySelector('#emby302ResetButton'),
+      emby302Save: document.querySelector('#emby302SaveButton'),
+      emby302RecentList: document.querySelector('#emby302RecentList'),
+      logs: document.querySelector('#logsButton'),
+      logCount: document.querySelector('#logCount'),
+      logsView: document.querySelector('#logsView'),
+      logsList: document.querySelector('#logsList'),
+      logsClear: document.querySelector('#logsClearButton'),
+      logsRefresh: document.querySelector('#logsRefreshButton'),
+      logsRealtime: document.querySelector('#logsRealtimeButton'),
+      logsRealtimeLabel: document.querySelector('#logsRealtimeLabel'),
+      logsUpdatedAt: document.querySelector('#logsUpdatedAt'),
+      settings: document.querySelector('#settingsButton'),
+      settingsView: document.querySelector('#settingsView'),
+      settingsReset: document.querySelector('#settingsResetButton'),
+      settingsSave: document.querySelector('#settingsSaveButton'),
+      settingsListRoot: document.querySelector('#settingsListRootInput'),
+      settingsEmbyRoot: document.querySelector('#settingsEmbyRootInput'),
+      settingsError: document.querySelector('#settingsError'),
+      about: document.querySelector('#aboutButton'),
+      aboutView: document.querySelector('#aboutView'),
+      modal: document.querySelector('#editorModal'),
+      editorPanel: document.querySelector('#editorPanel'),
+      editorTitle: document.querySelector('#editorTitle'),
+      mediaDetailOverview: document.querySelector('#mediaDetailOverview'),
+      mediaDetailSynced: document.querySelector('#mediaDetailSynced'),
+      mediaDetailLastSync: document.querySelector('#mediaDetailLastSync'),
+      mediaDetailSourcePath: document.querySelector('#mediaDetailSourcePath'),
+      mediaDetailTargetPath: document.querySelector('#mediaDetailTargetPath'),
+      cancel: document.querySelector('#cancelButton'),
+      editorCancel: document.querySelector('#editorCancelButton'),
+      editorError: document.querySelector('#editorError'),
+      selectedHint: document.querySelector('#selectedHint'),
+      sourcePath: document.querySelector('#sourcePathInput'),
+      sourceTypeLabel: document.querySelector('#sourceTypeLabel'),
+      categoryLabel: document.querySelector('#categoryLabel'),
+      sourceFolderLabel: document.querySelector('#sourceFolderLabel'),
+      sourceFolder: document.querySelector('#sourceFolderInput'),
+      refreshSources: document.querySelector('#refreshSourcesButton'),
+      title: document.querySelector('#titleInput'),
+      year: document.querySelector('#yearInput'),
+      totalEpisodes: document.querySelector('#totalEpisodesInput'),
+      season: document.querySelector('#seasonInput'),
+      updateSchedule: document.querySelector('#updateScheduleInput'),
+      category: document.querySelector('#categoryInput'),
+      sourceType: document.querySelector('#sourceTypeInput'),
+      mediaType: document.querySelector('#mediaTypeInput'),
+      mediaStatus: document.querySelector('#statusInput'),
+      baiduLink: document.querySelector('#baiduLinkInput'),
+      targetPreview: document.querySelector('#targetPreview'),
+      new: document.querySelector('#newButton'),
+      save: document.querySelector('#saveButton'),
+      delete: document.querySelector('#deleteButton'),
+      confirmModal: document.querySelector('#confirmModal'),
+      confirmTitle: document.querySelector('#confirmTitle'),
+      confirmMessage: document.querySelector('#confirmMessage'),
+      confirmCancel: document.querySelector('#confirmCancelButton'),
+      confirmOk: document.querySelector('#confirmOkButton'),
+      renameModal: document.querySelector('#renameModal'),
+      renameTitle: document.querySelector('#renameTitle'),
+      renameHint: document.querySelector('#renameHint'),
+      renameColumns: document.querySelector('#renameColumns'),
+      renameList: document.querySelector('#renameList'),
+      renameError: document.querySelector('#renameError'),
+      renameClose: document.querySelector('#renameCloseButton'),
+      renameCancel: document.querySelector('#renameCancelButton'),
+      renameConfirm: document.querySelector('#renameConfirmButton'),
+      syncProgress: document.querySelector('#syncProgress'),
+      syncStageTitle: document.querySelector('#syncStageTitle'),
+      syncStageDetail: document.querySelector('#syncStageDetail'),
+      syncSpinner: document.querySelector('#syncSpinner'),
+      syncMeterBar: document.querySelector('#syncMeterBar'),
+      syncSteps: Array.from(document.querySelectorAll('[data-sync-step]')),
+      syncResult: document.querySelector('#syncResult'),
+      syncResultEpisodes: document.querySelector('#syncResultEpisodes'),
+      syncResultNew: document.querySelector('#syncResultNew'),
+      syncResultCopied: document.querySelector('#syncResultCopied'),
+      syncResultStatus: document.querySelector('#syncResultStatus'),
+      syncPreviewSummary: document.querySelector('#syncPreviewSummary'),
+      syncPreviewNew: document.querySelector('#syncPreviewNew'),
+      syncPreviewRecovery: document.querySelector('#syncPreviewRecovery'),
+      syncPreviewPending: document.querySelector('#syncPreviewPending'),
+    };
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        ...options,
+        headers: {
+          'content-type': 'application/json',
+          ...(options.headers || {}),
+        },
+      });
+      if (response.status === 401) {
+        location.replace('/login');
+        throw new Error('登录已过期，正在跳转…');
+      }
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || ('请求失败：HTTP ' + response.status));
+      }
+      return payload.data;
+    }
+
+    function saveActivityLogs() {
+      try { localStorage.setItem('strmflow.logs', JSON.stringify(state.logs)); } catch {}
+    }
+
+    function formatLogTime(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      const today = new Date();
+      const sameDay = date.toDateString() === today.toDateString();
+      return new Intl.DateTimeFormat('zh-CN', sameDay
+        ? { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }
+        : { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }
+      ).format(date);
+    }
+
+    const logCategoryLabels = {
+      http: '页面访问',
+      auth: '登录认证',
+      system: '系统状态',
+      media: '媒体数据',
+      scan: '目录扫描',
+      sync: 'Emby 同步',
+      settings: '系统设置',
+      transfer: '网盘转存',
+      gateway302: '302 网关',
+      activity: '界面操作',
+    };
+
+    function combinedActivityLogs() {
+      const browserLogs = state.logs.map((entry, index) => ({
+        ...entry,
+        id: 'browser-' + index + '-' + entry.time,
+        category: 'activity',
+        level: entry.type || 'info',
+      }));
+      return [...state.serverLogs, ...browserLogs].sort(
+        (left, right) => new Date(right.time).getTime() - new Date(left.time).getTime(),
+      );
+    }
+
+    function renderActivityLogs() {
+      const allLogs = combinedActivityLogs();
+      elements.logsList.replaceChildren();
+      elements.logCount.textContent = allLogs.length > 99 ? '99+' : String(allLogs.length);
+      elements.logCount.hidden = allLogs.length === 0;
+      if (allLogs.length === 0) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.className = 'log-empty-cell';
+        cell.colSpan = 7;
+        cell.textContent = '还没有运行记录，请点击“立即刷新”获取服务日志。';
+        row.append(cell);
+        elements.logsList.append(row);
+        return;
+      }
+
+      for (const entry of allLogs) {
+        const row = document.createElement('tr');
+        const timeCell = document.createElement('td');
+        timeCell.className = 'time-cell';
+        const time = document.createElement('time');
+        time.className = 'log-time';
+        time.dateTime = entry.time;
+        time.title = new Date(entry.time).toLocaleString('zh-CN');
+        time.textContent = formatLogTime(entry.time);
+        timeCell.append(time);
+
+        const categoryCell = document.createElement('td');
+        const category = document.createElement('span');
+        category.className = 'log-category';
+        category.textContent = logCategoryLabels[entry.category] || entry.category || '界面操作';
+        categoryCell.append(category);
+
+        const methodCell = document.createElement('td');
+        methodCell.className = 'method-cell';
+        if (entry.method) {
+          const method = document.createElement('span');
+          method.className = 'log-method';
+          method.textContent = entry.method;
+          methodCell.append(method);
+        } else methodCell.textContent = '—';
+
+        const statusCell = document.createElement('td');
+        statusCell.className = 'status-cell';
+        if (Number.isInteger(entry.statusCode)) {
+          const status = document.createElement('span');
+          status.className = 'log-status-code' + (
+            entry.statusCode >= 500 ? ' error'
+              : entry.statusCode >= 400 ? ' warning'
+                : entry.statusCode >= 300 ? ' redirect' : ''
+          );
+          status.textContent = String(entry.statusCode);
+          statusCell.append(status);
+        } else statusCell.textContent = '—';
+
+        const pathCell = document.createElement('td');
+        pathCell.className = 'path-cell';
+        const primary = document.createElement('div');
+        primary.className = 'log-primary';
+        primary.textContent = entry.eventType ? entry.message : (entry.path || entry.message);
+        pathCell.append(primary);
+        const secondaryParts = [];
+        if (entry.redirectTo) secondaryParts.push('跳转 → ' + entry.redirectTo);
+        if (entry.gatewayAction) secondaryParts.push('动作：' + entry.gatewayAction);
+        if (entry.eventType && entry.path) secondaryParts.push(entry.path);
+        if (entry.errorType) secondaryParts.push('异常：' + entry.errorType);
+        if (entry.protocol) secondaryParts.push(entry.protocol);
+        if (entry.responseSize) secondaryParts.push(entry.responseSize + ' B');
+        if (secondaryParts.length > 0) {
+          const secondary = document.createElement('div');
+          secondary.className = 'log-secondary';
+          secondary.textContent = secondaryParts.join(' · ');
+          pathCell.append(secondary);
+        }
+        if (entry.userAgent) row.title = 'User-Agent: ' + entry.userAgent;
+
+        const durationCell = document.createElement('td');
+        durationCell.className = 'duration-cell';
+        durationCell.textContent = entry.durationMs === undefined ? '—' : entry.durationMs + ' ms';
+        const clientCell = document.createElement('td');
+        clientCell.className = 'client-cell';
+        clientCell.textContent = entry.client || '—';
+
+        row.append(timeCell, categoryCell, methodCell, statusCell, pathCell, durationCell, clientCell);
+        elements.logsList.append(row);
+      }
+    }
+
+    function addActivityLog(message, type = '') {
+      const normalizedMessage = String(message || '').trim();
+      if (!normalizedMessage) return;
+      const normalizedType = ['success', 'error', 'running'].includes(type) ? type : 'info';
+      const now = new Date();
+      const latest = state.logs[0];
+      if (
+        latest
+        && latest.message === normalizedMessage
+        && latest.type === normalizedType
+        && now.getTime() - new Date(latest.time).getTime() < 1500
+      ) {
+        latest.time = now.toISOString();
+      } else {
+        state.logs.unshift({ message: normalizedMessage, type: normalizedType, time: now.toISOString() });
+      }
+      state.logs = state.logs.slice(0, 100);
+      saveActivityLogs();
+      renderActivityLogs();
+    }
+
+    async function loadRuntimeLogs(silent = false) {
+      if (state.logsLoading) return;
+      state.logsLoading = true;
+      if (!silent) {
+        elements.logsUpdatedAt.textContent = '正在读取服务日志…';
+        elements.logsRefresh.disabled = true;
+      }
+      try {
+        const data = await api('/api/logs?limit=500');
+        state.serverLogs = Array.isArray(data.items) ? data.items : [];
+        elements.logsUpdatedAt.textContent = '最后刷新：' + new Date().toLocaleTimeString('zh-CN', { hour12: false });
+        renderActivityLogs();
+      } catch (error) {
+        elements.logsUpdatedAt.textContent = '刷新失败：' + error.message;
+        addActivityLog('读取服务日志失败：' + error.message, 'error');
+      } finally {
+        state.logsLoading = false;
+        elements.logsRefresh.disabled = state.busy;
+      }
+    }
+
+    function updateRealtimeButton() {
+      elements.logsRealtime.classList.toggle('active', state.logsRealtime);
+      elements.logsRealtime.setAttribute('aria-pressed', state.logsRealtime ? 'true' : 'false');
+      elements.logsRealtimeLabel.textContent = state.logsRealtime ? '停止实时刷新' : '开启实时刷新';
+    }
+
+    function toggleRealtimeLogs() {
+      state.logsRealtime = !state.logsRealtime;
+      clearInterval(state.logsTimer);
+      state.logsTimer = null;
+      updateRealtimeButton();
+      if (!state.logsRealtime) return;
+      loadRuntimeLogs(true);
+      state.logsTimer = setInterval(() => {
+        if (!elements.logsView.hidden) loadRuntimeLogs(true);
+      }, 2500);
+    }
+
+    function emby302Values() {
+      return {
+        enabled: elements.emby302Enabled.checked,
+        embyUrl: elements.emby302EmbyUrl.value.trim().replace(/\/+$/, ''),
+        openlistUrl: elements.emby302OpenListUrl.value.trim().replace(/\/+$/, ''),
+        host: elements.emby302Host.value.trim(),
+        port: Number(elements.emby302Port.value),
+        cacheTtl: Number(elements.emby302CacheTtl.value),
+        cacheMax: Number(elements.emby302CacheMax.value),
+        timeoutMs: Number(elements.emby302Timeout.value),
+        bodyBufferMax: Number(elements.emby302BodyLimit.value),
+      };
+    }
+
+    function validateEmby302(showError = false) {
+      const values = emby302Values();
+      const validHttpUrl = (value) => {
+        if (!value) return false;
+        try {
+          const parsed = new URL(value);
+          return ['http:', 'https:'].includes(parsed.protocol) && Boolean(parsed.host);
+        } catch {
+          return false;
+        }
+      };
+      const fields = [
+        [elements.emby302EmbyUrl, (!values.enabled && !values.embyUrl) || validHttpUrl(values.embyUrl), '请填写完整的 Emby 容器地址，例如 http://emby:8096'],
+        [elements.emby302OpenListUrl, (!values.enabled && !values.openlistUrl) || validHttpUrl(values.openlistUrl), '请填写完整的 OpenList 容器地址，例如 http://openlist:5244'],
+        [elements.emby302Host, Boolean(values.host), '请填写监听地址'],
+        [elements.emby302Port, Number.isInteger(values.port) && values.port >= 1 && values.port <= 65535, '监听端口需要在 1 至 65535 之间'],
+        [elements.emby302CacheTtl, Number.isInteger(values.cacheTtl) && values.cacheTtl >= 1 && values.cacheTtl <= 86400, '缓存时间需要在 1 至 86400 秒之间'],
+        [elements.emby302CacheMax, Number.isInteger(values.cacheMax) && values.cacheMax >= 1 && values.cacheMax <= 100000, '最大缓存数量需要在 1 至 100000 之间'],
+        [elements.emby302Timeout, Number.isInteger(values.timeoutMs) && values.timeoutMs >= 1000 && values.timeoutMs <= 600000, '上游超时需要在 1000 至 600000 毫秒之间'],
+        [elements.emby302BodyLimit, Number.isInteger(values.bodyBufferMax) && values.bodyBufferMax >= 1024, '请求体缓冲上限不能小于 1024 字节'],
+      ];
+      const invalid = fields.find(([, valid]) => !valid);
+      for (const [field, valid] of fields) field.setAttribute('aria-invalid', valid ? 'false' : 'true');
+      elements.emby302Save.disabled = state.busy || Boolean(invalid);
+      if (showError && invalid) {
+        elements.emby302Error.textContent = invalid[2];
+        elements.emby302Error.classList.add('show');
+        invalid[0].focus();
+      } else if (!invalid) {
+        elements.emby302Error.textContent = '';
+        elements.emby302Error.classList.remove('show');
+      }
+      return !invalid;
+    }
+
+    function fillEmby302Form(config) {
+      elements.emby302Enabled.checked = Boolean(config.enabled);
+      elements.emby302EmbyUrl.value = config.embyUrl || '';
+      elements.emby302OpenListUrl.value = config.openlistUrl || '';
+      elements.emby302Host.value = config.host || '0.0.0.0';
+      elements.emby302Port.value = String(config.port || 18096);
+      elements.emby302CacheTtl.value = String(config.cacheTtl || 180);
+      elements.emby302CacheMax.value = String(config.cacheMax || 1000);
+      elements.emby302Timeout.value = String(config.timeoutMs || 30000);
+      elements.emby302BodyLimit.value = String(config.bodyBufferMax || 1048576);
+      state.emby302Snapshot = JSON.stringify(emby302Values());
+      validateEmby302(false);
+    }
+
+    function renderEmby302(data) {
+      if (!data) return;
+      const config = data.config || {};
+      const stats = data.stats || {};
+      const running = Boolean(stats.running);
+      const failed = Boolean(config.enabled && !running && stats.lastError);
+      elements.emby302HeaderStatus.className = 'gateway-status ' + (running ? 'online' : failed ? 'error' : config.enabled ? 'pending' : 'offline');
+      elements.emby302HeaderStatus.textContent = running ? '运行中' : failed ? '启动失败' : config.enabled ? '等待启动' : '未启用';
+      elements.emby302RunningStat.textContent = running ? '运行中' : config.enabled ? '异常' : '未启用';
+      elements.emby302ListenStat.textContent = stats.listenAddress || '—';
+      elements.emby302RequestsStat.textContent = Number(stats.totalRequests || 0).toLocaleString('zh-CN');
+      elements.emby302RedirectsStat.textContent = Number(stats.redirects || 0).toLocaleString('zh-CN');
+      elements.emby302LastRedirectStat.textContent = stats.lastRedirectAt ? '最近 ' + formatDate(stats.lastRedirectAt) : '暂无跳转';
+      elements.emby302HitRateStat.textContent = String(stats.cacheHitRate || 0) + '%';
+      elements.emby302CacheStat.textContent = String(stats.cacheEntries || 0) + ' 个缓存 · 命中 ' + String(stats.cacheHits || 0) + ' 次';
+      elements.emby302ProxyStat.textContent = Number(stats.proxyRequests || 0).toLocaleString('zh-CN');
+      elements.emby302ErrorsStat.textContent = Number(stats.errors || 0).toLocaleString('zh-CN');
+      elements.emby302LastRequestStat.textContent = stats.lastRequestAt ? '最近 ' + formatDate(stats.lastRequestAt) : '暂无请求';
+      const dependencies = data.dependencies || {};
+      const dependencyIssues = [];
+      if (!dependencies.embyConfigured) dependencyIssues.push('Emby URL/API Key');
+      if (!dependencies.openListConfigured) dependencyIssues.push('OpenList URL/Token');
+      elements.emby302DependencyHint.textContent = dependencyIssues.length > 0
+        ? '启用前还需配置：' + dependencyIssues.join('、')
+        : 'Emby 与 OpenList 连接参数已配置；保存后立即应用监听与缓存设置。';
+      if (stats.lastError) elements.emby302DependencyHint.textContent += ' 最近错误：' + stats.lastError;
+
+      elements.emby302RecentList.replaceChildren();
+      const redirects = Array.isArray(data.recentRedirects) ? data.recentRedirects : [];
+      if (redirects.length === 0) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.className = 'compact-empty';
+        cell.colSpan = 5;
+        cell.textContent = '暂无 302 跳转记录';
+        row.append(cell);
+        elements.emby302RecentList.append(row);
+      } else {
+        for (const redirect of redirects) {
+          const row = document.createElement('tr');
+          for (const value of [
+            formatLogTime(redirect.time),
+            redirect.itemId || '—',
+            redirect.path || '缓存记录',
+            redirect.cacheHit ? '缓存命中' : '实时解析',
+            redirect.targetHost || '—',
+          ]) {
+            const cell = document.createElement('td');
+            cell.textContent = value;
+            row.append(cell);
+          }
+          elements.emby302RecentList.append(row);
+        }
+      }
+    }
+
+    async function loadEmby302(populateForm = false) {
+      if (state.emby302Loading) return;
+      state.emby302Loading = true;
+      elements.emby302Refresh.disabled = true;
+      try {
+        const data = await api('/api/emby302');
+        state.emby302Data = data;
+        if (populateForm || !state.emby302Snapshot) fillEmby302Form(data.config || {});
+        renderEmby302(data);
+      } catch (error) {
+        elements.emby302Error.textContent = error.message;
+        elements.emby302Error.classList.add('show');
+      } finally {
+        state.emby302Loading = false;
+        elements.emby302Refresh.disabled = state.busy;
+      }
+    }
+
+    async function openEmby302() {
+      showView('emby302');
+      await loadEmby302(!state.emby302Data);
+    }
+
+    function restoreEmby302() {
+      if (!state.emby302Data?.config) return;
+      fillEmby302Form(state.emby302Data.config);
+      setStatus('已恢复当前保存的 302 网关配置。', 'success');
+    }
+
+    async function saveEmby302() {
+      if (state.busy || !validateEmby302(true)) return;
+      setBusy(true);
+      elements.emby302Error.textContent = '';
+      elements.emby302Error.classList.remove('show');
+      try {
+        const data = await api('/api/emby302', {
+          method: 'PUT',
+          body: JSON.stringify(emby302Values()),
+        });
+        state.emby302Data = data;
+        fillEmby302Form(data.config || {});
+        renderEmby302(data);
+        setStatus(data.stats?.running ? '302 网关配置已保存并启动。' : '302 网关配置已保存。', 'success');
+      } catch (error) {
+        elements.emby302Error.textContent = error.message;
+        elements.emby302Error.classList.add('show');
+        addActivityLog('保存 302 网关配置失败：' + error.message, 'error');
+      } finally {
+        setBusy(false);
+        validateEmby302(false);
+      }
+    }
+
+    async function clearEmby302Cache() {
+      if (state.busy) return;
+      elements.emby302CacheClear.disabled = true;
+      try {
+        const data = await api('/api/emby302/cache/clear', { method: 'POST', body: '{}' });
+        state.emby302Data = data;
+        renderEmby302(data);
+        setStatus('302 直链缓存已清空。', 'success');
+      } catch (error) {
+        setStatus(error.message, 'error');
+      } finally {
+        elements.emby302CacheClear.disabled = state.busy;
+      }
+    }
+
+    function setActiveNav(name) {
+      const navigation = [
+        ['media', elements.mediaNav],
+        ['emby302', elements.emby302],
+        ['logs', elements.logs],
+        ['settings', elements.settings],
+        ['about', elements.about],
+      ];
+      for (const [key, button] of navigation) {
+        const active = key === name;
+        button.classList.toggle('active', active);
+        if (active) button.setAttribute('aria-current', 'page');
+        else button.removeAttribute('aria-current');
+      }
+    }
+
+    function showView(name) {
+      const views = [
+        ['media', elements.mediaView],
+        ['emby302', elements.emby302View],
+        ['logs', elements.logsView],
+        ['settings', elements.settingsView],
+        ['about', elements.aboutView],
+      ];
+      for (const [key, view] of views) view.hidden = key !== name;
+      setActiveNav(name);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function openLogs() {
+      renderActivityLogs();
+      showView('logs');
+      await loadRuntimeLogs();
+    }
+
+    async function clearActivityLogs() {
+      const confirmed = await confirmAction({
+        title: '清空运行日志？',
+        message: '当前浏览器中保存的操作记录将被清除。',
+        okText: '确认清空',
+      });
+      if (!confirmed) return;
+      elements.logsClear.disabled = true;
+      try {
+        await api('/api/logs', { method: 'DELETE' });
+        state.logs = [];
+        state.serverLogs = [];
+        saveActivityLogs();
+        renderActivityLogs();
+        elements.logsUpdatedAt.textContent = '日志已清空';
+      } catch (error) {
+        elements.logsUpdatedAt.textContent = '清空失败：' + error.message;
+        addActivityLog('清空运行日志失败：' + error.message, 'error');
+      } finally {
+        elements.logsClear.disabled = state.busy;
+        elements.logsClear.focus();
+      }
+    }
+
+    function openAbout() {
+      showView('about');
+    }
+
+    function setStatus(message, type = '') {
+      clearTimeout(state.statusTimer);
+      addActivityLog(message, type);
+      elements.status.textContent = message;
+      elements.status.className = 'status show ' + type;
+      if (type !== 'running') state.statusTimer = setTimeout(clearStatus, type === 'error' ? 5000 : 2400);
+    }
+
+    function clearStatus() {
+      clearTimeout(state.statusTimer);
+      elements.status.textContent = '';
+      elements.status.className = 'status';
+    }
+
+    function setBusy(value) {
+      state.busy = value;
+      document.querySelectorAll('button').forEach((button) => {
+        button.disabled = value;
+      });
+      elements.search.disabled = value;
+      elements.sourcePath.disabled = value;
+      elements.sourceFolder.disabled = value || state.sourcesLoading;
+      elements.refreshSources.disabled = value || state.sourcesLoading;
+      elements.title.disabled = value;
+      elements.year.disabled = value;
+      elements.totalEpisodes.disabled = value;
+      elements.season.disabled = value;
+      elements.updateSchedule.disabled = value;
+      elements.category.disabled = value || state.sourcesLoading || !elements.category.value;
+      elements.sourceType.disabled = value || state.sourcesLoading || !elements.sourceType.value;
+      elements.mediaType.disabled = value;
+      elements.mediaStatus.disabled = value;
+      elements.baiduLink.disabled = value;
+      elements.settingsListRoot.disabled = value;
+      elements.settingsEmbyRoot.disabled = value;
+      [
+        elements.emby302Enabled,
+        elements.emby302EmbyUrl,
+        elements.emby302OpenListUrl,
+        elements.emby302Host,
+        elements.emby302Port,
+        elements.emby302CacheTtl,
+        elements.emby302CacheMax,
+        elements.emby302Timeout,
+        elements.emby302BodyLimit,
+      ].forEach((input) => { input.disabled = value; });
+      updateTargetPreview();
+    }
+
+    function formatDate(value) {
+      if (!value) return '未知';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+      if (seconds < 60) return '刚刚';
+      if (seconds < 3600) return Math.floor(seconds / 60) + ' 分钟前';
+      if (seconds < 86400) return Math.floor(seconds / 3600) + ' 小时前';
+      if (seconds < 7 * 86400) return Math.floor(seconds / 86400) + ' 天前';
+      return date.toLocaleDateString('zh-CN');
+    }
+
+    function normalizeExternalUrl(value) {
+      const text = String(value || '').trim();
+      if (!text) return '';
+      const explicitUrl = text.match(/https?:\/\/[^\s，,；;]+/i);
+      if (explicitUrl) return explicitUrl[0];
+      const domainUrl = text.match(/(?:^|[\s：:])([\w.-]+\.[a-z]{2,}(?:\/[^\s，,；;]*)?)/i);
+      if (domainUrl) return 'https://' + domainUrl[1];
+      return '';
+    }
+
+    function buildOpenListBrowseUrl(value) {
+      const baseUrl = String(state.config?.openListExternalUrl || '').trim();
+      const virtualPath = String(value || '').trim();
+      if (!baseUrl || !virtualPath) return '';
+      try {
+        const url = new URL(baseUrl);
+        if (!['http:', 'https:'].includes(url.protocol)) return '';
+        const encodedPath = virtualPath
+          .split('/')
+          .filter(Boolean)
+          .map((segment) => {
+            try { return encodeURIComponent(decodeURIComponent(segment)); }
+            catch { return encodeURIComponent(segment); }
+          })
+          .join('/');
+        const basePath = url.pathname.replace(/\/+$/, '');
+        url.pathname = (basePath || '') + '/' + encodedPath;
+        url.search = '';
+        url.hash = '';
+        return url.toString();
+      } catch {
+        return '';
+      }
+    }
+
+    function mediaTypeLabel(value) {
+      return value === 'movie' ? '电影' : '电视剧';
+    }
+
+    function seasonSummary(folder) {
+      const values = Array.isArray(folder?.seasons) ? folder.seasons : [];
+      const seasons = [...new Set(values
+        .map((value) => Number.parseInt(String(value), 10))
+        .filter((value) => Number.isInteger(value) && value >= 0 && value <= 99))]
+        .sort((left, right) => left - right);
+      if (seasons.length === 0) seasons.push(Math.max(1, Number(folder?.season || 1)));
+      const labels = seasons.map((season) => 'S' + String(season).padStart(2, '0'));
+      return {
+        seasons,
+        full: labels.join('、'),
+        compact: labels.length <= 3
+          ? labels.join(' / ')
+          : labels.length + ' 季 · ' + labels[0] + '–' + labels[labels.length - 1],
+      };
+    }
+
+    function createStat(label, value, extraClass = '') {
+      const stat = document.createElement('div');
+      stat.className = 'stat' + (extraClass ? ' ' + extraClass : '');
+      const statLabel = document.createElement('div');
+      statLabel.className = 'stat-label';
+      statLabel.textContent = label;
+      const statValue = document.createElement('div');
+      statValue.className = 'stat-value';
+      statValue.title = value || '未填写';
+      statValue.textContent = value || '未填写';
+      stat.append(statLabel, statValue);
+      return stat;
+    }
+
+    async function copyText(value, button) {
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(value);
+        } else {
+          const textarea = document.createElement('textarea');
+          textarea.value = value;
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.append(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          textarea.remove();
+        }
+        const original = button.textContent;
+        button.textContent = '已复制';
+        setTimeout(() => { button.textContent = original; }, 1200);
+      } catch {
+        setStatus('复制失败，请手动选择路径。', 'error');
+      }
+    }
+
+    function createPathRow(value, { openList = false } = {}) {
+      const row = document.createElement('div');
+      row.className = 'path-row';
+      const path = document.createElement('div');
+      path.className = 'item-path';
+      path.textContent = value;
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'copy-button';
+      copy.textContent = '复制';
+      copy.setAttribute('aria-label', '复制路径');
+      copy.addEventListener('click', () => copyText(value, copy));
+      row.append(path, copy);
+      if (openList) {
+        const openUrl = buildOpenListBrowseUrl(value);
+        const open = document.createElement(openUrl ? 'a' : 'button');
+        open.className = 'button-like openlist-path-button';
+        open.textContent = 'OpenList ↗';
+        open.setAttribute('aria-label', '在 OpenList 打开此目录');
+        if (openUrl) {
+          open.href = openUrl;
+          open.target = '_blank';
+          open.rel = 'noopener noreferrer';
+        } else {
+          open.type = 'button';
+          open.disabled = true;
+          open.title = '请配置外网访问地址 OPENLIST_WEB_URL';
+        }
+        row.classList.add('has-open');
+        row.append(open);
+      }
+      return row;
+    }
+
+    function renderMediaDetail(folder) {
+      const syncedCount = Array.isArray(folder.syncedFiles)
+        ? folder.syncedFiles.filter((file) => /\.strm$/i.test(file)).length
+        : 0;
+      elements.mediaDetailSynced.textContent = '已同步 ' + syncedCount + ' 集';
+      elements.mediaDetailLastSync.textContent = folder.lastSyncedAt
+        ? '最近同步 ' + formatDate(folder.lastSyncedAt)
+        : '暂无同步记录';
+      elements.mediaDetailSourcePath.replaceChildren(
+        createPathRow(folder.sourcePath || folder.scanPath, { openList: true }),
+      );
+      elements.mediaDetailTargetPath.replaceChildren(
+        createPathRow(folder.targetDir || folder.mediaPath, { openList: true }),
+      );
+      elements.mediaDetailOverview.hidden = false;
+    }
+
+    function hideMediaDetail() {
+      elements.mediaDetailOverview.hidden = true;
+      elements.mediaDetailSourcePath.replaceChildren();
+      elements.mediaDetailTargetPath.replaceChildren();
+    }
+
+    function confirmAction({ title, message, okText = '确认' }) {
+      return new Promise((resolve) => {
+        elements.confirmTitle.textContent = title;
+        elements.confirmMessage.textContent = message;
+        elements.confirmOk.textContent = okText;
+        elements.confirmModal.classList.add('show');
+        elements.confirmCancel.focus();
+
+        const cleanup = () => {
+          elements.confirmModal.classList.remove('show');
+          elements.confirmCancel.removeEventListener('click', onCancel);
+          elements.confirmOk.removeEventListener('click', onOk);
+          elements.confirmModal.removeEventListener('click', onBackdrop);
+        };
+        const onCancel = () => {
+          cleanup();
+          resolve(false);
+        };
+        const onOk = () => {
+          cleanup();
+          resolve(true);
+        };
+        const onBackdrop = (event) => {
+          if (event.target === elements.confirmModal) onCancel();
+        };
+
+        elements.confirmCancel.addEventListener('click', onCancel);
+        elements.confirmOk.addEventListener('click', onOk);
+        elements.confirmModal.addEventListener('click', onBackdrop);
+      });
+    }
+
+    function openSyncModal(folder) {
+      elements.renameTitle.textContent = '同步追更 · ' + folder.name;
+      elements.renameHint.textContent = '目标目录：' + folder.targetDir;
+      elements.renameColumns.hidden = true;
+      elements.renameList.hidden = true;
+      elements.renameList.replaceChildren();
+      elements.renameError.textContent = '';
+      elements.renameError.classList.remove('show');
+      elements.renameConfirm.hidden = true;
+      elements.renameCancel.hidden = true;
+      elements.syncResult.hidden = true;
+      elements.syncPreviewSummary.hidden = true;
+      elements.syncProgress.hidden = false;
+      elements.renameClose.onclick = null;
+      elements.renameCancel.onclick = null;
+      elements.renameConfirm.onclick = null;
+      elements.renameModal.classList.add('show');
+      addActivityLog('开始同步：' + folder.name, 'running');
+      updateSyncStage('scan', '正在启动扫描', '正在连接 OpenList…', { running: true });
+    }
+
+    function closeSyncModal() {
+      elements.renameModal.classList.remove('show');
+      elements.renameClose.onclick = null;
+      elements.renameCancel.onclick = null;
+      elements.renameConfirm.onclick = null;
+    }
+
+    function updateSyncStage(stage, title, detail, options = {}) {
+      const order = ['scan', 'preview', 'publish', 'complete'];
+      const currentIndex = Math.max(order.indexOf(stage), 0);
+      const completed = stage === 'complete' && !options.error && !options.running;
+      elements.syncSteps.forEach((step) => {
+        const index = order.indexOf(step.dataset.syncStep || '');
+        step.className = 'sync-step';
+        if (index < currentIndex || (completed && index === currentIndex)) step.classList.add('complete');
+        if (index === currentIndex && !completed) step.classList.add(options.error ? 'error' : 'active');
+      });
+      elements.syncStageTitle.textContent = title;
+      elements.syncStageDetail.textContent = detail;
+      elements.syncStageTitle.parentElement.className = 'sync-stage-heading' + (completed ? ' complete' : '');
+      elements.syncStageDetail.className = 'sync-stage-detail' + (options.error ? ' error' : '');
+      elements.syncSpinner.hidden = !options.running;
+      elements.syncMeterBar.className = 'sync-meter-bar' + (options.running ? ' indeterminate' : '');
+      elements.syncMeterBar.style.width = options.running ? '' : String((currentIndex + 1) * 25) + '%';
+    }
+
+    function showSyncFailure(stage, error) {
+      addActivityLog('同步失败：' + error.message, 'error');
+      updateSyncStage(stage, '同步未完成', error.message, { error: true });
+      elements.renameHint.textContent = '任务已停止，请检查配置或稍后重试。';
+      elements.renameColumns.hidden = true;
+      elements.renameList.hidden = true;
+      elements.syncResult.hidden = true;
+      elements.syncPreviewSummary.hidden = true;
+      elements.renameCancel.hidden = true;
+      elements.renameConfirm.hidden = false;
+      elements.renameConfirm.textContent = '关闭';
+      elements.renameClose.onclick = closeSyncModal;
+      elements.renameConfirm.onclick = closeSyncModal;
+      elements.renameConfirm.focus();
+    }
+
+    function showSyncResult(result, detail) {
+      const episodeTotal = result.totalEpisodes ? '/' + result.totalEpisodes : '';
+      addActivityLog('同步完成：' + detail, 'success');
+      updateSyncStage('complete', '同步完成', detail);
+      elements.renameHint.textContent = result.targetDir;
+      elements.renameColumns.hidden = true;
+      elements.renameList.hidden = true;
+      elements.syncPreviewSummary.hidden = true;
+      elements.syncResultEpisodes.textContent = String(result.episodeCount || 0) + episodeTotal + ' 集';
+      elements.syncResultNew.textContent = String(result.newFiles?.length || 0) + ' 个';
+      elements.syncResultCopied.textContent = String(result.copied || 0) + ' 项';
+      elements.syncResultStatus.textContent = result.status === 'completed' ? '已完结' : '更新中';
+      elements.syncResult.hidden = false;
+      elements.renameCancel.hidden = true;
+      elements.renameConfirm.hidden = false;
+      elements.renameConfirm.textContent = '完成';
+      elements.renameClose.onclick = closeSyncModal;
+      elements.renameConfirm.onclick = closeSyncModal;
+      elements.renameConfirm.focus();
+    }
+
+    function showRenamePreview(preview) {
+      return new Promise((resolve) => {
+        const rows = Array.isArray(preview?.plan) ? preview.plan : [];
+        elements.renameList.replaceChildren();
+        elements.renameError.textContent = '';
+        elements.renameError.classList.remove('show');
+        const episodeTotal = preview.totalEpisodes ? '/' + preview.totalEpisodes : '';
+        const newFiles = Array.isArray(preview?.newFiles) ? preview.newFiles : [];
+        const previewSeasons = seasonSummary(preview);
+        const seasonDetail = previewSeasons.seasons.length > 1
+          ? '，自动识别 ' + previewSeasons.seasons.length + ' 个季度（' + previewSeasons.full + '）'
+          : '';
+        const newFileSet = new Set(newFiles.map((file) => String(file || '').replace(/\\/g, '/')));
+        const recoveryCount = rows.filter((row) => !newFileSet.has(String(row.sourceRel || '').replace(/\\/g, '/'))).length;
+        updateSyncStage(
+          'preview',
+          rows.length > 0 ? '确认同步文件名' : '没有待复制文件',
+          rows.length > 0
+            ? '已发现 ' + (preview.episodeCount || 0) + episodeTotal + ' 集' + seasonDetail + '，请确认下方文件名后开始同步。'
+            : '已发现 ' + (preview.episodeCount || 0) + episodeTotal + ' 集' + seasonDetail + '，本次没有需要复制或恢复的文件。',
+        );
+        elements.renameHint.textContent = '目标目录：' + preview.targetDir + (rows.length > 0 ? '；可在下方修改目标相对路径。' : '');
+        elements.syncPreviewNew.textContent = String(newFiles.length) + ' 个';
+        elements.syncPreviewRecovery.textContent = String(recoveryCount) + ' 个';
+        elements.syncPreviewPending.textContent = String(rows.length) + ' 个';
+        elements.syncPreviewSummary.hidden = false;
+        elements.renameConfirm.textContent = rows.length > 0 ? '确认同步' : '继续';
+        elements.renameConfirm.hidden = false;
+        elements.renameCancel.hidden = false;
+        elements.renameColumns.hidden = rows.length === 0;
+        elements.renameList.hidden = false;
+
+        if (rows.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'empty';
+          empty.textContent = '没有需要复制或恢复的文件。';
+          elements.renameList.append(empty);
+        }
+
+        for (const row of rows) {
+          const item = document.createElement('div');
+          item.className = 'preview-row';
+          const oldName = document.createElement('div');
+          oldName.className = 'preview-old';
+          oldName.textContent = row.sourceRel || '';
+          oldName.title = row.sourceRel || '';
+
+          const input = document.createElement('input');
+          input.className = 'preview-new';
+          input.type = 'text';
+          input.value = row.targetRel || row.sourceRel || '';
+          input.dataset.sourceRel = row.sourceRel || '';
+          input.autocomplete = 'off';
+          input.spellcheck = false;
+          input.title = input.value;
+          input.addEventListener('input', () => {
+            input.title = input.value;
+            elements.renameError.textContent = '';
+            elements.renameError.classList.remove('show');
+          });
+
+          item.append(oldName, input);
+          elements.renameList.append(item);
+        }
+
+        const cleanup = () => {
+          elements.renameClose.onclick = null;
+          elements.renameCancel.onclick = null;
+          elements.renameConfirm.onclick = null;
+        };
+        const onCancel = () => {
+          cleanup();
+          closeSyncModal();
+          resolve(null);
+        };
+        const onOk = () => {
+          try {
+            const renamePlan = collectRenamePlan();
+            cleanup();
+            elements.renameColumns.hidden = true;
+            elements.renameList.hidden = true;
+            elements.syncPreviewSummary.hidden = true;
+            elements.renameConfirm.hidden = true;
+            elements.renameCancel.hidden = true;
+            resolve(renamePlan);
+          } catch (error) {
+            elements.renameError.textContent = error.message;
+            elements.renameError.classList.add('show');
+          }
+        };
+
+        elements.renameClose.onclick = onCancel;
+        elements.renameCancel.onclick = onCancel;
+        elements.renameConfirm.onclick = onOk;
+        elements.renameConfirm.focus();
+      });
+    }
+
+    function collectRenamePlan() {
+      const inputs = Array.from(elements.renameList.querySelectorAll('.preview-new'));
+      const seen = new Set();
+      return inputs.map((input) => {
+        const sourceRel = validatePreviewPath(input.dataset.sourceRel || '', '原文件名');
+        const targetRel = validatePreviewPath(input.value || '', '目标文件名');
+        if (seen.has(targetRel)) {
+          throw new Error('目标文件名重复：' + targetRel);
+        }
+        seen.add(targetRel);
+        input.value = targetRel;
+        return { sourceRel, targetRel };
+      });
+    }
+
+    function validatePreviewPath(value, label) {
+      const text = String(value || '').trim().replace(/\\/g, '/');
+      if (!text || text.length > 600 || text.startsWith('/') || /[\u0000-\u001f\u007f]/u.test(text)) {
+        throw new Error(label + '不合法');
+      }
+      const parts = text.split('/').filter(Boolean);
+      if (
+        parts.length === 0 ||
+        parts.some((part) =>
+          part === '.' ||
+          part === '..' ||
+          part.length > 180 ||
+          /[\\:*?"<>|]/u.test(part)
+        )
+      ) {
+        throw new Error(label + '不合法：' + text);
+      }
+      return parts.join('/');
+    }
+
+    function parseTitleYear(name) {
+      const match = String(name || '').match(/^(.*?)[（(](\d{4})[）)]\s*$/);
+      if (!match) return { title: name || '', year: '' };
+      return { title: match[1].trim(), year: match[2] };
+    }
+
+    function guessCategory(folder) {
+      const path = folder?.sourcePath || folder?.scanPath || '';
+      const parts = path.split('/').filter(Boolean);
+      const lowered = parts.map((part) => part.toLocaleLowerCase('zh-CN'));
+      const tvIndex = lowered.findIndex((part) => ['tv', '电视剧', '剧集', 'shows', 'show'].includes(part));
+      const movieIndex = lowered.findIndex((part) => ['movie', 'movies', '电影', '影片'].includes(part));
+      if (tvIndex >= 0 && parts[tvIndex + 1]) return parts[tvIndex + 1];
+      if (movieIndex >= 0 && parts[movieIndex + 1]) return parts[movieIndex + 1];
+      return '未分类';
+    }
+
+    function guessMediaType(folder) {
+      const parts = (folder?.sourcePath || folder?.scanPath || '').split('/').filter(Boolean);
+      return parts.some((part) => ['movie', 'movies', '电影', '影片'].includes(part.toLocaleLowerCase('zh-CN')))
+        ? 'movie'
+        : 'tv';
+    }
+
+    function sourceFolderPath(folder) {
+      return String(folder?.sourcePath || folder?.scanPath || '').trim();
+    }
+
+    function sourceFolderType(folder) {
+      return folder?.mediaType || guessMediaType(folder);
+    }
+
+    function mediaTypeFromDirectory(value) {
+      return ['movie', 'movies', '电影', '影片'].includes(String(value || '').toLocaleLowerCase('zh-CN'))
+        ? 'movie'
+        : 'tv';
+    }
+
+    function sourceFolderTypeDir(folder) {
+      if (folder?.typeDir) return folder.typeDir;
+      const sourcePath = sourceFolderPath(folder);
+      const root = String(state.config?.pathSettings?.listRoot || '').replace(/\/+$/, '');
+      if (root && sourcePath.startsWith(root + '/')) {
+        return sourcePath.slice(root.length + 1).split('/').filter(Boolean)[0] || '';
+      }
+      return sourceFolderType(folder) === 'movie' ? 'Movies' : 'TV';
+    }
+
+    function sourceFolderCategory(folder) {
+      return folder?.category || guessCategory(folder) || '未分类';
+    }
+
+    function replaceSelectOptions(
+      select,
+      options,
+      selectedValue,
+      emptyLabel,
+      placeholderLabel = '',
+    ) {
+      select.replaceChildren();
+      if (options.length === 0) {
+        const empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = emptyLabel;
+        select.append(empty);
+        select.value = '';
+        return;
+      }
+      if (placeholderLabel) {
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = placeholderLabel;
+        placeholder.disabled = true;
+        select.append(placeholder);
+      }
+      for (const item of options) {
+        const option = document.createElement('option');
+        option.value = item.value;
+        option.textContent = item.label;
+        select.append(option);
+      }
+      select.value = options.some((item) => item.value === selectedValue) ? selectedValue : '';
+    }
+
+    function findSourceFolder(path) {
+      return state.sourceFolders.find((folder) => sourceFolderPath(folder) === path) || null;
+    }
+
+    function findAddedSource(path) {
+      if (!path) return null;
+      return state.folders.find((folder) =>
+        sourceFolderPath(folder) === path && folder.id !== state.selected?.id
+      ) || null;
+    }
+
+    function applySelectedSource(overwriteMetadata = true) {
+      const sourcePath = elements.sourceFolder.value;
+      elements.sourcePath.value = sourcePath;
+      const folder = findSourceFolder(sourcePath);
+      if (folder && overwriteMetadata) {
+        const parsed = parseTitleYear(folder.name);
+        elements.title.value = folder.title || parsed.title;
+        elements.year.value = folder.year || parsed.year;
+      }
+      if (folder) elements.mediaType.value = sourceFolderType(folder);
+      const added = findAddedSource(sourcePath);
+      if (added) {
+        elements.selectedHint.textContent = '已添加：' + (added.name || sourcePath) + '，无需重复添加。';
+      } else if (sourcePath) {
+        elements.selectedHint.textContent = folder
+          ? '已自动映射：' + sourcePath
+          : '当前配置目录：' + sourcePath;
+      } else {
+        const current = [
+          state.config?.pathSettings?.listRoot,
+          elements.sourceType.value,
+          elements.category.value,
+        ].filter(Boolean).join('/').replace(/\/{2,}/g, '/');
+        elements.selectedHint.textContent = state.sourceFolders.length > 0
+          ? '已进入：' + current + '，请选择媒体资源。'
+          : '当前目录下未发现媒体资源：' + current;
+      }
+      updateTargetPreview();
+    }
+
+    function setSourcePickerLoading(value) {
+      state.sourcesLoading = value;
+      elements.sourceType.disabled = value || state.sourceTypes.length === 0;
+      elements.category.disabled = value || !elements.sourceType.value || state.sourceCategories.length === 0;
+      elements.sourceFolder.disabled = value || !elements.category.value || state.sourceFolders.length === 0;
+      elements.refreshSources.disabled = value || state.busy;
+    }
+
+    function restoreSavedSourceSelection(folder, typeDir, category, sourcePath) {
+      const mediaType = folder.mediaType || mediaTypeFromDirectory(typeDir);
+      state.sourceTypes = [{ name: typeDir, mediaType }];
+      state.sourceCategories = [{ name: category }];
+      state.sourceFolders = [{
+        ...folder,
+        sourcePath,
+        scanPath: sourcePath,
+        typeDir,
+        category,
+        mediaType,
+      }];
+      state.sourcesLoaded = false;
+      state.sourceLoadError = '';
+      replaceSelectOptions(
+        elements.sourceType,
+        [{ value: typeDir, label: typeDir }],
+        typeDir,
+        '未保存一级目录',
+      );
+      replaceSelectOptions(
+        elements.category,
+        [{ value: category, label: category }],
+        category,
+        '未保存二级分类',
+      );
+      replaceSelectOptions(
+        elements.sourceFolder,
+        [{ value: sourcePath, label: folder.name || folder.title || sourcePath }],
+        sourcePath,
+        '未保存媒体资源',
+      );
+      elements.sourcePath.value = sourcePath;
+      elements.selectedHint.textContent = '已读取保存的目录配置；需要重新读取 OpenList 时请手动点击“重新扫描”。';
+      setSourcePickerLoading(false);
+    }
+
+    function clearSelectedSource(clearMetadata = true) {
+      elements.sourcePath.value = '';
+      if (clearMetadata) {
+        elements.title.value = '';
+        elements.year.value = '';
+      }
+      updateTargetPreview();
+    }
+
+    function showSourcePickerError(error) {
+      state.sourceLoadError = error.message;
+      addActivityLog('读取源目录失败：' + state.sourceLoadError, 'error');
+      elements.editorError.textContent = state.sourceLoadError;
+      elements.editorError.classList.add('show');
+    }
+
+    function renderResourceOptions(preferredPath = '', overwriteMetadata = false) {
+      const options = state.sourceFolders.map((folder) => {
+        const path = sourceFolderPath(folder);
+        const added = findAddedSource(path);
+        return {
+          value: path,
+          label: (folder.title || folder.name || path)
+            + (folder.year ? ' (' + folder.year + ')' : '')
+            + (added ? ' · 已添加' : ''),
+        };
+      });
+      if (preferredPath && !options.some((option) => option.value === preferredPath)) {
+        options.unshift({ value: preferredPath, label: '当前配置 · ' + preferredPath });
+      }
+      replaceSelectOptions(
+        elements.sourceFolder,
+        options,
+        preferredPath,
+        state.sourcesLoaded ? '此分类下未发现媒体资源' : '等待读取源目录…',
+        '请选择媒体资源',
+      );
+      applySelectedSource(overwriteMetadata);
+    }
+
+    async function loadResourceOptions(
+      preferredPath = '',
+      overwriteMetadata = true,
+      refresh = false,
+    ) {
+      const typeDir = elements.sourceType.value;
+      const category = elements.category.value;
+      if (!typeDir || !category) {
+        state.sourceFolders = [];
+        clearSelectedSource(overwriteMetadata);
+        renderResourceOptions(preferredPath, false);
+        return true;
+      }
+      replaceSelectOptions(elements.sourceFolder, [], '', '正在读取媒体资源…');
+      try {
+        const query = new URLSearchParams({ typeDir, category });
+        if (refresh) query.set('refresh', '1');
+        const data = await api('/api/media/options?' + query.toString());
+        state.sourceFolders = Array.isArray(data.folders) ? data.folders : [];
+        state.sourceLoadError = '';
+        renderResourceOptions(preferredPath, overwriteMetadata);
+        return true;
+      } catch (error) {
+        showSourcePickerError(error);
+        return false;
+      }
+    }
+
+    async function loadCategoryOptions(
+      preferredCategory = '',
+      preferredPath = '',
+      overwriteMetadata = true,
+      refresh = false,
+    ) {
+      const typeDir = elements.sourceType.value;
+      const typeInfo = state.sourceTypes.find((entry) => entry.name === typeDir);
+      elements.mediaType.value = typeInfo?.mediaType || mediaTypeFromDirectory(typeDir);
+      state.sourceCategories = [];
+      state.sourceFolders = [];
+      clearSelectedSource(overwriteMetadata);
+      replaceSelectOptions(elements.category, [], '', '正在读取二级分类…');
+      replaceSelectOptions(elements.sourceFolder, [], '', '请先选择二级分类');
+      try {
+        const query = new URLSearchParams({ typeDir });
+        if (refresh) query.set('refresh', '1');
+        const data = await api('/api/media/options?' + query.toString());
+        state.sourceCategories = Array.isArray(data.entries) ? data.entries : [];
+        replaceSelectOptions(
+          elements.category,
+          state.sourceCategories.map((entry) => ({ value: entry.name, label: entry.name })),
+          preferredCategory,
+          '此一级目录下未发现二级分类',
+          '请选择二级分类',
+        );
+        const root = String(state.config?.pathSettings?.listRoot || '').replace(/\/+$/, '');
+        if (!preferredCategory) {
+          elements.selectedHint.textContent = '已进入：' + root + '/' + typeDir + '，请选择二级分类。';
+          updateTargetPreview();
+          return true;
+        }
+        return await loadResourceOptions(preferredPath, overwriteMetadata, refresh);
+      } catch (error) {
+        showSourcePickerError(error);
+        return false;
+      }
+    }
+
+    async function loadSourceFolders(
+      refresh = false,
+      preferredTypeDir = '',
+      preferredCategory = '',
+      preferredPath = '',
+      overwriteMetadata = true,
+    ) {
+      if (state.sourcesLoading) return false;
+      setSourcePickerLoading(true);
+      state.sourceTypes = [];
+      state.sourceCategories = [];
+      state.sourceFolders = [];
+      clearSelectedSource(overwriteMetadata && !preferredPath);
+      replaceSelectOptions(elements.sourceType, [], '', '正在读取一级目录…');
+      replaceSelectOptions(elements.category, [], '', '请先选择一级目录');
+      replaceSelectOptions(elements.sourceFolder, [], '', '请先选择二级分类');
+      try {
+        const data = await api('/api/media/options' + (refresh ? '?refresh=1' : ''));
+        state.sourceTypes = (Array.isArray(data.entries) ? data.entries : []).map((entry) => ({
+          ...entry,
+          mediaType: mediaTypeFromDirectory(entry.name),
+        }));
+        state.sourcesLoaded = true;
+        replaceSelectOptions(
+          elements.sourceType,
+          state.sourceTypes.map((entry) => ({
+            value: entry.name,
+            label: entry.name,
+          })),
+          preferredTypeDir,
+          '只读源 STRM 根目录下未发现一级目录',
+          '请选择一级目录',
+        );
+        if (!preferredTypeDir) {
+          const root = state.config?.pathSettings?.listRoot || '只读源 STRM 根目录';
+          elements.selectedHint.textContent = '已读取：' + root + '，请选择一级目录。';
+          updateTargetPreview();
+          return true;
+        }
+        return await loadCategoryOptions(preferredCategory, preferredPath, overwriteMetadata, refresh);
+      } catch (error) {
+        showSourcePickerError(error);
+        return false;
+      } finally {
+        setSourcePickerLoading(false);
+      }
+    }
+
+    function editorValues() {
+      return {
+        sourcePath: elements.sourcePath.value.trim(),
+        title: elements.title.value.trim(),
+        year: elements.year.value.trim(),
+        totalEpisodes: elements.totalEpisodes.value.trim(),
+        season: elements.season.value.trim(),
+        updateSchedule: elements.updateSchedule.value.trim(),
+        category: elements.category.value.trim(),
+        mediaType: elements.mediaType.value,
+        status: elements.mediaStatus.value,
+        baiduLink: elements.baiduLink.value.trim(),
+      };
+    }
+
+    function captureEditorSnapshot() {
+      state.editorSnapshot = JSON.stringify(editorValues());
+    }
+
+    function editorIsDirty() {
+      return elements.modal.classList.contains('show')
+        && state.editorSnapshot !== JSON.stringify(editorValues());
+    }
+
+    function validateEditor(showErrors = false) {
+      const values = editorValues();
+      const errors = [];
+      const invalid = {
+        sourcePath: !values.sourcePath,
+        duplicate: Boolean(findAddedSource(values.sourcePath)),
+        title: !values.title,
+        year: Boolean(values.year && !/^\d{4}$/.test(values.year)),
+        totalEpisodes: Boolean(values.totalEpisodes && (!/^\d+$/.test(values.totalEpisodes) || Number(values.totalEpisodes) <= 0)),
+        season: !/^\d+$/.test(values.season) || Number(values.season) < 1 || Number(values.season) > 99,
+      };
+      if (invalid.duplicate) {
+        const duplicate = findAddedSource(values.sourcePath);
+        errors.push('该媒体已添加：' + (duplicate?.name || values.sourcePath));
+      }
+      if (invalid.sourcePath) errors.push('请选择 STRM 媒体目录');
+      if (invalid.title) errors.push('请填写剧名或片名');
+      if (invalid.year) errors.push('年份需要填写 4 位数字');
+      if (invalid.totalEpisodes) errors.push('总集数需要填写正整数');
+      if (invalid.season) errors.push('季数需要填写 1 至 99 的整数');
+      elements.sourcePath.setAttribute('aria-invalid', invalid.sourcePath ? 'true' : 'false');
+      elements.sourceFolder.setAttribute('aria-invalid', invalid.sourcePath || invalid.duplicate ? 'true' : 'false');
+      elements.title.setAttribute('aria-invalid', invalid.title ? 'true' : 'false');
+      elements.year.setAttribute('aria-invalid', invalid.year ? 'true' : 'false');
+      elements.totalEpisodes.setAttribute('aria-invalid', invalid.totalEpisodes ? 'true' : 'false');
+      elements.season.setAttribute('aria-invalid', invalid.season ? 'true' : 'false');
+      elements.save.disabled = state.busy || errors.length > 0;
+      if (invalid.duplicate) {
+        elements.editorError.textContent = errors[0];
+        elements.editorError.classList.add('show');
+      } else if (showErrors && errors.length > 0) {
+        elements.editorError.textContent = errors[0];
+        elements.editorError.classList.add('show');
+        const firstInvalid = [elements.sourceFolder, elements.title, elements.year, elements.totalEpisodes, elements.season]
+          .find((input) => input.getAttribute('aria-invalid') === 'true');
+        firstInvalid?.focus();
+      } else {
+        elements.editorError.textContent = '';
+        elements.editorError.classList.remove('show');
+      }
+      return errors.length === 0;
+    }
+
+    function selectFolder(folder) {
+      state.selected = folder;
+      elements.editorPanel.classList.add('detail-mode');
+      elements.sourceTypeLabel.textContent = '一级目录';
+      elements.categoryLabel.textContent = '二级分类';
+      elements.sourceFolderLabel.textContent = '媒体资源';
+      const parsed = parseTitleYear(folder.name);
+      const sourcePath = folder.sourcePath || folder.scanPath;
+      const category = folder.category || guessCategory(folder);
+      const mediaType = folder.mediaType || guessMediaType(folder);
+      const typeDir = sourceFolderTypeDir(folder);
+      elements.sourcePath.value = sourcePath;
+      elements.title.value = folder.title || parsed.title;
+      elements.year.value = folder.year || parsed.year;
+      elements.totalEpisodes.value = folder.totalEpisodes || '';
+      elements.season.value = folder.season || 1;
+      elements.updateSchedule.value = folder.updateSchedule || '';
+      elements.mediaType.value = mediaType;
+      elements.mediaStatus.value = folder.status || 'ongoing';
+      elements.baiduLink.value = folder.baiduLink || '';
+      renderMediaDetail(folder);
+      elements.selectedHint.textContent = '正在匹配设置的源目录…';
+      elements.editorTitle.textContent = '媒体详情';
+      elements.save.textContent = '保存修改';
+      elements.modal.classList.add('show');
+      restoreSavedSourceSelection(folder, typeDir, category, sourcePath);
+      updateTargetPreview();
+      captureEditorSnapshot();
+      elements.cancel.focus();
+    }
+
+    function updateTargetPreview() {
+      const title = elements.title.value.trim();
+      const year = elements.year.value.trim();
+      const category = elements.category.value.trim() || '未分类';
+      const mediaType = elements.mediaType.value || 'tv';
+      const root = state.config?.embyStrmRoot || '/local_media/emby-strm';
+      const folderName = title ? title + (year ? ' (' + year + ')' : '') : '未填写名称';
+      const autoSeasonHint = mediaType === 'tv' ? '（同步时自动生成 Season XX）' : '';
+      elements.targetPreview.textContent = '目标目录：' + root + '/' + mediaType + '/' + category + '/' + folderName + autoSeasonHint;
+      elements.delete.disabled = state.busy || !state.selected;
+      validateEditor(false);
+    }
+
+    async function newItemForm() {
+      if (!state.config?.pathSettings?.listRoot) {
+        setStatus('请先在设置中指定只读源 STRM 根目录。', 'error');
+        openSettings();
+        elements.settingsError.textContent = '请先填写只读源 STRM 根目录，再添加媒体。';
+        elements.settingsError.classList.add('show');
+        return;
+      }
+      state.selected = null;
+      elements.editorPanel.classList.remove('detail-mode');
+      elements.sourceTypeLabel.textContent = '1. 一级目录';
+      elements.categoryLabel.textContent = '2. 二级分类';
+      elements.sourceFolderLabel.textContent = '3. 媒体资源';
+      hideMediaDetail();
+      elements.sourcePath.value = '';
+      elements.title.value = '';
+      elements.year.value = '';
+      elements.totalEpisodes.value = '';
+      elements.season.value = '1';
+      elements.updateSchedule.value = '';
+      elements.mediaType.value = 'tv';
+      elements.mediaStatus.value = 'ongoing';
+      elements.baiduLink.value = '';
+      elements.editorTitle.textContent = '添加媒体';
+      elements.save.textContent = '保存配置';
+      elements.selectedHint.textContent = '正在读取设置的只读源 STRM 根目录…';
+      elements.modal.classList.add('show');
+      updateTargetPreview();
+      const loaded = await loadSourceFolders(true, '', '', '', true);
+      if (!loaded) {
+        elements.editorError.textContent = state.sourceLoadError;
+        elements.editorError.classList.add('show');
+      }
+      captureEditorSnapshot();
+      elements.sourceType.focus();
+    }
+
+    function closeEditor() {
+      elements.modal.classList.remove('show');
+      elements.editorError.classList.remove('show');
+    }
+
+    async function requestCloseEditor() {
+      if (state.busy) return;
+      if (editorIsDirty()) {
+        const confirmed = await confirmAction({
+          title: '放弃未保存的修改？',
+          message: '当前填写的内容还没有保存，关闭后这些修改会丢失。',
+          okText: '放弃修改',
+        });
+        if (!confirmed) return;
+      }
+      closeEditor();
+    }
+
+    function render() {
+      const keyword = elements.search.value.trim().toLocaleLowerCase('zh-CN');
+      const ongoingCount = state.folders.filter((folder) => folder.status === 'ongoing').length;
+      const completedCount = state.folders.filter((folder) => folder.status === 'completed').length;
+      elements.allTabCount.textContent = String(state.folders.length);
+      elements.ongoingTabCount.textContent = String(ongoingCount);
+      elements.completedTabCount.textContent = String(completedCount);
+      elements.clear.hidden = keyword.length === 0;
+      for (const tab of elements.filterTabs) {
+        const active = tab.dataset.filter === state.filter;
+        tab.classList.toggle('active', active);
+        tab.setAttribute('aria-selected', active ? 'true' : 'false');
+      }
+      const folders = state.folders
+        .filter((folder) =>
+          folder.name.toLocaleLowerCase('zh-CN').includes(keyword)
+          && (state.filter === 'all' || folder.status === state.filter)
+        )
+        .sort((left, right) => {
+          if (state.filter === 'all' && left.status !== right.status) {
+            return left.status === 'ongoing' ? -1 : 1;
+          }
+          return left.name.localeCompare(right.name, 'zh-CN', { numeric: true, sensitivity: 'base' });
+        });
+
+      elements.summary.textContent = keyword
+        ? '匹配 ' + folders.length + ' / ' + state.folders.length + ' 个追更媒体'
+        : '显示 ' + folders.length + ' / ' + state.folders.length + ' 个追更媒体';
+      elements.list.replaceChildren();
+
+      if (folders.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        const emptyText = document.createElement('p');
+        emptyText.textContent = state.folders.length === 0
+          ? '还没有保存媒体配置，点击“添加媒体”开始。'
+          : '没有匹配的目录。';
+        empty.append(emptyText);
+        if (state.folders.length === 0) {
+          const add = document.createElement('button');
+          add.type = 'button';
+          add.className = 'primary';
+          add.textContent = '添加第一个媒体';
+          add.style.marginTop = '14px';
+          add.addEventListener('click', newItemForm);
+          empty.append(add);
+        }
+        elements.list.append(empty);
+        return;
+      }
+
+      for (const [cardIndex, folder] of folders.entries()) {
+        const isCompleted = folder.status === 'completed';
+        const isMovie = folder.mediaType === 'movie';
+        const item = document.createElement('article');
+        item.className = 'item ' + (isCompleted ? 'completed' : 'ongoing') + (isMovie ? ' movie' : ' tv');
+        item.setAttribute('aria-label', folder.name || folder.title || '媒体');
+        item.style.animationDelay = Math.min(cardIndex * 35, 210) + 'ms';
+
+        const top = document.createElement('div');
+        top.className = 'item-top';
+
+        const syncedCount = Array.isArray(folder.syncedFiles)
+          ? folder.syncedFiles.filter((file) => /\.strm$/i.test(file)).length
+          : 0;
+        const statusText = isCompleted ? '已完结' : '更新中';
+        const baiduUrl = normalizeExternalUrl(folder.baiduLink);
+        const parsedTotal = Number.parseInt(String(folder.totalEpisodes || ''), 10);
+        const hasTotal = Number.isInteger(parsedTotal) && parsedTotal > 0;
+        const seasonInfo = seasonSummary(folder);
+
+        const info = document.createElement('div');
+        info.className = 'item-info';
+        const titleRow = document.createElement('div');
+        titleRow.className = 'item-title-row';
+
+        const mediaMark = document.createElement('span');
+        mediaMark.className = 'media-kind-mark' + (isMovie ? ' movie' : '');
+        mediaMark.textContent = isMovie ? '影' : '剧';
+        mediaMark.title = mediaTypeLabel(folder.mediaType);
+        mediaMark.setAttribute('aria-hidden', 'true');
+
+        const titleCopy = document.createElement('div');
+        titleCopy.className = 'item-title-copy';
+        const name = document.createElement('h3');
+        name.className = 'item-name';
+        name.textContent = folder.title || folder.name;
+        name.title = folder.name || folder.title || '';
+
+        const tags = document.createElement('div');
+        tags.className = 'media-tags';
+        for (const tagValue of [
+          folder.category || '未分类',
+          folder.year ? String(folder.year) : '',
+          isMovie ? '电影' : seasonInfo.compact,
+        ].filter(Boolean)) {
+          const tag = document.createElement('span');
+          tag.className = 'media-tag';
+          tag.textContent = tagValue;
+          tag.title = tagValue;
+          tags.append(tag);
+        }
+        titleCopy.append(name, tags);
+
+        const statusPill = document.createElement('span');
+        statusPill.className = 'status-pill ' + (isCompleted ? 'completed' : 'ongoing');
+        statusPill.textContent = statusText;
+
+        titleRow.append(mediaMark, titleCopy, statusPill);
+
+        const episodeSummary = document.createElement('div');
+        episodeSummary.className = 'episode-summary';
+        const episodeCount = document.createElement('strong');
+        episodeCount.textContent = '已同步 ' + syncedCount + ' 集';
+        episodeSummary.append(episodeCount);
+        if (hasTotal) {
+          const totalTag = document.createElement('span');
+          totalTag.className = 'episode-total-tag';
+          totalTag.textContent = '总计 ' + parsedTotal + ' 集';
+          episodeSummary.append(totalTag);
+        }
+
+        const stats = document.createElement('div');
+        stats.className = 'item-stats';
+        stats.append(
+          createStat('最近同步', formatDate(folder.lastSyncedAt)),
+          createStat('更新计划', folder.updateSchedule || '未记录'),
+        );
+
+        info.append(titleRow, episodeSummary, stats);
+
+        const actions = document.createElement('div');
+        actions.className = 'item-actions';
+
+        const detailButton = document.createElement('button');
+        detailButton.type = 'button';
+        detailButton.className = 'media-details-button';
+        detailButton.textContent = '详情';
+        detailButton.setAttribute('aria-label', '查看 ' + (folder.title || folder.name) + ' 详情');
+        detailButton.addEventListener('click', () => selectFolder(folder));
+
+        const syncButton = document.createElement('button');
+        syncButton.type = 'button';
+        syncButton.className = 'primary sync-button';
+        syncButton.textContent = '同步更新';
+        syncButton.addEventListener('click', () => generateSelected(folder));
+
+        actions.append(syncButton);
+        if (baiduUrl) {
+          const baiduButton = document.createElement('a');
+          baiduButton.className = 'button-like baidu-button';
+          baiduButton.href = baiduUrl;
+          baiduButton.target = '_blank';
+          baiduButton.rel = 'noreferrer';
+          baiduButton.textContent = '网盘';
+          actions.append(baiduButton);
+        }
+        actions.append(detailButton);
+        top.append(info, actions);
+        item.append(top);
+        elements.list.append(item);
+      }
+    }
+
+    function settingsValues() {
+      return {
+        listRoot: elements.settingsListRoot.value.trim(),
+        embyStrmRoot: elements.settingsEmbyRoot.value.trim(),
+      };
+    }
+
+    function resetSettingsForm() {
+      if (!state.config) {
+        setStatus('配置仍在加载，请稍候。', 'running');
+        return false;
+      }
+      const paths = state.config?.pathSettings || {};
+      elements.settingsListRoot.value = paths.listRoot || '';
+      elements.settingsEmbyRoot.value = paths.embyStrmRoot || state.config?.embyStrmRoot || '/local_media/emby-strm';
+      elements.settingsError.textContent = '';
+      elements.settingsError.classList.remove('show');
+      state.settingsSnapshot = JSON.stringify(settingsValues());
+      state.settingsInitialized = true;
+      return true;
+    }
+
+    function openSettings() {
+      if (!state.settingsInitialized && !resetSettingsForm()) return;
+      showView('settings');
+    }
+
+    function restoreSettings() {
+      if (!resetSettingsForm()) return;
+      setStatus('已恢复当前保存的路径设置。', 'success');
+    }
+
+    async function saveSettings() {
+      if (state.busy) return;
+      const values = settingsValues();
+      if (!values.listRoot) {
+        elements.settingsError.textContent = '请填写只读源 STRM 根目录';
+        elements.settingsError.classList.add('show');
+        elements.settingsListRoot.focus();
+        return;
+      }
+      if (!values.embyStrmRoot) {
+        elements.settingsError.textContent = '请填写目标 STRM 根目录';
+        elements.settingsError.classList.add('show');
+        elements.settingsEmbyRoot.focus();
+        return;
+      }
+      setBusy(true);
+      try {
+        const paths = await api('/api/settings/paths', {
+          method: 'PUT',
+          body: JSON.stringify(values),
+        });
+        state.config.pathSettings = {
+          listRoot: paths.listRoot,
+          embyStrmRoot: paths.embyStrmRoot,
+        };
+        state.config.embyStrmRoot = paths.embyStrmRoot;
+        state.sourceFolders = [];
+        state.sourceTypes = [];
+        state.sourceCategories = [];
+        state.sourcesLoaded = false;
+        state.settingsSnapshot = JSON.stringify(values);
+        await loadFolders(false, true);
+        const updatedText = paths.updatedItems > 0 ? '，已更新 ' + paths.updatedItems + ' 个媒体目标目录' : '';
+        setStatus('路径设置已保存' + updatedText + '。', 'success');
+      } catch (error) {
+        addActivityLog('保存路径设置失败：' + error.message, 'error');
+        elements.settingsError.textContent = error.message;
+        elements.settingsError.classList.add('show');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function loadConfig() {
+      state.config = await api('/api/config');
+      elements.emby.hidden = !state.config.embyConfigured;
+      elements.openListLink.href = state.config.openListWebUrl;
+      elements.embyLink.href = state.config.embyWebUrl || '#';
+      elements.embyLink.hidden = !state.config.embyWebUrl;
+    }
+
+    async function loadFolders(forceRefresh = false, silent = false) {
+      setBusy(true);
+      if (!silent) setStatus('正在读取媒体列表…', 'running');
+      try {
+        const data = await api('/api/items');
+        state.folders = data.items;
+        if (state.selected) {
+          state.selected = state.folders.find((folder) => folder.id === state.selected.id) || null;
+        }
+        render();
+        if (!silent) setStatus('媒体列表已更新。', 'success');
+      } catch (error) {
+        setStatus(error.message, 'error');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function generateSelected(folder = state.selected, options = {}) {
+      if (state.busy || !folder) return;
+      state.selected = folder;
+      clearStatus();
+      openSyncModal(folder);
+      setBusy(true);
+
+      let preview;
+      let stage = 'scan';
+      try {
+        await api('/api/items/scan/start', {
+          method: 'POST',
+          body: JSON.stringify({ id: folder.id }),
+        });
+        await pollScan(folder);
+        stage = 'preview';
+        updateSyncStage('preview', '正在生成文件名预览', '正在读取本地 STRM 与 Emby 目标目录…', { running: true });
+        preview = await api('/api/emby/publish/preview', {
+          method: 'POST',
+          body: JSON.stringify({ id: folder.id }),
+        });
+      } catch (error) {
+        setBusy(false);
+        showSyncFailure(stage, error);
+        return;
+      }
+
+      setBusy(false);
+      const renamePlan = options.autoConfirm
+        ? (preview.plan || []).map((entry) => ({
+            sourceRel: entry.sourceRel,
+            targetRel: entry.targetRel,
+          }))
+        : await showRenamePreview(preview);
+      if (renamePlan === null) return;
+
+      setBusy(true);
+      updateSyncStage('publish', '正在同步到 Emby', '正在复制文件并应用确认后的文件名…', { running: true });
+      try {
+        const result = await api('/api/emby/publish', {
+          method: 'POST',
+          body: JSON.stringify({ id: folder.id, renamePlan }),
+        });
+        const shouldRefresh = Number(result.copied || 0) > 0;
+        if (shouldRefresh) {
+          updateSyncStage('publish', '正在刷新 Emby 媒体库', '文件同步完成，正在通知 Emby 扫描媒体库…', { running: true });
+          await api('/api/emby/refresh', { method: 'POST', body: '{}' });
+        }
+        await loadFolders(false, true);
+        const details = [];
+        details.push(result.newFiles?.length ? '发现 ' + result.newFiles.length + ' 个新文件' : '未发现新文件');
+        if (result.renamedFiles?.length) details.push('重命名 ' + result.renamedFiles.length + ' 个文件');
+        if (Number(result.seasonCount || 0) > 1) details.push('已自动整理 ' + result.seasonCount + ' 个季度');
+        if (result.missingTargetFiles?.length && !result.newFiles?.length) details.push('已恢复目标目录缺失文件');
+        details.push(shouldRefresh ? 'Emby 媒体库已刷新' : '媒体库无需刷新');
+        if (result.autoCompleted) details.push('已达到总集数，自动归入已完结');
+        setBusy(false);
+        showSyncResult(result, details.join('；') + '。');
+      } catch (error) {
+        setBusy(false);
+        showSyncFailure('publish', error);
+      }
+    }
+
+    async function pollScan(folder) {
+      const startedAt = Date.now();
+      const maxWaitMs = 30 * 60 * 1000;
+
+      while (true) {
+        if (Date.now() - startedAt > maxWaitMs) {
+          throw new Error('扫描超过 30 分钟，已停止网页轮询；OpenList 任务可能仍在运行。');
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const progress = await api('/api/scan/progress');
+        updateSyncStage(
+          'scan',
+          '正在扫描 ' + folder.name,
+          'OpenList 已处理 ' + progress.objectCount + ' 个对象。',
+          { running: true },
+        );
+        if (progress.done) return;
+      }
+    }
+
+    async function refreshEmbyOnly() {
+      if (state.busy) return;
+      setBusy(true);
+      setStatus('正在触发 Emby 媒体库刷新…', 'running');
+      try {
+        await api('/api/emby/refresh', { method: 'POST', body: '{}' });
+        setStatus('已触发 Emby 媒体库刷新。', 'success');
+      } catch (error) {
+        setStatus(error.message, 'error');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function saveCurrentItem() {
+      if (state.busy) return;
+      if (!validateEditor(true)) return;
+      const isFirstSave = !state.selected;
+      let savedItem = null;
+      setBusy(true);
+      setStatus('正在保存媒体配置…', 'running');
+      try {
+        const data = await api('/api/items/save', {
+          method: 'POST',
+          body: JSON.stringify({
+            id: state.selected?.id,
+            sourcePath: elements.sourcePath.value,
+            title: elements.title.value,
+            year: elements.year.value,
+            totalEpisodes: elements.totalEpisodes.value,
+            season: elements.season.value || '1',
+            updateSchedule: elements.updateSchedule.value,
+            category: elements.category.value,
+            mediaType: elements.mediaType.value,
+            status: elements.mediaStatus.value,
+            baiduLink: elements.baiduLink.value,
+          }),
+        });
+        state.selected = data.item;
+        savedItem = data.item;
+        await loadFolders(false);
+        captureEditorSnapshot();
+        closeEditor();
+        setStatus(isFirstSave ? '媒体已添加，正在自动扫描同步…' : '媒体配置已保存。', isFirstSave ? 'running' : 'success');
+      } catch (error) {
+        setStatus(error.message, 'error');
+        elements.editorError.textContent = error.message;
+        elements.editorError.classList.add('show');
+      } finally {
+        setBusy(false);
+      }
+      if (isFirstSave && savedItem) {
+        await generateSelected(savedItem, { autoConfirm: true });
+      }
+    }
+
+    async function deleteSelectedItem(folder = state.selected) {
+      if (state.busy || !folder) return;
+      const confirmed = await confirmAction({
+        title: '删除“' + (folder.name || '该媒体') + '”？',
+        message: '将只删除这个追更配置记录，不会删除 OpenList 源目录、已生成的 STRM 文件或 Emby 媒体目录。',
+        okText: '确认删除',
+      });
+      if (!confirmed) return;
+
+      state.selected = folder;
+      setBusy(true);
+      setStatus('正在删除媒体配置…', 'running');
+      try {
+        await api('/api/items/delete', {
+          method: 'POST',
+          body: JSON.stringify({ id: folder.id }),
+        });
+        state.selected = null;
+        await loadFolders(false);
+        closeEditor();
+        setStatus('媒体配置已删除。', 'success');
+      } catch (error) {
+        setStatus(error.message, 'error');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    elements.search.addEventListener('input', render);
+    elements.filterTabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        state.filter = tab.dataset.filter || 'ongoing';
+        try { localStorage.setItem('strmflow.filter', state.filter); } catch {}
+        render();
+      });
+    });
+    elements.sourceFolder.addEventListener('change', () => applySelectedSource(true));
+    elements.refreshSources.addEventListener('click', async () => {
+      const sourcePath = elements.sourcePath.value;
+      const category = elements.category.value;
+      const typeDir = elements.sourceType.value;
+      const loaded = await loadSourceFolders(true, typeDir, category, sourcePath, false);
+      if (!loaded) return;
+      setStatus('只读源 STRM 根目录已重新扫描。', 'success');
+    });
+    elements.title.addEventListener('input', updateTargetPreview);
+    elements.year.addEventListener('input', updateTargetPreview);
+    elements.totalEpisodes.addEventListener('input', () => validateEditor(false));
+    elements.season.addEventListener('input', () => validateEditor(false));
+    elements.category.addEventListener('change', async () => {
+      setSourcePickerLoading(true);
+      state.sourceFolders = [];
+      clearSelectedSource(true);
+      let loaded = false;
+      try {
+        loaded = await loadResourceOptions('', true, true);
+      } finally {
+        setSourcePickerLoading(false);
+      }
+      if (loaded && state.sourceFolders.length > 0) elements.sourceFolder.focus();
+    });
+    elements.sourceType.addEventListener('change', async () => {
+      setSourcePickerLoading(true);
+      state.sourceCategories = [];
+      state.sourceFolders = [];
+      clearSelectedSource(true);
+      let loaded = false;
+      try {
+        loaded = await loadCategoryOptions('', '', true, true);
+      } finally {
+        setSourcePickerLoading(false);
+      }
+      if (loaded && state.sourceCategories.length > 0) elements.category.focus();
+    });
+    elements.new.addEventListener('click', newItemForm);
+    elements.save.addEventListener('click', saveCurrentItem);
+    elements.delete.addEventListener('click', () => deleteSelectedItem());
+    elements.cancel.addEventListener('click', requestCloseEditor);
+    elements.editorCancel.addEventListener('click', requestCloseEditor);
+    elements.modal.addEventListener('click', (event) => {
+      if (event.target === elements.modal) requestCloseEditor();
+    });
+    elements.mediaNav.addEventListener('click', () => showView('media'));
+    elements.emby302.addEventListener('click', openEmby302);
+    elements.emby302Refresh.addEventListener('click', () => loadEmby302(false));
+    elements.emby302CacheClear.addEventListener('click', clearEmby302Cache);
+    elements.emby302Save.addEventListener('click', saveEmby302);
+    elements.emby302Reset.addEventListener('click', restoreEmby302);
+    [
+      elements.emby302Enabled,
+      elements.emby302EmbyUrl,
+      elements.emby302OpenListUrl,
+      elements.emby302Host,
+      elements.emby302Port,
+      elements.emby302CacheTtl,
+      elements.emby302CacheMax,
+      elements.emby302Timeout,
+      elements.emby302BodyLimit,
+    ].forEach((input) => {
+      input.addEventListener('input', () => validateEmby302(false));
+      input.addEventListener('change', () => validateEmby302(false));
+    });
+    elements.logs.addEventListener('click', openLogs);
+    elements.logsRefresh.addEventListener('click', () => loadRuntimeLogs());
+    elements.logsRealtime.addEventListener('click', toggleRealtimeLogs);
+    elements.logsClear.addEventListener('click', clearActivityLogs);
+    elements.settings.addEventListener('click', openSettings);
+    elements.settingsSave.addEventListener('click', saveSettings);
+    elements.settingsReset.addEventListener('click', restoreSettings);
+    elements.about.addEventListener('click', openAbout);
+    [elements.settingsListRoot, elements.settingsEmbyRoot].forEach((input) => {
+      input.addEventListener('input', () => {
+        elements.settingsError.textContent = '';
+        elements.settingsError.classList.remove('show');
+      });
+    });
+    window.addEventListener('beforeunload', (event) => {
+      const settingsDirty = state.settingsInitialized
+        && state.settingsSnapshot !== JSON.stringify(settingsValues());
+      const emby302Dirty = Boolean(state.emby302Snapshot)
+        && state.emby302Snapshot !== JSON.stringify(emby302Values());
+      if (!editorIsDirty() && !settingsDirty && !emby302Dirty) return;
+      event.preventDefault();
+      event.returnValue = '';
+    });
+    elements.reload.addEventListener('click', () => loadFolders(true));
+    elements.clear.addEventListener('click', () => {
+      elements.search.value = '';
+      render();
+      elements.search.focus();
+    });
+    elements.emby.addEventListener('click', refreshEmbyOnly);
+    elements.logout.addEventListener('click', async () => {
+      try {
+        await fetch('/api/logout', { method: 'POST' });
+      } finally {
+        location.replace('/login');
+      }
+    });
+
+    renderActivityLogs();
+    updateRealtimeButton();
+    showView('media');
+
+    (async () => {
+      try {
+        await loadConfig();
+        await loadFolders(false);
+      } catch (error) {
+        setStatus(error.message, 'error');
+        elements.summary.textContent = '加载失败';
+      }
+    })();
+  </script>
+</body>
+</html>

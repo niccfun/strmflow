@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登录 - StrmFlow</title>
+  __TURNSTILE_SCRIPT__
+  <link rel="icon" type="image/svg+xml" href="/static/strmflow.svg">
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      --bg: #f4f6fb;
+      --panel: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --accent: #0ea5e9;
+      --danger-soft: #fef2f2;
+      --danger-border: #fecaca;
+      --danger-text: #991b1b;
+      --input-bg: #ffffff;
+      --shadow: 0 20px 50px rgb(15 23 42 / 12%);
+      --ring: 0 0 0 3px rgb(79 70 229 / 15%);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1120;
+        --panel: #101830;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --border: #24304d;
+        --primary: #6366f1;
+        --primary-hover: #818cf8;
+        --danger-soft: rgb(220 38 38 / 14%);
+        --danger-border: rgb(220 38 38 / 40%);
+        --danger-text: #fca5a5;
+        --input-bg: #0d1428;
+        --shadow: 0 20px 50px rgb(0 0 0 / 45%);
+        --ring: 0 0 0 3px rgb(99 102 241 / 30%);
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background:
+        radial-gradient(1000px 600px at 80% -10%, rgb(99 102 241 / 18%), transparent 60%),
+        radial-gradient(800px 500px at 0% 110%, rgb(14 165 233 / 15%), transparent 55%),
+        var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    .card {
+      width: min(400px, 100%);
+      display: grid;
+      gap: 22px;
+      padding: 40px 36px 36px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      animation: card-in .35s cubic-bezier(.2, .9, .3, 1.2);
+    }
+    @keyframes card-in { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
+    .brand { display: grid; justify-items: center; gap: 14px; text-align: center; }
+    .logo {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      display: block;
+      box-shadow: 0 10px 24px rgb(79 70 229 / 35%);
+    }
+    h1 { margin: 0; font-size: 24px; letter-spacing: -0.02em; }
+    .subtitle { margin: 4px 0 0; color: var(--muted); }
+    form { display: grid; gap: 14px; }
+    .field { display: grid; gap: 6px; }
+    label { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    input {
+      width: 100%;
+      font: inherit;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: var(--input-bg);
+      color: var(--text);
+      outline: none;
+      transition: border-color .16s ease, box-shadow .16s ease;
+    }
+    input:focus { border-color: var(--primary); box-shadow: var(--ring); }
+    button {
+      font: inherit;
+      margin-top: 6px;
+      border: 0;
+      border-radius: 12px;
+      padding: 13px 14px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 6px 16px rgb(79 70 229 / 32%);
+      transition: box-shadow .16s ease, transform .08s ease, filter .16s ease;
+    }
+    button:hover:not(:disabled) { box-shadow: 0 8px 22px rgb(79 70 229 / 42%); filter: brightness(1.05); }
+    button:active:not(:disabled) { transform: translateY(1px); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .error {
+      display: none;
+      padding: 10px 12px;
+      border: 1px solid var(--danger-border);
+      border-radius: 12px;
+      background: var(--danger-soft);
+      color: var(--danger-text);
+      animation: shake .3s ease;
+    }
+    .error.show { display: block; }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+    .footnote { text-align: center; color: var(--muted); font-size: 12px; }
+    .turnstile-field { justify-items: center; min-height: 65px; }
+    .cf-turnstile iframe { border-radius: 10px; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <img class="logo" src="/static/strmflow.svg" alt="">
+      <div>
+        <h1>StrmFlow</h1>
+        <p class="subtitle">登录以管理追更与同步</p>
+      </div>
+    </div>
+    <form id="loginForm">
+      <div class="field">
+        <label for="usernameInput">用户名</label>
+        <input id="usernameInput" name="username" type="text" autocomplete="username" required autofocus>
+      </div>
+      <div class="field">
+        <label for="passwordInput">密码</label>
+        <input id="passwordInput" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      __TURNSTILE_WIDGET__
+      <div id="loginError" class="error" role="alert"></div>
+      <button id="loginButton" type="submit">登 录</button>
+    </form>
+    <p class="footnote">StrmFlow · OpenList STRM Sync</p>
+  </div>
+  <script>
+    const form = document.querySelector('#loginForm');
+    const errorBox = document.querySelector('#loginError');
+    const button = document.querySelector('#loginButton');
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      errorBox.classList.remove('show');
+      button.disabled = true;
+      button.textContent = '登录中…';
+      try {
+        const response = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            username: document.querySelector('#usernameInput').value,
+            password: document.querySelector('#passwordInput').value,
+            turnstileToken: typeof turnstile !== 'undefined' ? turnstile.getResponse() : undefined,
+          }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.error || ('登录失败：HTTP ' + response.status));
+        }
+        location.replace('/');
+      } catch (error) {
+        errorBox.textContent = error.message;
+        errorBox.classList.add('show');
+        button.disabled = false;
+        button.textContent = '登 录';
+        if (typeof turnstile !== 'undefined') {
+          try { turnstile.reset(); } catch {}
+        }
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+import re
+from html.parser import HTMLParser
+from pathlib import Path
+
+
+class IdCollector(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.ids: list[str] = []
+
+    def handle_starttag(self, _tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        for name, value in attrs:
+            if name == "id" and value:
+                self.ids.append(value)
+
+
+def test_index_has_unique_element_ids() -> None:
+    template = (Path(__file__).parents[1] / "src/strmflow/web/templates/index.html").read_text(
+        encoding="utf-8"
+    )
+    parser = IdCollector()
+    parser.feed(template)
+    duplicates = {element_id for element_id in parser.ids if parser.ids.count(element_id) > 1}
+    assert duplicates == set()
+    assert 'id="settingsButton"' in template
+    assert "<title>StrmFlow</title>" in template
+    assert "<h1>StrmFlow</h1>" in template
+    assert 'src="/static/strmflow.svg"' in template
+    assert 'id="sidebar"' in template
+    sidebar_start = template.index('id="sidebar"')
+    sidebar_end = template.index("</aside>", sidebar_start)
+    assert sidebar_start < template.index('id="settingsButton"') < sidebar_end
+    assert sidebar_start < template.index('id="logsButton"') < sidebar_end
+    assert sidebar_start < template.index('id="emby302Button"') < sidebar_end
+    assert sidebar_start < template.index('id="aboutButton"') < sidebar_end
+    assert 'id="mediaView"' in template
+    assert "media-kind-mark" in template
+    assert "episode-summary" in template
+    assert "episode-total-tag" in template
+    assert "media-progress-track" not in template
+    assert "填写总集数后可显示完整进度" not in template
+    assert "details-toggle" not in template
+    assert "查看目录详情" not in template
+    assert 'id="mediaDetailOverview"' in template
+    assert 'id="editorPanel"' in template
+    assert 'id="mediaDetailSourcePath"' in template
+    assert 'id="mediaDetailTargetPath"' in template
+    assert "media-details-button" in template
+    assert "媒体详情" in template
+    assert ".target-panel.detail-mode { width: min(1180px" in template
+    assert "elements.editorPanel.classList.add('detail-mode')" in template
+    assert "restoreSavedSourceSelection" in template
+    detail_handler = template[
+        template.index("function selectFolder(folder)") : template.index(
+            "function updateTargetPreview()"
+        )
+    ]
+    assert "loadSourceFolders" not in detail_handler
+    assert "restoreSavedSourceSelection(folder" in detail_handler
+    assert "loadSourceFolders(true, typeDir, category, sourcePath, false)" in template
+    assert "openListExternalUrl" in template
+    assert "在 OpenList 打开此目录" in template
+    assert "OPENLIST_WEB_URL" in template
+    assert 'id="settingsView"' in template
+    assert 'id="logsView"' in template
+    assert 'id="logsList"' in template
+    assert 'class="log-table"' in template
+    assert ".log-table th:nth-child(2), .log-table td:nth-child(2)" in template
+    assert "width: 96px; min-width: 96px; white-space: nowrap" in template
+    assert 'id="logsCategoryFilter"' not in template
+    assert 'id="logsRefreshButton"' in template
+    assert 'id="logsRealtimeButton"' in template
+    assert "'/api/logs?limit=500'" in template
+    assert "toggleRealtimeLogs" in template
+    assert 'id="emby302View"' in template
+    assert 'id="emby302EnabledInput"' in template
+    assert 'id="emby302EmbyUrlInput"' in template
+    assert 'id="emby302OpenListUrlInput"' in template
+    assert 'id="emby302RecentList"' in template
+    assert ".gateway-config-panel { width: 100%" in template
+    assert "http://emby:8096" in template
+    assert "http://openlist:5244" in template
+    assert "'/api/emby302'" in template
+    assert 'id="aboutView"' in template
+    assert 'id="settingsModal"' not in template
+    assert 'id="logsModal"' not in template
+    assert 'id="aboutModal"' not in template
+    assert "showView('settings')" in template
+    assert "showView('logs')" in template
+    assert "showView('about')" in template
+    assert "strmflow.logs" in template
+    assert 'id="sourceFolderInput"' in template
+    assert 'id="sourceTypeInput"' in template
+    assert 'id="refreshSourcesButton"' in template
+    assert 'id="sourcePathInput" type="hidden"' in template
+    assert "/api/media/options" in template
+    assert "'请选择一级目录'" in template
+    assert "'请选择二级分类'" in template
+    assert "'请选择媒体资源'" in template
+    assert "loadSourceFolders(true, '', '', '', true)" in template
+    assert "· 已添加" in template
+    assert "该媒体已添加" in template
+    assert "generateSelected(savedItem, { autoConfirm: true })" in template
+    assert "默认季数（多季资源自动识别）" in template
+    assert "同步时自动生成 Season XX" in template
+    assert "function seasonSummary(folder)" in template
+    assert 'class="modal-actions sync-actions"' in template
+    assert template.index('id="renameCancelButton"') < template.index('id="renameConfirmButton"')
+    assert 'class="overview"' not in template
+    assert "查看当前路径配置" not in template
+    assert "快捷键" not in template
+    assert "addEventListener('keydown'" not in template
+    queried_ids = set(re.findall(r"querySelector\('#([^']+)'\)", template))
+    assert queried_ids.difference(parser.ids) == set()

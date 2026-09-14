@@ -1,0 +1,21 @@
+services:
+  strmflow:
+    build: .
+    container_name: strmflow
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "18787:8787"
+      - "18096:18096"
+    volumes:
+      - ./data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      # Emby、OpenList 也加入该网络后，可在 302 管理中使用
+      # http://emby:8096 与 http://openlist:5244 这类容器 DNS 地址。
+      - services-network
+
+networks:
+  services-network:
+    external: true
