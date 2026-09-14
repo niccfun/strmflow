@@ -250,6 +250,7 @@ class BdpanCli:
             return {
                 "available": False,
                 "loggedIn": False,
+                "username": "",
                 "version": "",
                 "binary": selected,
             }
@@ -258,16 +259,40 @@ class BdpanCli:
             self.command(["version"], binary=executable, session_id=session_id), timeout=15
         )
         version_match = re.search(r"bdpan:\s*([^\s]+)", version_result.stdout)
+        logged_in = False
+        username = ""
         try:
             identity = await self.execute(
-                self.command(["whoami"], binary=executable, session_id=session_id), timeout=20
+                self.command(
+                    ["whoami"],
+                    binary=executable,
+                    json_output=True,
+                    session_id=session_id,
+                ),
+                timeout=20,
+                require_json=True,
             )
-            logged_in = "已登录" in identity.stdout
+            payload = identity.payload if isinstance(identity.payload, dict) else {}
+            logged_in = bool(payload.get("authenticated") and payload.get("has_valid_token", True))
+            if logged_in:
+                username = str(payload.get("username") or "").strip()[:100]
         except BdpanCliError:
-            logged_in = False
+            # Older bdpan releases may not support JSON output for whoami.
+            try:
+                identity = await self.execute(
+                    self.command(["whoami"], binary=executable, session_id=session_id),
+                    timeout=20,
+                )
+                logged_in = "已登录" in identity.stdout
+                match = re.search(r"(?:用户名|账号)\s*[：:]\s*([^\r\n]+)", identity.stdout)
+                if logged_in and match:
+                    username = match.group(1).strip()[:100]
+            except BdpanCliError:
+                pass
         return {
             "available": True,
             "loggedIn": logged_in,
+            "username": username,
             "version": (
                 version_match.group(1)
                 if version_match

@@ -631,6 +631,7 @@ class BdpanAutomationService:
             status = {
                 "available": self.cli.executable(selected) is not None,
                 "loggedIn": False,
+                "username": "",
                 "version": "",
                 "binary": selected,
                 "error": str(exc)[:300],

@@ -1788,12 +1788,9 @@
       if (!value) return '等待调度';
       const date = new Date(value);
       if (Number.isNaN(date.getTime())) return '等待调度';
-      const seconds = Math.ceil((date.getTime() - Date.now()) / 1000);
-      if (seconds <= 0) return '即将检查';
-      if (seconds < 60) return seconds + ' 秒后';
-      if (seconds < 3600) return Math.ceil(seconds / 60) + ' 分钟后';
-      if (seconds < 86400) return Math.ceil(seconds / 3600) + ' 小时后';
-      return date.toLocaleString('zh-CN', { hour12: false });
+      const pad = (number) => String(number).padStart(2, '0');
+      return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate())
+        + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
     }
 
     function renderBdpan(data) {
@@ -1813,7 +1810,13 @@
       elements.bdpanCliStatus.textContent = runtime.available
         ? 'bdpan ' + (runtime.version || '已安装') : '未找到';
       elements.bdpanCliStatus.title = runtime.binary || config.binary || '';
-      elements.bdpanLoginStatus.textContent = runtime.loggedIn ? '已授权' : '未授权';
+      const accountName = String(runtime.username || '').trim();
+      elements.bdpanLoginStatus.textContent = runtime.loggedIn
+        ? '已授权' + (accountName ? ' · ' + accountName : '')
+        : '未授权';
+      elements.bdpanLoginStatus.title = runtime.loggedIn && accountName
+        ? '当前账号：' + accountName
+        : '';
       elements.bdpanWatchedStatus.textContent = String(runtime.watchedCount || 0) + ' 个';
       elements.bdpanNextCheckStatus.textContent = config.enabled
         ? formatNextCheck(runtime.nextCheckAt) : '自动检查已关闭';

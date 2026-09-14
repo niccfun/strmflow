@@ -95,6 +95,9 @@ def test_index_has_unique_element_ids() -> None:
     assert 'id="bdpanSaveRootInput"' in template
     assert 'id="bdpanIntervalInput"' in template
     assert 'id="bdpanLoginStartButton"' in template
+    assert "'当前账号：' + accountName" in template
+    assert "date.getFullYear() + '-'" in template
+    assert "分钟后" not in template
     assert 'id="bdpanDisclaimerInput"' in template
     assert 'id="bdpanAuthorizationCodeInput"' in template
     assert 'id="bdpanWatchList"' in template

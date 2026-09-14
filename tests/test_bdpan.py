@@ -85,6 +85,7 @@ class FakeBdpanCli(BdpanCli):
         return {
             "available": True,
             "loggedIn": True,
+            "username": "测试账号",
             "version": "3.8.7",
             "binary": binary or "bdpan",
         }
@@ -135,6 +136,79 @@ def test_share_input_and_official_commands_are_normalized() -> None:
     assert command[command.index("--session-id") + 1] == "1784035443-a1b2c3"
     assert "--json" in command
     assert "--no-check-update" in command
+
+
+@pytest.mark.asyncio
+async def test_cli_status_reads_account_name_from_whoami_json(monkeypatch) -> None:
+    cli = BdpanCli(Settings())
+    monkeypatch.setattr(cli, "executable", lambda _binary: "/usr/local/bin/bdpan")
+    commands: list[list[str]] = []
+
+    async def execute(
+        argv: list[str],
+        *,
+        timeout: float | None = None,
+        stdin: str | None = None,
+        require_json: bool = False,
+    ) -> BdpanRunResult:
+        del timeout, stdin
+        commands.append(argv)
+        if "version" in argv:
+            return BdpanRunResult(0, "bdpan: 3.8.7", "")
+        assert require_json is True
+        return BdpanRunResult(
+            0,
+            '{"authenticated":true,"username":"测试账号","has_valid_token":true}',
+            "",
+            {
+                "authenticated": True,
+                "username": "测试账号",
+                "has_valid_token": True,
+            },
+        )
+
+    monkeypatch.setattr(cli, "execute", execute)
+
+    status = await cli.status("bdpan")
+
+    assert status["loggedIn"] is True
+    assert status["username"] == "测试账号"
+    whoami = next(command for command in commands if "whoami" in command)
+    assert "--json" in whoami
+
+
+@pytest.mark.asyncio
+async def test_cli_status_omits_account_name_when_token_is_invalid(monkeypatch) -> None:
+    cli = BdpanCli(Settings())
+    monkeypatch.setattr(cli, "executable", lambda _binary: "/usr/local/bin/bdpan")
+
+    async def execute(
+        argv: list[str],
+        *,
+        timeout: float | None = None,
+        stdin: str | None = None,
+        require_json: bool = False,
+    ) -> BdpanRunResult:
+        del timeout, stdin, require_json
+        if "version" in argv:
+            return BdpanRunResult(0, "bdpan: 3.8.7", "")
+        return BdpanRunResult(
+            0,
+            '{"authenticated":true,"username":"过期账号","has_valid_token":false}',
+            "",
+            {
+                "authenticated": True,
+                "username": "过期账号",
+                "has_valid_token": False,
+            },
+        )
+
+    monkeypatch.setattr(cli, "execute", execute)
+
+    status = await cli.status("bdpan")
+
+    assert status["loggedIn"] is False
+    assert status["username"] == ""
 
 
 @pytest.mark.asyncio
