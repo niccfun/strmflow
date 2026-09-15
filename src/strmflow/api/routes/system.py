@@ -72,4 +72,12 @@ async def update_paths(body: PathConfigUpdate, request: Request) -> dict[str, An
     updated_items = 0
     if value["embyStrmRoot"] != previous_root:
         updated_items = await container.media.rebase_target_root(value["embyStrmRoot"])
+    request.app.state.runtime_logs.add(
+        category="settings",
+        level="success",
+        message="STRM 路径设置已保存",
+        sourceRoot=value["listRoot"],
+        targetRoot=value["embyStrmRoot"],
+        updatedItemCount=updated_items,
+    )
     return ok({**value, "updatedItems": updated_items})

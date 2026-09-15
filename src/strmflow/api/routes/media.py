@@ -64,6 +64,14 @@ async def item_scan(body: IdRequest, request: Request) -> dict[str, Any]:
         "/api/admin/scan/start",
         {"path": item["sourcePath"], "limit": request.app.state.settings.scan_limit},
     )
+    request.app.state.runtime_logs.add(
+        category="scan",
+        level="info",
+        message=f"用户手动启动 OpenList 扫描：{item['name']}",
+        itemId=item["id"],
+        scanPath=item["sourcePath"],
+        scanLimit=request.app.state.settings.scan_limit,
+    )
     return ok({"started": True, "name": item["name"], "scanPath": item["sourcePath"]})
 
 
@@ -94,6 +102,13 @@ async def scan(body: ScanRequest, request: Request) -> dict[str, Any]:
         "/api/admin/scan/start",
         {"path": folder["scanPath"], "limit": request.app.state.settings.scan_limit},
     )
+    request.app.state.runtime_logs.add(
+        category="scan",
+        level="info",
+        message=f"用户手动启动 OpenList 扫描：{name}",
+        scanPath=folder["scanPath"],
+        scanLimit=request.app.state.settings.scan_limit,
+    )
     return ok({"started": True, "name": name, "scanPath": folder["scanPath"]})
 
 
@@ -111,6 +126,11 @@ async def scan_progress(request: Request) -> dict[str, Any]:
 @router.post("/emby/refresh")
 async def refresh_emby(request: Request) -> dict[str, Any]:
     await services(request).emby.refresh_library()
+    request.app.state.runtime_logs.add(
+        category="sync",
+        level="success",
+        message="用户手动触发 Emby 媒体库刷新完成",
+    )
     return ok({"refreshed": True})
 
 

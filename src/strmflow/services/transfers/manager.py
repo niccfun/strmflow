@@ -7,6 +7,7 @@ from typing import Any
 
 from strmflow.core.config import Settings
 from strmflow.core.errors import AppError
+from strmflow.core.runtime_logs import RuntimeLogStore
 from strmflow.repositories.transfers import TransferJobRepository
 from strmflow.schemas.api import TransferCreateRequest, TransferJob
 from strmflow.services.transfers.base import TransferProvider, TransferSpec
@@ -18,10 +19,12 @@ class TransferManager:
         settings: Settings,
         providers: list[TransferProvider],
         repository: TransferJobRepository,
+        runtime_logs: RuntimeLogStore | None = None,
     ) -> None:
         self.settings = settings
         self.providers = {provider.name: provider for provider in providers}
         self.repository = repository
+        self.runtime_logs = runtime_logs
         self.tasks: set[asyncio.Task[None]] = set()
 
     def capabilities(self) -> list[dict[str, Any]]:
@@ -46,6 +49,12 @@ class TransferManager:
             created_at=datetime.now(UTC),
         )
         await self.repository.create(job, spec.metadata)
+        self._log(
+            "info",
+            f"转存任务已加入队列：{provider.name}",
+            jobId=job.id,
+            destination=job.destination,
+        )
         task = asyncio.create_task(self._run(job.id, provider, spec))
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
@@ -59,8 +68,15 @@ class TransferManager:
 
     async def initialize(self) -> None:
         await self.repository.fail_interrupted()
+        self._log(
+            "success",
+            "转存任务管理器初始化完成",
+            providers=list(self.providers),
+        )
 
     async def close(self) -> None:
+        if self.tasks:
+            self._log("info", "正在停止转存任务", activeTaskCount=len(self.tasks))
         for task in self.tasks:
             task.cancel()
         if self.tasks:
@@ -68,6 +84,12 @@ class TransferManager:
 
     async def _run(self, job_id: str, provider: TransferProvider, spec: TransferSpec) -> None:
         await self.repository.update(job_id, status="running", started_at=datetime.now(UTC))
+        self._log(
+            "info",
+            f"转存任务开始执行：{provider.name}",
+            jobId=job_id,
+            destination=spec.destination,
+        )
         try:
             result = await provider.execute(spec)
             await self.repository.update(
@@ -77,8 +99,21 @@ class TransferManager:
                 stderr=result.stderr,
                 status="succeeded" if result.return_code == 0 else "failed",
             )
+            self._log(
+                "success" if result.return_code == 0 else "error",
+                f"转存任务{'完成' if result.return_code == 0 else '失败'}：{provider.name}",
+                jobId=job_id,
+                returnCode=result.return_code,
+                destination=spec.destination,
+            )
         except Exception as exc:  # noqa: BLE001 - persist every background failure on the job
             await self.repository.update(job_id, status="failed", stderr=str(exc))
+            self._log(
+                "error",
+                f"转存任务异常：{str(exc)[:300]}",
+                jobId=job_id,
+                provider=provider.name,
+            )
         finally:
             await self.repository.update(job_id, finished_at=datetime.now(UTC))
 
@@ -110,3 +145,7 @@ class TransferManager:
             if value == "--session-id":
                 result[index + 1] = "[会话]"
         return result
+
+    def _log(self, level: str, message: str, **details: Any) -> None:
+        if self.runtime_logs:
+            self.runtime_logs.add(category="transfer", level=level, message=message, **details)

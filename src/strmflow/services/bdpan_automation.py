@@ -9,6 +9,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import PurePosixPath
+from time import perf_counter
 from typing import TYPE_CHECKING, Any
 
 from strmflow.core.config import Settings
@@ -118,15 +119,30 @@ class BdpanAutomationService:
                 for key, value in stored_states.items()
                 if isinstance(value, dict)
             }
+        items = await self.media.list_items()
+        watched_count = sum(
+            item.get("status") == "ongoing" and bool(item.get("baiduLink")) for item in items
+        )
         self._scheduler = asyncio.create_task(self._scheduler_loop(), name="bdpan-scheduler")
         self._log(
             "success",
             "百度网盘自动追更调度器已启动",
             enabled=self.config["enabled"],
             intervalMinutes=self.config["checkIntervalMinutes"],
+            watchedCount=watched_count,
+            savedStateCount=len(self.states),
+            saveRoot=self.config["saveRoot"],
         )
+        if not self.config["enabled"]:
+            self._log("info", "百度网盘定时检查当前未启用，手动检查仍可使用")
 
     async def close(self) -> None:
+        self._log(
+            "info",
+            "正在停止百度网盘自动追更任务",
+            activeTaskCount=len(self._tasks),
+            schedulerRunning=bool(self._scheduler and not self._scheduler.done()),
+        )
         if self._scheduler:
             self._scheduler.cancel()
         for task in self._tasks:
@@ -135,6 +151,7 @@ class BdpanAutomationService:
         if pending:
             await asyncio.gather(*pending, return_exceptions=True)
         self._tasks.clear()
+        self._log("success", "百度网盘自动追更任务已停止")
 
     async def status(self, *, refresh: bool = False) -> dict[str, Any]:
         cli_status = await self._cli_status(refresh=refresh)
@@ -249,6 +266,7 @@ class BdpanAutomationService:
             raise AppError(409, "已有百度网盘任务正在运行，请稍后重试")
 
         share_url, code = self.cli.parse_share_input(value, extract_code)
+        self._log("info", "开始读取百度网盘分享内容")
         async with self._operation_lock:
             try:
                 files = await self._list_share_media(
@@ -357,6 +375,14 @@ class BdpanAutomationService:
             destination = "/".join(filter(None, [base_destination, parent]))
             groups.setdefault(destination, []).append(file)
 
+        self._log(
+            "info",
+            f"开始转存百度网盘媒体：{folder_name}",
+            fileCount=len(files),
+            directoryCount=len(groups),
+            destination=base_destination,
+        )
+
         submitted_tasks: list[dict[str, str]] = []
         session_id = self.cli.new_session_id()
         now = self._iso_now()
@@ -365,6 +391,13 @@ class BdpanAutomationService:
                 for group_index, (destination, group) in enumerate(
                     sorted(groups.items(), key=lambda item: item[0].casefold())
                 ):
+                    self._log(
+                        "info",
+                        f"正在提交转存目录 {group_index + 1}/{len(groups)}",
+                        destination=destination,
+                        fileCount=len(group),
+                        files=self._file_names(group),
+                    )
                     result = await self.cli.execute(
                         self.cli.select_command(
                             share_url,
@@ -382,6 +415,13 @@ class BdpanAutomationService:
                         submitted_tasks.append(
                             {"taskId": task_id, "destination": destination, "submittedAt": now}
                         )
+                    self._log(
+                        "success",
+                        f"百度网盘转存任务已提交：{folder_name}",
+                        destination=destination,
+                        fileCount=len(group),
+                        taskId=task_id or "未返回",
+                    )
                     if group_index + 1 < len(groups):
                         await asyncio.sleep(2)
             except BdpanCliError as exc:
@@ -484,16 +524,25 @@ class BdpanAutomationService:
     async def _check_item_locked(self, item_id: str) -> dict[str, Any]:
         item = await self.media.get_item(item_id)
         if item.get("status") != "ongoing":
+            self._log("info", f"跳过百度网盘检查：{item['name']} 已完结", itemId=item_id)
             return {"itemId": item_id, "skipped": True, "reason": "媒体已完结"}
         if not item.get("baiduLink"):
+            self._log("info", f"跳过百度网盘检查：{item['name']} 未配置分享链接", itemId=item_id)
             return {"itemId": item_id, "skipped": True, "reason": "未配置分享链接"}
+        state = self.states.setdefault(item_id, {})
+        self._log(
+            "info",
+            f"开始检查百度网盘分享：{item['name']}",
+            itemId=item_id,
+            previousFileCount=len(state.get("seen") or []),
+            failureCount=int(state.get("failureCount") or 0),
+        )
         cli_status = await self._cli_status()
         if not cli_status["available"]:
             raise AppError(503, "bdpan CLI 未安装或配置路径不正确")
         if not cli_status["loggedIn"]:
             raise AppError(409, "bdpan 尚未完成百度网盘授权")
 
-        state = self.states.setdefault(item_id, {})
         try:
             share_url, extract_code = self.cli.parse_share_input(str(item["baiduLink"]))
             session_id = self.cli.new_session_id()
@@ -513,6 +562,13 @@ class BdpanAutomationService:
             raise
 
         state.pop("linkInvalidNotificationKey", None)
+
+        self._log(
+            "info",
+            f"百度网盘分享读取完成：{item['name']}",
+            itemId=item_id,
+            mediaFileCount=len(files),
+        )
 
         prefix = str(state.get("watchPrefix") or "") if "watchPrefix" in state else None
         share_key_source = f"{share_url}\0{extract_code}"
@@ -536,7 +592,13 @@ class BdpanAutomationService:
                 }
             )
             await self._save_states()
-            self._log("success", f"百度网盘追更基线已建立：{item['name']}", fileCount=len(files))
+            self._log(
+                "success",
+                f"百度网盘追更基线已建立：{item['name']}",
+                itemId=item_id,
+                fileCount=len(files),
+                nextCheckAt=state["nextCheckAt"],
+            )
             return {"itemId": item_id, "baseline": True, "fileCount": len(files), "newCount": 0}
 
         additions = [file for file in files if file.fingerprint not in previous]
@@ -553,10 +615,25 @@ class BdpanAutomationService:
                 }
             )
             await self._save_states()
-            self._log("info", f"百度网盘检查完成：{item['name']}，没有新剧集")
+            self._log(
+                "info",
+                f"百度网盘检查完成：{item['name']}，没有新剧集",
+                itemId=item_id,
+                fileCount=len(files),
+                knownFileCount=len(previous | fingerprints),
+                nextCheckAt=state["nextCheckAt"],
+            )
             return {"itemId": item_id, "baseline": False, "fileCount": len(files), "newCount": 0}
 
         selected = additions[: int(self.config["maxNewItems"])]
+        self._log(
+            "success",
+            f"百度网盘检查到新剧集：{item['name']}，新增 {len(additions)} 个文件",
+            itemId=item_id,
+            selectedCount=len(selected),
+            deferredCount=max(0, len(additions) - len(selected)),
+            files=self._file_names(selected),
+        )
         if any(not file.fsid for file in selected):
             error = BdpanCliError("分享列表缺少可用于选择性转存的文件标识")
             await self._record_failure(item, error)
@@ -567,6 +644,14 @@ class BdpanAutomationService:
         try:
             groups = self._group_transfers(item, selected)
             for group_index, (destination, group) in enumerate(groups):
+                self._log(
+                    "info",
+                    f"正在提交追更转存 {group_index + 1}/{len(groups)}：{item['name']}",
+                    itemId=item_id,
+                    destination=destination,
+                    fileCount=len(group),
+                    files=self._file_names(group),
+                )
                 argv = self.cli.select_command(
                     share_url,
                     [file.fsid for file in group],
@@ -584,6 +669,14 @@ class BdpanAutomationService:
                         {"taskId": task_id, "destination": destination, "submittedAt": now}
                     )
                 transferred.extend(group)
+                self._log(
+                    "success",
+                    f"追更转存任务已接受：{item['name']}",
+                    itemId=item_id,
+                    taskId=task_id or "未返回",
+                    destination=destination,
+                    fileCount=len(group),
+                )
                 if group_index + 1 < len(groups):
                     await asyncio.sleep(2)
         except (BdpanCliError, AppError) as exc:
@@ -633,7 +726,10 @@ class BdpanAutomationService:
         self._log(
             "success",
             f"百度网盘发现更新：{item['name']}，已提交 {len(transferred)} 个文件",
+            itemId=item_id,
             newCount=len(transferred),
+            nextCheckAt=state["nextCheckAt"],
+            pendingSyncAt=state["pendingSyncAt"],
         )
         self._wake.set()
         return {
@@ -652,6 +748,7 @@ class BdpanAutomationService:
         *,
         strip_wrapper: bool = True,
     ) -> list[ShareMediaFile]:
+        started_at = perf_counter()
         queue: list[tuple[str, tuple[str, ...], int]] = [("", (), 0)]
         visited: set[str] = set()
         files: list[ShareMediaFile] = []
@@ -709,7 +806,16 @@ class BdpanAutomationService:
                 await asyncio.sleep(0.35)
             if queue:
                 await asyncio.sleep(0.35)
-        return self._strip_single_wrapper(files) if strip_wrapper else files
+        result = self._strip_single_wrapper(files) if strip_wrapper else files
+        self._log(
+            "info",
+            "百度网盘分享目录遍历完成",
+            mediaFileCount=len(result),
+            visitedDirectoryCount=len(visited),
+            requestCount=request_count,
+            durationMs=round((perf_counter() - started_at) * 1_000, 2),
+        )
+        return result
 
     def _group_transfers(
         self, item: dict[str, Any], files: list[ShareMediaFile]
@@ -740,19 +846,49 @@ class BdpanAutomationService:
             state = self.states.setdefault(item_id, {})
             try:
                 item = await self.media.get_item(item_id)
+                attempt = int(state.get("pendingSyncAttempts") or 0) + 1
+                self._log(
+                    "info",
+                    f"开始处理百度网盘落盘同步：{item['name']}",
+                    itemId=item_id,
+                    attempt=attempt,
+                    sourcePath=item["sourcePath"],
+                )
                 await self.openlist.request(
                     "POST",
                     "/api/admin/scan/start",
                     {"path": item["sourcePath"], "limit": self.settings.scan_limit},
                 )
+                self._log(
+                    "info",
+                    f"OpenList STRM 扫描已启动：{item['name']}",
+                    itemId=item_id,
+                    scanPath=item["sourcePath"],
+                    scanLimit=self.settings.scan_limit,
+                )
                 started = asyncio.get_running_loop().time()
+                object_count = 0
                 while True:
                     await asyncio.sleep(2)
                     progress = await self.openlist.request("GET", "/api/admin/scan/progress")
+                    object_count = int((progress or {}).get("obj_count") or 0)
                     if bool((progress or {}).get("is_done")):
                         break
                     if asyncio.get_running_loop().time() - started > 600:
                         raise AppError(504, "OpenList 自动扫描超过 10 分钟")
+                self._log(
+                    "success",
+                    f"OpenList STRM 扫描完成：{item['name']}",
+                    itemId=item_id,
+                    objectCount=object_count,
+                    durationSeconds=round(asyncio.get_running_loop().time() - started, 1),
+                )
+                self._log(
+                    "info",
+                    f"开始整理并发布 STRM：{item['name']}",
+                    itemId=item_id,
+                    targetPath=item.get("targetDir") or "由媒体配置解析",
+                )
                 result = await self.media.publish(PublishRequest(id=item_id))
                 copied = int(result.get("copied") or 0)
                 new_files = len(result.get("newFiles") or [])
@@ -760,6 +896,11 @@ class BdpanAutomationService:
                 total_files = int(result.get("totalFiles") or 0)
                 if copied and self.settings.emby_url and self.settings.emby_api_key:
                     await self.emby.refresh_library()
+                    self._log(
+                        "success",
+                        f"Emby 媒体库刷新已触发：{item['name']}",
+                        itemId=item_id,
+                    )
                 # publish() raises when the source directory is still empty. Reaching
                 # this point therefore means the transferred files are visible. A user
                 # may have manually synchronized them while this task was waiting; in
@@ -801,7 +942,13 @@ class BdpanAutomationService:
                     ).isoformat()
                 state["lastError"] = str(exc)[:500]
                 await self._save_states()
-                self._log("error", f"百度网盘自动同步失败：{str(exc)[:300]}", itemId=item_id)
+                self._log(
+                    "error",
+                    f"百度网盘自动同步失败：{str(exc)[:300]}",
+                    itemId=item_id,
+                    attempt=attempts,
+                    nextRetryAt=state.get("pendingSyncAt") or "已停止重试",
+                )
             finally:
                 self._running_item_id = ""
 
@@ -827,6 +974,8 @@ class BdpanAutomationService:
             "error",
             f"百度网盘检查失败：{item['name']} · {str(error)[:300]}",
             itemId=item["id"],
+            failureCount=failures,
+            nextCheckAt=state["nextCheckAt"],
         )
 
     async def _notify_invalid_link_once(self, item: dict[str, Any], error: Exception) -> None:
@@ -858,17 +1007,24 @@ class BdpanAutomationService:
     async def _run_requested(self, item_id: str) -> None:
         try:
             if item_id:
+                self._log("info", "百度网盘单项手动检查开始", itemId=item_id)
                 await self.check_item(item_id)
+                self._log("success", "百度网盘单项手动检查完成", itemId=item_id)
                 return
             items = [
                 item
                 for item in await self.media.list_items()
                 if item.get("status") == "ongoing" and item.get("baiduLink")
             ]
+            self._log("info", "百度网盘批量手动检查开始", itemCount=len(items))
+            success_count = 0
+            failure_count = 0
             for index, item in enumerate(items):
                 try:
                     await self.check_item(item["id"])
+                    success_count += 1
                 except Exception as exc:  # noqa: BLE001 - continue the requested batch
+                    failure_count += 1
                     self._log(
                         "warning",
                         f"百度网盘手动检查已跳过 {item['name']}：{str(exc)[:240]}",
@@ -876,6 +1032,13 @@ class BdpanAutomationService:
                     )
                 if index + 1 < len(items):
                     await asyncio.sleep(2)
+            self._log(
+                "success" if not failure_count else "warning",
+                "百度网盘批量手动检查完成",
+                itemCount=len(items),
+                successCount=success_count,
+                failureCount=failure_count,
+            )
         except Exception as exc:  # noqa: BLE001 - background request is reported in runtime log
             self._log("error", f"百度网盘手动检查失败：{str(exc)[:300]}")
         finally:
@@ -902,6 +1065,12 @@ class BdpanAutomationService:
         for item_id, state in list(self.states.items()):
             pending_at = self._parse_time(state.get("pendingSyncAt"))
             if pending_at and pending_at <= now:
+                self._log(
+                    "info",
+                    "百度网盘转存等待时间已到，开始扫描同步",
+                    itemId=item_id,
+                    scheduledAt=state.get("pendingSyncAt"),
+                )
                 await self._sync_item(item_id)
                 return
         if not self.config["enabled"]:
@@ -915,6 +1084,12 @@ class BdpanAutomationService:
             state = self.states.setdefault(item["id"], {})
             due = self._parse_time(state.get("nextCheckAt"))
             if due is None or due <= now:
+                self._log(
+                    "info",
+                    f"百度网盘定时检查已启动：{item['name']}",
+                    itemId=item["id"],
+                    scheduledAt=state.get("nextCheckAt") or "首次检查",
+                )
                 try:
                     await self.check_item(item["id"])
                 except Exception as exc:  # noqa: BLE001 - failure state is stored by check_item
@@ -1172,6 +1347,13 @@ class BdpanAutomationService:
     def _track(self, task: asyncio.Task[None]) -> None:
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+
+    @staticmethod
+    def _file_names(files: list[ShareMediaFile], limit: int = 12) -> list[str]:
+        names = ["/".join(file.relative_parts) for file in files[:limit]]
+        if len(files) > limit:
+            names.append(f"…另有 {len(files) - limit} 个文件")
+        return names
 
     def _log(self, level: str, message: str, **details: Any) -> None:
         self.runtime_logs.add(category="bdpan", level=level, message=message, **details)

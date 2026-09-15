@@ -41,6 +41,13 @@ class WecomWebhookService:
                 self.config = self._normalize_config(stored, retain_url=False)
             except AppError:
                 self._log("warning", "已忽略格式不正确的企业微信 Webhook 配置")
+        self._log(
+            "success",
+            "企业微信通知服务初始化完成",
+            configured=bool(self.config["webhookUrl"]),
+            episodeUpdateEnabled=self.config["episodeUpdateEnabled"],
+            linkInvalidEnabled=self.config["linkInvalidEnabled"],
+        )
 
     def status(self) -> dict[str, Any]:
         url = str(self.config.get("webhookUrl") or "")

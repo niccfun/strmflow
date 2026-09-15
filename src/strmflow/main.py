@@ -41,9 +41,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        runtime_logs.add(
+            category="system",
+            message="StrmFlow 正在启动",
+            version=__version__,
+            listenAddress=f"{settings.host}:{settings.port}",
+        )
         settings.validate_runtime()
         database = Database(settings)
+        runtime_logs.add(category="system", message="正在初始化 SQLite 数据库")
         await database.initialize()
+        runtime_logs.add(category="system", level="success", message="SQLite 数据库初始化完成")
         try:
             async with (
                 httpx.AsyncClient(
@@ -68,12 +76,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     runtime_logs,
                 )
                 app.state.turnstile_http = turnstile_http
+                runtime_logs.add(category="system", message="正在加载路径与转存配置")
                 await app.state.services.path_config.initialize()
                 await app.state.services.transfers.initialize()
                 await app.state.services.legacy_importer.run_once()
+                runtime_logs.add(
+                    category="settings",
+                    level="success",
+                    message="STRM 路径配置已加载",
+                    sourceRoot=app.state.services.path_config.list_root or "未配置",
+                    targetRoot=app.state.services.path_config.emby_strm_root or "未配置",
+                )
+                runtime_logs.add(category="system", message="正在初始化 302 网关与通知服务")
                 await app.state.services.emby302.initialize()
                 await app.state.services.emby302.start_configured()
                 await app.state.services.notifications.initialize()
+                runtime_logs.add(category="system", message="正在初始化百度网盘自动追更服务")
                 await app.state.services.bdpan.initialize()
                 runtime_logs.add(
                     category="system",
@@ -83,9 +101,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 try:
                     yield
                 finally:
+                    runtime_logs.add(category="system", message="StrmFlow 正在停止后台任务")
                     await app.state.services.bdpan.close()
                     await app.state.services.emby302.close()
                     await app.state.services.transfers.close()
+                    runtime_logs.add(
+                        category="system", level="success", message="StrmFlow 后台任务已停止"
+                    )
         finally:
             await database.close()
 

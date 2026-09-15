@@ -1,3 +1,5 @@
+import logging
+
 from strmflow.core.runtime_logs import RuntimeLogStore, request_category, status_level
 
 
@@ -23,3 +25,22 @@ def test_request_log_classification_and_status_levels() -> None:
     assert status_level(302) == "redirect"
     assert status_level(404) == "warning"
     assert status_level(502) == "error"
+
+
+def test_application_events_are_mirrored_to_console_without_duplicate_access_logs(
+    caplog,
+) -> None:
+    caplog.set_level(logging.INFO, logger="uvicorn.error")
+    store = RuntimeLogStore()
+
+    store.add(category="bdpan", message="开始检查百度网盘分享：测试剧", fileCount=12)
+    store.add(
+        category="http",
+        message="GET /api/items",
+        method="GET",
+        statusCode=200,
+    )
+
+    assert "[bdpan] 开始检查百度网盘分享：测试剧" in caplog.text
+    assert '"fileCount":12' in caplog.text
+    assert "GET /api/items" not in caplog.text

@@ -125,6 +125,12 @@ class Emby302Gateway:
 
     async def start_configured(self) -> None:
         if not self.config.enabled:
+            self.runtime_logs.add(
+                category="gateway302",
+                level="info",
+                message="302 网关当前未启用",
+                listenAddress=f"{self.config.host}:{self.config.port}",
+            )
             return
         try:
             await self._start_server()

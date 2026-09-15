@@ -58,9 +58,19 @@ def build_container(
     transfer_repository = TransferJobRepository(database.sessions, settings.transfer_job_retention)
     bdpan_cli = BdpanCli(settings, baidu_http)
     transfers = TransferManager(
-        settings, [BdpanTransferProvider(settings, bdpan_cli)], transfer_repository
+        settings,
+        [BdpanTransferProvider(settings, bdpan_cli)],
+        transfer_repository,
+        runtime_logs,
     )
-    media = MediaService(settings, openlist, storage, media_repository, path_config)
+    media = MediaService(
+        settings,
+        openlist,
+        storage,
+        media_repository,
+        path_config,
+        runtime_logs,
+    )
     emby = EmbyClient(settings, emby_http)
     emby302 = Emby302Gateway(
         settings,

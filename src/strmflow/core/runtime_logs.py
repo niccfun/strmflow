@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import logging
 from collections import Counter, deque
 from datetime import UTC, datetime
 from threading import Lock
@@ -33,7 +35,42 @@ class RuntimeLogStore:
             }
             self._next_id += 1
             self._entries.appendleft(entry)
-            return dict(entry)
+            saved = dict(entry)
+        self._write_console(saved)
+        return saved
+
+    @staticmethod
+    def _write_console(entry: dict[str, Any]) -> None:
+        """Mirror application events to Uvicorn so ``docker logs`` is useful.
+
+        HTTP access events are already emitted by Uvicorn and remain available in
+        the in-memory log page.  Skipping them here prevents every request from
+        appearing twice in the container output.
+        """
+        if entry.get("method") and entry.get("statusCode") is not None:
+            return
+        ignored = {"id", "time", "category", "level", "message"}
+        details = {key: value for key, value in entry.items() if key not in ignored}
+        suffix = ""
+        if details:
+            suffix = " · " + json.dumps(
+                details,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                default=str,
+            )
+        level = str(entry.get("level") or "info").casefold()
+        log_level = {
+            "error": logging.ERROR,
+            "warning": logging.WARNING,
+        }.get(level, logging.INFO)
+        logging.getLogger("uvicorn.error").log(
+            log_level,
+            "[%s] %s%s",
+            entry.get("category") or "system",
+            entry.get("message") or "",
+            suffix,
+        )
 
     def list(self, *, limit: int = 300, category: str = "") -> list[dict[str, Any]]:
         with self._lock:

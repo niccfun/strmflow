@@ -139,6 +139,11 @@ Docker 容器的内网地址；`OPENLIST_WEB_URL`、`EMBY_WEB_URL` 是用户浏�
 跳转）、客户端、耗时、协议、响应大小及 User-Agent；使用紧凑列表展示，并支持手动
 刷新和实时刷新。服务日志接口为 `GET /api/logs`，清空接口为 `DELETE /api/logs`。
 
+应用事件同时输出到标准输出，可直接使用 `docker compose logs -f strmflow` 查看。
+除 Uvicorn 访问记录外，还会记录数据库与组件启动、追更调度状态、每个分享的检查开始
+和结果、新剧集文件清单、转存任务、OpenList 扫描、STRM 整理发布、Emby 刷新、通知
+发送及重试时间。访问令牌、提取码和 Webhook 密钥不会写入日志。
+
 ## 状态总览
 
 左侧“状态总览”集中显示以下运行信息，并在页面停留期间每 30 秒自动刷新：

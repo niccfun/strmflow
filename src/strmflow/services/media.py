@@ -8,6 +8,7 @@ from urllib.parse import unquote
 
 from strmflow.core.config import Settings
 from strmflow.core.errors import AppError
+from strmflow.core.runtime_logs import RuntimeLogStore
 from strmflow.repositories.media import MediaRepository
 from strmflow.schemas.api import MediaItemInput, PublishRequest
 from strmflow.services.openlist import OpenListClient
@@ -29,12 +30,14 @@ class MediaService:
         storage: StorageService,
         repository: MediaRepository,
         path_config: PathConfigService,
+        runtime_logs: RuntimeLogStore | None = None,
     ) -> None:
         self.settings = settings
         self.openlist = openlist
         self.storage = storage
         self.repository = repository
         self.path_config = path_config
+        self.runtime_logs = runtime_logs
 
     async def list_items(self) -> list[dict[str, Any]]:
         items = [
@@ -87,10 +90,26 @@ class MediaService:
             "updatedAt": now,
         }
         item = await self.repository.upsert(item)
-        return self._normalize(item) or item
+        result = self._normalize(item) or item
+        self._log(
+            "success",
+            f"媒体配置已{'更新' if existing else '添加'}：{result['name']}",
+            itemId=item_id,
+            sourcePath=source_path,
+            targetPath=result["targetDir"],
+            status=result.get("status"),
+            season=result.get("season"),
+        )
+        return result
 
     async def delete_item(self, item_id: str) -> None:
+        item = await self.repository.get(item_id)
         await self.repository.delete(item_id)
+        self._log(
+            "success",
+            f"媒体配置已删除：{(item or {}).get('name') or item_id}",
+            itemId=item_id,
+        )
 
     async def update_item(self, item_id: str, patch: dict[str, Any]) -> dict[str, Any]:
         item = await self.repository.update(item_id, patch)
@@ -109,6 +128,12 @@ class MediaService:
                 continue
             await self.repository.update(item["id"], {"targetDir": target_dir, "syncedFiles": []})
             updated += 1
+        self._log(
+            "success",
+            "媒体目标根目录映射已更新",
+            targetRoot=root,
+            updatedItemCount=updated,
+        )
         return updated
 
     async def _ensure_target_layout(self, item: dict[str, Any]) -> dict[str, Any]:
@@ -159,6 +184,13 @@ class MediaService:
 
     async def preview_publish(self, body: PublishRequest) -> dict[str, Any]:
         context, source, target = await self._resolve_publish(body)
+        self._log(
+            "info",
+            f"开始生成同步预览：{context.get('name') or source}",
+            itemId=context.get("id") or "",
+            sourcePath=source,
+            targetPath=target,
+        )
         files = await self.collect_files(source)
         if not files:
             raise AppError(409, f"本地 STRM 目录为空，请先扫描生成：{source}")
@@ -167,6 +199,14 @@ class MediaService:
         seasons = self._effective_seasons(files, context)
         missing = [entry for entry in plan if entry["targetRel"] not in targets]
         synced = set(context.get("syncedFiles") or [])
+        self._log(
+            "info",
+            f"同步预览生成完成：{context.get('name') or source}",
+            sourceFileCount=len(files),
+            targetFileCount=len(targets),
+            pendingFileCount=len(missing),
+            seasonCount=len(seasons),
+        )
         return {
             **{key: context.get(key) for key in ("id", "name") if context.get(key)},
             "sourcePath": context.get("sourcePath", source),
@@ -187,6 +227,13 @@ class MediaService:
 
     async def publish(self, body: PublishRequest) -> dict[str, Any]:
         context, source, target = await self._resolve_publish(body)
+        self._log(
+            "info",
+            f"开始同步媒体：{context.get('name') or source}",
+            itemId=context.get("id") or "",
+            sourcePath=source,
+            targetPath=target,
+        )
         files = await self.collect_files(source)
         if not files:
             raise AppError(409, f"本地 STRM 目录为空，请先扫描生成：{source}")
@@ -197,6 +244,14 @@ class MediaService:
         synced = set(context.get("syncedFiles") or [])
         new_files = [name for name in files if name not in synced]
         missing_target_files = [entry["sourceRel"] for entry in missing]
+        self._log(
+            "info",
+            f"媒体文件清点完成：{context.get('name') or source}",
+            sourceFileCount=len(files),
+            existingTargetCount=len(target_files),
+            pendingFileCount=len(missing),
+            seasons=seasons,
+        )
         await self.openlist.mkdir(target)
         copied, renamed = await self._copy_plan(source, target, missing)
         episode_count = sum(name.lower().endswith(".strm") for name in files)
@@ -214,6 +269,17 @@ class MediaService:
                     "status": status,
                 },
             )
+        self._log(
+            "success",
+            f"媒体同步完成：{context.get('name') or source}",
+            itemId=context.get("id") or "",
+            copiedCount=copied,
+            newFileCount=len(new_files),
+            episodeCount=episode_count,
+            renamedCount=len(renamed),
+            status=status,
+            autoCompleted=auto_completed,
+        )
         return {
             **{key: context.get(key) for key in ("id", "name") if context.get(key)},
             "sourcePath": context.get("sourcePath", source),
@@ -279,6 +345,13 @@ class MediaService:
             await self._ensure_relative_dirs(target_root, target_dir)
             source_directory = join_virtual_path(source_root, source_dir)
             target_directory = join_virtual_path(target_root, target_dir)
+            self._log(
+                "info",
+                "正在同步 STRM 文件组",
+                sourceDirectory=source_directory,
+                targetDirectory=target_directory,
+                fileCount=len(entries),
+            )
             copy_entries: list[dict[str, str]] = []
             for entry in entries:
                 source_name = entry["sourceRel"].rsplit("/", 1)[-1]
@@ -322,6 +395,10 @@ class MediaService:
                     != entry["targetRel"].rsplit("/", 1)[-1]
                 )
         return len(plan), renamed
+
+    def _log(self, level: str, message: str, **details: Any) -> None:
+        if self.runtime_logs:
+            self.runtime_logs.add(category="media", level=level, message=message, **details)
 
     async def _ensure_relative_dirs(self, root: str, relative: str) -> None:
         current = root
