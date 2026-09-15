@@ -57,6 +57,16 @@ def test_index_has_unique_element_ids() -> None:
     assert 'id="mediaDetailTargetPath"' in template
     assert "media-details-button" in template
     assert "媒体详情" in template
+    assert ".target-panel { width: min(1180px" in template
+    assert "overflow: hidden; display: grid; grid-template-columns: repeat(4" in template
+    assert (
+        ".target-panel:not(.detail-mode) .source-resource-field { grid-column: span 2; }"
+        in template
+    )
+    assert (
+        ".target-panel:not(.detail-mode) .editor-actions .danger-button { display: none; }"
+        in template
+    )
     assert ".target-panel.detail-mode { width: min(1180px" in template
     assert "elements.editorPanel.classList.add('detail-mode')" in template
     assert "restoreSavedSourceSelection" in template
