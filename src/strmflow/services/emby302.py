@@ -688,7 +688,11 @@ class Emby302Gateway:
             self,
             host=self.config.host,
             port=self.config.port,
-            log_level="warning",
+            # Reuse the parent process logger. Uvicorn's default log config
+            # would reset handlers for the management app, hiding its startup
+            # and runtime logs inside Docker.
+            log_level="info",
+            log_config=None,
             access_log=False,
             lifespan="off",
             timeout_graceful_shutdown=3,
