@@ -31,7 +31,10 @@ async def test_media_repository_round_trip(tmp_path) -> None:
     saved = await repository.upsert(item)
     assert saved["totalEpisodes"] == "12"
     assert saved["season"] == 1
+    assert saved["manifestVersion"] == 0
     assert (await repository.get("m1"))["syncedFiles"] == ["S01E01.strm"]
+    updated = await repository.update("m1", {"manifestVersion": 1})
+    assert updated["manifestVersion"] == 1
     assert (await repository.get_by_source_path("/source/示例"))["id"] == "m1"
     assert await repository.get_by_source_path("/source/不存在") is None
     assert len(await repository.list()) == 1

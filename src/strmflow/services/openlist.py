@@ -242,8 +242,33 @@ class OpenListClient:
         )
 
     async def batch_rename(self, directory: str, changes: list[dict[str, str]]) -> None:
-        await self.request(
-            "POST",
-            "/api/fs/batch_rename",
-            {"src_dir": normalize_virtual_path(directory), "rename_objects": changes},
-        )
+        normalized = normalize_virtual_path(directory)
+        body = {"src_dir": normalized, "rename_objects": changes}
+        try:
+            await self.request("POST", "/api/fs/batch_rename", body)
+            return
+        except AppError:
+            if len(changes) <= 1:
+                raise
+
+        # Some OpenList versions fail a multi-item rename when the destination
+        # files already exist, even though a single rename correctly overwrites
+        # them. This is common during the one-time STRM manifest upgrade. Retry
+        # item by item; if the failed batch was partially applied, regard an
+        # existing destination with no source as already completed.
+        existing = {str(entry.get("name") or "") for entry in await self.list_dir(normalized)}
+        for change in changes:
+            source = str(change.get("src_name") or "")
+            target = str(change.get("new_name") or "")
+            if source not in existing and target in existing:
+                continue
+            await self.request(
+                "POST",
+                "/api/fs/batch_rename",
+                {
+                    "src_dir": normalized,
+                    "rename_objects": [{"src_name": source, "new_name": target}],
+                },
+            )
+            existing.discard(source)
+            existing.add(target)

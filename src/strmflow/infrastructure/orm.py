@@ -29,6 +29,7 @@ class MediaItemRow(Base):
     update_schedule: Mapped[str] = mapped_column(String(100), nullable=False, default="")
     baidu_link: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     synced_files: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    manifest_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

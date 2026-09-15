@@ -100,6 +100,8 @@ class MediaRepository:
         row.update_schedule = str(item.get("updateSchedule") or "")
         row.baidu_link = str(item.get("baiduLink") or "")
         row.synced_files = list(item.get("syncedFiles") or [])
+        version = item.get("manifestVersion")
+        row.manifest_version = int(version) if str(version or "").isdigit() else 0
         row.last_synced_at = MediaRepository._parse_datetime(item.get("lastSyncedAt"))
         row.last_checked_at = MediaRepository._parse_datetime(item.get("lastCheckedAt"))
         row.created_at = MediaRepository._parse_datetime(item.get("createdAt")) or now
@@ -123,6 +125,7 @@ class MediaRepository:
             "updateSchedule": row.update_schedule,
             "baiduLink": row.baidu_link,
             "syncedFiles": row.synced_files or [],
+            "manifestVersion": row.manifest_version or 0,
             "lastSyncedAt": MediaRepository._iso(row.last_synced_at),
             "lastCheckedAt": MediaRepository._iso(row.last_checked_at),
             "createdAt": MediaRepository._iso(row.created_at),

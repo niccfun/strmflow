@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import re
 from datetime import UTC, datetime
@@ -21,6 +22,8 @@ from strmflow.utils.paths import (
     path_base,
     validate_virtual_path,
 )
+
+STRM_MANIFEST_VERSION = 1
 
 
 class MediaService:
@@ -86,6 +89,9 @@ class MediaService:
             "updateSchedule": body.update_schedule.strip(),
             "baiduLink": body.baidu_link.strip(),
             "syncedFiles": existing.get("syncedFiles", []) if same_paths else [],
+            "manifestVersion": int(existing.get("manifestVersion") or 0)
+            if same_paths and existing
+            else 0,
             "lastSyncedAt": existing.get("lastSyncedAt") if same_paths else None,
             "createdAt": existing.get("createdAt", now) if existing else now,
             "updatedAt": now,
@@ -127,7 +133,10 @@ class MediaService:
             )
             if target_dir == item.get("targetDir"):
                 continue
-            await self.repository.update(item["id"], {"targetDir": target_dir, "syncedFiles": []})
+            await self.repository.update(
+                item["id"],
+                {"targetDir": target_dir, "syncedFiles": [], "manifestVersion": 0},
+            )
             updated += 1
         self._log(
             "success",
@@ -146,7 +155,10 @@ class MediaService:
         )
         if normalize_virtual_path(item.get("targetDir")) == expected:
             return item
-        return await self.repository.update(item["id"], {"targetDir": expected, "syncedFiles": []})
+        return await self.repository.update(
+            item["id"],
+            {"targetDir": expected, "syncedFiles": [], "manifestVersion": 0},
+        )
 
     async def collect_files(
         self,
@@ -257,10 +269,26 @@ class MediaService:
         plan = self._build_plan(files, context, body.rename_plan)
         seasons = self._effective_seasons(files, context)
         missing = [entry for entry in plan if entry["targetRel"] not in target_files]
+        normalize_manifests = int(context.get("manifestVersion") or 0) < STRM_MANIFEST_VERSION
+        legacy_manifests = (
+            [
+                entry
+                for entry in plan
+                if entry["targetRel"] in target_files
+                and entry["targetRel"].casefold().endswith(".strm")
+            ]
+            if normalize_manifests
+            else []
+        )
+        sync_plan = [entry for entry in plan if entry in missing or entry in legacy_manifests]
         synced = set(context.get("syncedFiles") or [])
         new_files = [name for name in files if name not in synced]
         missing_target_files = [entry["sourceRel"] for entry in missing]
-        warmup_sources = set(new_files) | set(missing_target_files)
+        warmup_sources = (
+            set(new_files)
+            | set(missing_target_files)
+            | {entry["sourceRel"] for entry in legacy_manifests}
+        )
         warmup_paths = [
             join_virtual_path(target, entry["targetRel"])
             for entry in plan
@@ -273,12 +301,13 @@ class MediaService:
             sourceFileCount=len(files),
             existingTargetCount=len(target_files),
             pendingFileCount=len(missing),
+            manifestUpgradeCount=len(legacy_manifests),
             seasons=seasons,
             skippedDuplicateCount=len(duplicate_files),
             removedTargetDuplicateCount=len(target_duplicates),
         )
         await self.openlist.mkdir(target)
-        copied, renamed = await self._copy_plan(source, target, missing)
+        copied, renamed = await self._copy_plan(source, target, sync_plan)
         episode_count = self._episode_count(files, context)
         auto_completed = False
         status = context.get("status", "ongoing")
@@ -292,6 +321,7 @@ class MediaService:
                     "syncedFiles": files,
                     "lastSyncedAt": datetime.now(UTC).isoformat(),
                     "status": status,
+                    "manifestVersion": STRM_MANIFEST_VERSION,
                 },
             )
         self._log(
@@ -302,6 +332,7 @@ class MediaService:
             newFileCount=len(new_files),
             episodeCount=episode_count,
             renamedCount=len(renamed),
+            manifestUpgradeCount=len(legacy_manifests),
             status=status,
             autoCompleted=auto_completed,
             skippedDuplicateCount=len(duplicate_files),
@@ -323,6 +354,7 @@ class MediaService:
             "autoCompleted": auto_completed,
             "refreshed": False,
             "renamedFiles": renamed,
+            "normalizedStrmFiles": len(legacy_manifests),
             "skippedDuplicateFiles": duplicate_files,
             "skippedDuplicateCount": len(duplicate_files),
             "removedTargetDuplicateFiles": target_duplicates,
@@ -383,30 +415,53 @@ class MediaService:
                 targetDirectory=target_directory,
                 fileCount=len(entries),
             )
-            copy_entries: list[dict[str, str]] = []
-            for entry in entries:
+            strm_entries = [
+                entry for entry in entries if entry["sourceRel"].casefold().endswith(".strm")
+            ]
+            other_entries = [entry for entry in entries if entry not in strm_entries]
+
+            # Use the same OpenList-side copy flow as the demo. For a Strm
+            # storage this materializes the generated manifest itself, whereas
+            # persisting fs/get.raw_url would create an extra .strm -> .strm
+            # hop and leave Emby without the real container and duration.
+            #
+            # Copy STRM files one at a time: some OpenList versions return zero
+            # byte placeholders when several virtual Strm objects are copied in
+            # one request. A single-file copy is synchronous and reliable.
+            for entry in strm_entries:
                 source_name = entry["sourceRel"].rsplit("/", 1)[-1]
                 target_name = entry["targetRel"].rsplit("/", 1)[-1]
-                if source_name.casefold().endswith(".strm"):
-                    info = await self.openlist.get_file_info(
-                        join_virtual_path(source_directory, source_name)
-                    )
+                copied_path = join_virtual_path(target_directory, source_name)
+                await self.openlist.copy(source_directory, target_directory, [source_name])
+                if not await self._wait_for_materialized_strm(copied_path):
+                    # OpenList's `/api/fs/copy` is the canonical operation used
+                    # by demo. If a particular Strm driver leaves a zero-byte
+                    # placeholder, retain the provider URL as a compatibility
+                    # fallback; the normal path never performs an extra read.
+                    info = await self.openlist.get_file_info(copied_path)
                     raw_url = str(info.get("raw_url") or "").strip()
-                    if str(info.get("provider") or "").casefold() == "strm" and raw_url:
-                        await self.openlist.write_text(
-                            join_virtual_path(target_directory, target_name), raw_url
-                        )
-                        if source_name != target_name:
-                            renamed.append({"from": entry["sourceRel"], "to": entry["targetRel"]})
-                        continue
-                copy_entries.append(entry)
-            if not copy_entries:
+                    if not raw_url:
+                        raise AppError(502, f"OpenList 未能生成有效 STRM 文件：{copied_path}")
+                    await self.openlist.write_text(copied_path, raw_url)
+                    self._log(
+                        "warning",
+                        "OpenList 返回空 STRM，已写入兼容清单",
+                        targetPath=copied_path,
+                    )
+                if source_name != target_name:
+                    await self.openlist.batch_rename(
+                        target_directory,
+                        [{"src_name": source_name, "new_name": target_name}],
+                    )
+                    renamed.append({"from": entry["sourceRel"], "to": entry["targetRel"]})
+
+            if not other_entries:
                 continue
             await self.openlist.copy(
                 source_directory,
                 target_directory,
                 list(
-                    dict.fromkeys(entry["sourceRel"].rsplit("/", 1)[-1] for entry in copy_entries)
+                    dict.fromkeys(entry["sourceRel"].rsplit("/", 1)[-1] for entry in other_entries)
                 ),
             )
             changes = [
@@ -414,18 +469,32 @@ class MediaService:
                     "src_name": entry["sourceRel"].rsplit("/", 1)[-1],
                     "new_name": entry["targetRel"].rsplit("/", 1)[-1],
                 }
-                for entry in copy_entries
+                for entry in other_entries
                 if entry["sourceRel"].rsplit("/", 1)[-1] != entry["targetRel"].rsplit("/", 1)[-1]
             ]
             if changes:
                 await self.openlist.batch_rename(target_directory, changes)
                 renamed.extend(
                     {"from": entry["sourceRel"], "to": entry["targetRel"]}
-                    for entry in copy_entries
+                    for entry in other_entries
                     if entry["sourceRel"].rsplit("/", 1)[-1]
                     != entry["targetRel"].rsplit("/", 1)[-1]
                 )
         return len(plan), renamed
+
+    async def _wait_for_materialized_strm(self, path: str) -> bool:
+        for delay in (0.0, 0.15, 0.35):
+            if delay:
+                await asyncio.sleep(delay)
+            try:
+                info = await self.openlist.get_file_info(path)
+            except AppError:
+                # The copy endpoint can return just before a Strm driver has
+                # published the generated object into the destination listing.
+                continue
+            if int(info.get("size") or 0) > 0:
+                return True
+        return False
 
     def _log(self, level: str, message: str, **details: Any) -> None:
         if self.runtime_logs:

@@ -7,27 +7,22 @@ from strmflow.utils.episodes import select_preferred_episodes
 
 class VirtualStrmOpenList:
     def __init__(self) -> None:
-        self.writes: list[tuple[str, str]] = []
         self.copies: list[tuple[str, str, list[str]]] = []
         self.directories: list[str] = []
+        self.renames: list[tuple[str, list[dict[str, str]]]] = []
 
     async def mkdir(self, path: str) -> None:
         self.directories.append(path)
 
-    async def get_file_info(self, path: str) -> dict[str, str]:
-        return {
-            "provider": "Strm",
-            "raw_url": "https://openlist.example/p/source/video.strm?sign=TOKEN",
-        }
-
-    async def write_text(self, path: str, text: str) -> None:
-        self.writes.append((path, text))
-
     async def copy(self, source_dir: str, target_dir: str, names: list[str]) -> None:
         self.copies.append((source_dir, target_dir, names))
 
+    async def get_file_info(self, path: str) -> dict[str, int]:
+        assert path == "/target/Season 02/S01E01.strm"
+        return {"size": 128}
+
     async def batch_rename(self, directory: str, changes: list[dict[str, str]]) -> None:
-        raise AssertionError("虚拟 STRM 文件不应调用批量重命名")
+        self.renames.append((directory, changes))
 
 
 def test_configured_season_is_used_when_filename_has_only_episode() -> None:
@@ -174,7 +169,7 @@ def test_tv_target_uses_emby_series_root() -> None:
 
 
 @pytest.mark.anyio
-async def test_virtual_strm_is_materialized_as_url_text_instead_of_server_copy() -> None:
+async def test_virtual_strm_uses_openlist_copy_to_materialize_manifest() -> None:
     openlist = VirtualStrmOpenList()
     service = MediaService(
         Settings(),
@@ -196,12 +191,17 @@ async def test_virtual_strm_is_materialized_as_url_text_instead_of_server_copy()
     )
 
     assert copied == 1
-    assert openlist.copies == []
+    assert openlist.copies == [("/source", "/target/Season 02", ["S01E01.strm"])]
     assert openlist.directories == ["/target/Season 02"]
-    assert openlist.writes == [
+    assert openlist.renames == [
         (
-            "/target/Season 02/示例剧 - S02E01.strm",
-            "https://openlist.example/p/source/video.strm?sign=TOKEN",
+            "/target/Season 02",
+            [
+                {
+                    "src_name": "S01E01.strm",
+                    "new_name": "示例剧 - S02E01.strm",
+                }
+            ],
         )
     ]
     assert renamed == [{"from": "S01E01.strm", "to": "Season 02/示例剧 - S02E01.strm"}]
