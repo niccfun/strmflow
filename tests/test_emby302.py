@@ -1,5 +1,4 @@
 import asyncio
-import json
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
@@ -308,122 +307,21 @@ async def test_playback_info_preserves_canonical_stream_url_and_session_query() 
     }
 
 
-async def test_zero_progress_is_acknowledged_without_erasing_upstream_resume() -> None:
-    upstream_calls = 0
-
-    async def upstream(_: httpx.Request) -> httpx.Response:
-        nonlocal upstream_calls
-        upstream_calls += 1
-        return httpx.Response(204)
-
-    settings = Settings(app_password="secret", openlist_token="token", emby_api_key="key")
-    transport = httpx.MockTransport(upstream)
-    async with (
-        httpx.AsyncClient(transport=transport) as emby_http,
-        httpx.AsyncClient(transport=transport) as openlist_http,
-    ):
-        gateway = Emby302Gateway(
-            settings,
-            emby_http,
-            OpenListClient(settings, openlist_http),
-            MemorySettingsRepository(),  # type: ignore[arg-type]
-            RuntimeLogStore(),
-        )
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=gateway), base_url="http://gateway.test"
-        ) as client:
-            response = await client.post(
-                "/emby/Sessions/Playing/Progress",
-                json={
-                    "ItemId": "item-1",
-                    "PlaySessionId": "session-1",
-                    "PositionTicks": 0,
-                },
-            )
-        await gateway.close()
-
-    assert response.status_code == 204
-    assert upstream_calls == 0
-
-
-async def test_invalid_runtime_and_stop_position_are_not_forwarded_to_emby() -> None:
-    calls: list[tuple[str, dict[str, Any]]] = []
+async def test_playstate_control_requests_are_transparently_proxied() -> None:
+    calls: list[tuple[str, str, str, bytes, str, str]] = []
 
     async def upstream(request: httpx.Request) -> httpx.Response:
-        calls.append((request.url.path, json.loads(request.content)))
-        return httpx.Response(204)
-
-    settings = Settings(app_password="secret", openlist_token="token", emby_api_key="key")
-    transport = httpx.MockTransport(upstream)
-    async with (
-        httpx.AsyncClient(transport=transport) as emby_http,
-        httpx.AsyncClient(transport=transport) as openlist_http,
-    ):
-        gateway = Emby302Gateway(
-            settings,
-            emby_http,
-            OpenListClient(settings, openlist_http),
-            MemorySettingsRepository(),  # type: ignore[arg-type]
-            RuntimeLogStore(),
-        )
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=gateway), base_url="http://gateway.test"
-        ) as client:
-            await client.post(
-                "/emby/Sessions/Playing/Progress",
-                json={
-                    "ItemId": "item-1",
-                    "PlaySessionId": "session-1",
-                    "PositionTicks": 20_000_000,
-                    "RunTimeTicks": 0,
-                },
-            )
-            await client.post(
-                "/emby/Sessions/Playing/Stopped",
-                json={
-                    "ItemId": "item-1",
-                    "PlaySessionId": "session-2",
-                    "PositionTicks": 0,
-                    "RunTimeTicks": 0,
-                },
-            )
-        await gateway.close()
-
-    assert calls[0][1]["PositionTicks"] == 20_000_000
-    assert "RunTimeTicks" not in calls[0][1]
-    assert "PositionTicks" not in calls[1][1]
-    assert "RunTimeTicks" not in calls[1][1]
-
-
-async def test_stopped_event_restores_last_positive_progress_for_strm_resume() -> None:
-    calls: list[tuple[str, str, dict[str, Any], str]] = []
-    user_id = "0123456789abcdef0123456789abcdef"
-    stored_user_data: dict[str, Any] = {
-        "PlaybackPositionTicks": 0,
-        "Played": True,
-        "PlayCount": 1,
-        "IsFavorite": False,
-    }
-
-    async def upstream(request: httpx.Request) -> httpx.Response:
-        nonlocal stored_user_data
-        body = json.loads(request.content) if request.content else {}
         calls.append(
             (
                 request.method,
                 request.url.path,
-                body,
+                request.url.query.decode(),
+                request.content,
+                request.headers.get("content-type", ""),
                 request.headers.get("x-emby-authorization", ""),
             )
         )
-        if request.method == "GET" and request.url.path.endswith("/Items/item-1"):
-            return httpx.Response(
-                200,
-                json={"RunTimeTicks": None, "UserData": dict(stored_user_data)},
-            )
-        if request.method == "POST" and request.url.path.endswith("/Items/item-1/UserData"):
-            stored_user_data = body
-        return httpx.Response(204)
+        return httpx.Response(204, headers={"X-Emby-Playstate": "saved"})
 
     settings = Settings(app_password="secret", openlist_token="token", emby_api_key="key")
     repository = MemorySettingsRepository()
@@ -444,41 +342,149 @@ async def test_stopped_event_restores_last_positive_progress_for_strm_resume() -
             RuntimeLogStore(),
         )
         await gateway.initialize()
-        progress_ticks = 125 * 10_000_000
-        common = {"ItemId": "item-1", "PlaySessionId": "session-1"}
+        authorization = 'Emby UserId="user-1", Client="Test", Token="client-token"'
+        progress_body = (
+            b'{ "ItemId": "item-1", "PlaySessionId": "session-1", '
+            b'"PositionTicks": 0, "RunTimeTicks": 0 }'
+        )
+        stopped_body = (
+            b'{"ItemId":"item-1","PlaySessionId":"session-1",'
+            b'"PositionTicks":1250000000,"RunTimeTicks":0}'
+        )
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=gateway),
             base_url="http://gateway.test",
-            headers={
-                "X-Emby-Authorization": (
-                    f'Emby UserId="{user_id}", Client="Test", Token="client-token"'
-                )
-            },
+            headers={"X-Emby-Authorization": authorization},
         ) as client:
             progress = await client.post(
-                "/emby/emby/Sessions/Playing/Progress?api_key=client-token",
-                json={**common, "PositionTicks": progress_ticks},
+                "/emby/emby/Sessions/Playing/Progress?api_key=client-token&value=%E7%99%BE",
+                content=progress_body,
+                headers={"Content-Type": "application/json; charset=utf-8"},
             )
             stopped = await client.post(
-                "/emby/emby/Sessions/Playing/Stopped?api_key=client-token",
-                json={**common, "PositionTicks": 0},
+                "/emby/Sessions/Playing/Stopped?api_key=client-token",
+                content=stopped_body,
+                headers={"Content-Type": "application/json"},
             )
-        if gateway._playstate_tasks:
-            await asyncio.gather(*tuple(gateway._playstate_tasks))
         await gateway.close()
 
     assert progress.status_code == 204
+    assert progress.headers["x-emby-playstate"] == "saved"
     assert stopped.status_code == 204
-    assert [(call[0], call[1]) for call in calls] == [
-        ("POST", "/emby/Sessions/Playing/Progress"),
-        ("POST", "/emby/Sessions/Playing/Stopped"),
-        ("GET", f"/emby/Users/{user_id}/Items/item-1"),
-        ("POST", f"/emby/Users/{user_id}/Items/item-1/UserData"),
-        ("GET", f"/emby/Users/{user_id}/Items/item-1"),
+    assert calls == [
+        (
+            "POST",
+            "/emby/Sessions/Playing/Progress",
+            "api_key=client-token&value=%E7%99%BE",
+            progress_body,
+            "application/json; charset=utf-8",
+            authorization,
+        ),
+        (
+            "POST",
+            "/emby/Sessions/Playing/Stopped",
+            "api_key=client-token",
+            stopped_body,
+            "application/json",
+            authorization,
+        ),
     ]
-    assert calls[0][2]["PositionTicks"] == progress_ticks
-    assert calls[1][2]["PositionTicks"] == progress_ticks
-    assert calls[3][2]["PlaybackPositionTicks"] == progress_ticks
-    assert calls[3][2]["Played"] is False
-    assert calls[3][2]["PlayCount"] == 1
-    assert all(f'UserId="{user_id}"' in call[3] for call in calls)
+
+
+async def test_websocket_control_channel_is_transparently_proxied(monkeypatch) -> None:
+    connect_call: dict[str, Any] = {}
+
+    class FakeUpstream:
+        subprotocol = "emby"
+
+        def __init__(self) -> None:
+            self.outgoing: list[str | bytes] = []
+            self.incoming: asyncio.Queue[str | bytes] = asyncio.Queue()
+            self.closed: tuple[int, str] | None = None
+
+        async def send(self, message: str | bytes) -> None:
+            self.outgoing.append(message)
+            await self.incoming.put(f"echo:{message}")
+
+        async def recv(self) -> str | bytes:
+            return await self.incoming.get()
+
+        async def close(self, code: int, reason: str) -> None:
+            self.closed = (code, reason)
+
+    class FakeConnectionContext:
+        def __init__(self, connection: FakeUpstream) -> None:
+            self.connection = connection
+
+        async def __aenter__(self) -> FakeUpstream:
+            return self.connection
+
+        async def __aexit__(self, *_: object) -> None:
+            return None
+
+    upstream = FakeUpstream()
+
+    def connect(url: str, **kwargs: Any) -> FakeConnectionContext:
+        connect_call.update({"url": url, **kwargs})
+        return FakeConnectionContext(upstream)
+
+    monkeypatch.setattr("strmflow.services.emby302.websocket_connect", connect)
+    settings = Settings(
+        app_password="secret",
+        openlist_token="token",
+        emby_url="http://emby.test",
+        emby_api_key="key",
+    )
+    queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    await queue.put({"type": "websocket.connect"})
+    await queue.put({"type": "websocket.receive", "text": "hello"})
+    sent: list[dict[str, Any]] = []
+
+    async def receive() -> dict[str, Any]:
+        return await queue.get()
+
+    async def send(message: dict[str, Any]) -> None:
+        sent.append(message)
+        if message["type"] == "websocket.send":
+            await queue.put({"type": "websocket.disconnect", "code": 1000, "reason": "done"})
+
+    async with (
+        httpx.AsyncClient() as emby_http,
+        httpx.AsyncClient() as openlist_http,
+    ):
+        gateway = Emby302Gateway(
+            settings,
+            emby_http,
+            OpenListClient(settings, openlist_http),
+            MemorySettingsRepository(),  # type: ignore[arg-type]
+            RuntimeLogStore(),
+        )
+        await gateway(
+            {
+                "type": "websocket",
+                "scheme": "ws",
+                "path": "/embywebsocket",
+                "raw_path": b"/embywebsocket",
+                "query_string": b"api_key=client-token",
+                "headers": [
+                    (b"host", b"gateway.test:18096"),
+                    (b"x-emby-token", b"client-token"),
+                    (b"sec-websocket-protocol", b"emby"),
+                ],
+            },
+            receive,
+            send,
+        )
+        await gateway.close()
+
+    assert connect_call["url"] == "ws://emby.test/embywebsocket?api_key=client-token"
+    assert connect_call["subprotocols"] == ["emby"]
+    assert ("x-emby-token", "client-token") in connect_call["additional_headers"]
+    assert ("x-forwarded-host", "gateway.test:18096") in connect_call["additional_headers"]
+    assert ("x-forwarded-proto", "http") in connect_call["additional_headers"]
+    assert all(name != "sec-websocket-protocol" for name, _ in connect_call["additional_headers"])
+    assert sent[0] == {"type": "websocket.accept", "subprotocol": "emby", "headers": []}
+    assert sent[1] == {"type": "websocket.send", "text": "echo:hello"}
+    assert upstream.outgoing == ["hello"]
+    assert upstream.closed == (1000, "done")
+    assert gateway.snapshot()["stats"]["activeWebSockets"] == 0
