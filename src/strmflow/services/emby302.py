@@ -334,6 +334,31 @@ class Emby302Gateway:
         raw_url = str(info.get("raw_url") or info.get("rawUrl") or info.get("url") or "")
         if not raw_url:
             return PlainTextResponse("OpenList API Error", status_code=502), "openlist-error"
+        # A Strm provider's ``raw_url`` points to the .strm text file itself.
+        # Read that one-line manifest and redirect the player to the real media
+        # URL; redirecting to the manifest makes Emby report ``load failed``.
+        if str(info.get("provider") or "").casefold() == "strm" and urlsplit(
+            raw_url
+        ).path.casefold().endswith(".strm"):
+            manifest = await self.openlist.read_text(
+                openlist_path,
+                base_url=self.config.openlist_url,
+                timeout=self.config.timeout_ms / 1_000,
+            )
+            target_url = next((line.strip() for line in manifest.splitlines() if line.strip()), "")
+            if not target_url.startswith(("http://", "https://")):
+                return PlainTextResponse(
+                    "STRM 文件内容不是有效媒体地址", status_code=502
+                ), "strm-error"
+            raw_url = target_url
+            self.runtime_logs.add(
+                category="gateway302",
+                level="info",
+                message="已解析 STRM 文件中的媒体直链",
+                itemId=item_id,
+                openListPath=openlist_path,
+                targetHost=urlsplit(target_url).netloc,
+            )
         self._set_cache(cache_key, raw_url)
         return self._redirect(raw_url, item_id, openlist_path, False), "redirect"
 

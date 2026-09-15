@@ -106,7 +106,13 @@ class OpenListClient:
             raise AppError(404, f"文件不存在：{path}")
         return data
 
-    async def read_text(self, path: str) -> str:
+    async def read_text(
+        self,
+        path: str,
+        *,
+        base_url: str = "",
+        timeout: float | None = None,
+    ) -> str:
         normalized = normalize_virtual_path(path)
         # 部分 OpenList 版本会为不存在的文件生成 /api/fs/link URL，随后访问该
         # URL 才返回 HTTP 500。先读取文件元数据，明确区分“不存在”和上游故障。
@@ -115,6 +121,8 @@ class OpenListClient:
                 "POST",
                 "/api/fs/get",
                 {"path": normalized, "password": self.settings.openlist_path_password},
+                base_url=base_url,
+                timeout=timeout,
             )
         except AppError as exc:
             if (
@@ -124,12 +132,18 @@ class OpenListClient:
                 raise AppError(404, "配置文件不存在") from exc
             raise
 
-        data = await self.request("POST", "/api/fs/link", {"path": normalized})
+        data = await self.request(
+            "POST",
+            "/api/fs/link",
+            {"path": normalized},
+            base_url=base_url,
+            timeout=timeout,
+        )
         url = data.get("url") or data.get("URL") if isinstance(data, dict) else None
         if not url:
             raise AppError(404, "配置文件不存在")
         try:
-            response = await self.http.get(url, timeout=self.settings.openlist_timeout)
+            response = await self.http.get(url, timeout=timeout or self.settings.openlist_timeout)
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code == 404:
