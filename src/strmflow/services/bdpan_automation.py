@@ -9,7 +9,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import PurePosixPath
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from strmflow.core.config import Settings
 from strmflow.core.errors import AppError
@@ -27,6 +27,9 @@ from strmflow.services.media import MediaService
 from strmflow.services.openlist import OpenListClient
 from strmflow.services.path_config import PathConfigService
 from strmflow.utils.paths import join_virtual_path, relative_virtual_path, validate_folder_name
+
+if TYPE_CHECKING:
+    from strmflow.services.notifications import WecomWebhookService
 
 VIDEO_EXTENSIONS = {
     ".3gp",
@@ -77,6 +80,7 @@ class BdpanAutomationService:
         emby: EmbyClient,
         path_config: PathConfigService,
         runtime_logs: RuntimeLogStore,
+        notifications: WecomWebhookService | None = None,
     ) -> None:
         self.settings = settings
         self.cli = cli
@@ -86,6 +90,7 @@ class BdpanAutomationService:
         self.emby = emby
         self.path_config = path_config
         self.runtime_logs = runtime_logs
+        self.notifications = notifications
         self.config = self._default_config()
         self.states: dict[str, dict[str, Any]] = {}
         self._scheduler: asyncio.Task[None] | None = None
@@ -504,7 +509,10 @@ class BdpanAutomationService:
                 files = await self._list_share_media(share_url, extract_code, session_id)
         except (BdpanCliError, AppError) as exc:
             await self._record_failure(item, exc)
+            await self._notify_invalid_link_once(item, exc)
             raise
+
+        state.pop("linkInvalidNotificationKey", None)
 
         prefix = str(state.get("watchPrefix") or "") if "watchPrefix" in state else None
         share_key_source = f"{share_url}\0{extract_code}"
@@ -589,10 +597,15 @@ class BdpanAutomationService:
                             datetime.now(UTC) + timedelta(seconds=int(self.config["settleSeconds"]))
                         ).isoformat(),
                         "pendingSyncAttempts": 0,
+                        "pendingNotificationNewCount": int(
+                            state.get("pendingNotificationNewCount") or 0
+                        )
+                        + len(transferred),
                         "submittedTasks": self._merge_submitted_tasks(state, submitted_tasks),
                     }
                 )
             await self._record_failure(item, exc)
+            await self._notify_invalid_link_once(item, exc)
             if transferred:
                 self._wake.set()
             raise
@@ -611,6 +624,8 @@ class BdpanAutomationService:
                     datetime.now(UTC) + timedelta(seconds=int(self.config["settleSeconds"]))
                 ).isoformat(),
                 "pendingSyncAttempts": 0,
+                "pendingNotificationNewCount": int(state.get("pendingNotificationNewCount") or 0)
+                + len(transferred),
                 "submittedTasks": self._merge_submitted_tasks(state, submitted_tasks),
             }
         )
@@ -752,6 +767,7 @@ class BdpanAutomationService:
                 state["pendingSyncAt"] = None
                 state["pendingSyncAttempts"] = 0
                 current_count = episode_count or total_files
+                notification_count = int(state.pop("pendingNotificationNewCount", 0) or 0)
                 state["lastResult"] = (
                     f"转存落盘并同步完成，当前 {current_count} 集"
                     if episode_count
@@ -767,6 +783,12 @@ class BdpanAutomationService:
                     newFiles=new_files,
                     episodeCount=episode_count,
                 )
+                if self.notifications and notification_count > 0:
+                    await self.notifications.notify_episode_update(
+                        item,
+                        notification_count,
+                        current_count,
+                    )
             except Exception as exc:  # noqa: BLE001 - scheduler must retain failure state
                 attempts = int(state.get("pendingSyncAttempts") or 0) + 1
                 state["pendingSyncAttempts"] = attempts
@@ -805,6 +827,32 @@ class BdpanAutomationService:
             "error",
             f"百度网盘检查失败：{item['name']} · {str(error)[:300]}",
             itemId=item["id"],
+        )
+
+    async def _notify_invalid_link_once(self, item: dict[str, Any], error: Exception) -> None:
+        if not self.notifications or not self._is_invalid_share_error(error):
+            return
+        state = self.states.setdefault(str(item["id"]), {})
+        notification_key = hashlib.sha256(str(item.get("baiduLink") or "").encode()).hexdigest()
+        if state.get("linkInvalidNotificationKey") == notification_key:
+            return
+        if await self.notifications.notify_link_invalid(item, error):
+            state["linkInvalidNotificationKey"] = notification_key
+            await self._save_states()
+
+    @staticmethod
+    def _is_invalid_share_error(error: Exception) -> bool:
+        if isinstance(error, BdpanCliError) and error.code == "13004":
+            return True
+        message = str(error).casefold()
+        return any(
+            phrase in message
+            for phrase in (
+                "分享链接已失效",
+                "链接已失效",
+                "分享已取消",
+                "分享链接不存在",
+            )
         )
 
     async def _run_requested(self, item_id: str) -> None:

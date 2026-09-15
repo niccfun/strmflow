@@ -163,6 +163,12 @@ class BdpanShareImportRequest(ApiModel):
         return None if value == "" else value
 
 
+class WecomWebhookConfigUpdate(ApiModel):
+    webhook_url: str | None = Field(default=None, max_length=2_048)
+    episode_update_enabled: bool = False
+    link_invalid_enabled: bool = False
+
+
 class TransferJob(ApiModel):
     id: str
     provider: str

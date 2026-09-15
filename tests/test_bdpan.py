@@ -12,7 +12,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from strmflow.core.config import Settings
 from strmflow.core.runtime_logs import RuntimeLogStore
 from strmflow.schemas.api import BdpanShareImportRequest
-from strmflow.services.bdpan import BdpanCli, BdpanRunResult
+from strmflow.services.bdpan import BdpanCli, BdpanCliError, BdpanRunResult
 from strmflow.services.bdpan_automation import BdpanAutomationService, ShareMediaFile
 
 
@@ -109,6 +109,22 @@ class FakeEmby:
 
     async def refresh_library(self) -> None:
         self.refreshes += 1
+
+
+class FakeNotifications:
+    def __init__(self) -> None:
+        self.episode_updates: list[tuple[str, int, int]] = []
+        self.invalid_links: list[tuple[str, str]] = []
+
+    async def notify_episode_update(
+        self, item: dict[str, Any], new_count: int, current_count: int
+    ) -> bool:
+        self.episode_updates.append((item["id"], new_count, current_count))
+        return True
+
+    async def notify_link_invalid(self, item: dict[str, Any], error: Exception) -> bool:
+        self.invalid_links.append((item["id"], str(error)))
+        return True
 
 
 class FakePathConfig:
@@ -534,3 +550,58 @@ async def test_pending_transfer_finishes_when_user_already_synchronized_files() 
     assert state["pendingSyncAttempts"] == 0
     assert state["lastResult"] == "转存落盘并同步完成，当前 3 集"
     assert state["lastSyncedAt"]
+
+
+@pytest.mark.asyncio
+async def test_pending_transfer_sends_episode_update_notification() -> None:
+    settings = Settings(bdpan_binary="bdpan")
+    media = FakeAlreadySyncedMedia()
+    notifications = FakeNotifications()
+    service = BdpanAutomationService(
+        settings,
+        FakeBdpanCli(settings),
+        FakeRuntimeRepository(),  # type: ignore[arg-type]
+        media,  # type: ignore[arg-type]
+        FakeOpenList(),  # type: ignore[arg-type]
+        FakeEmby(),  # type: ignore[arg-type]
+        FakePathConfig(),  # type: ignore[arg-type]
+        RuntimeLogStore(),
+        notifications,  # type: ignore[arg-type]
+    )
+    service.states["m1"] = {
+        "pendingSyncAttempts": 0,
+        "pendingSyncAt": "now",
+        "pendingNotificationNewCount": 2,
+    }
+
+    await service._sync_item("m1")
+
+    assert notifications.episode_updates == [("m1", 2, 3)]
+    assert "pendingNotificationNewCount" not in service.states["m1"]
+
+
+@pytest.mark.asyncio
+async def test_invalid_share_link_notifies_only_once_until_it_recovers() -> None:
+    settings = Settings(bdpan_binary="bdpan")
+    notifications = FakeNotifications()
+    service = BdpanAutomationService(
+        settings,
+        FakeBdpanCli(settings),
+        FakeRuntimeRepository(),  # type: ignore[arg-type]
+        FakeMedia(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        FakePathConfig(),  # type: ignore[arg-type]
+        RuntimeLogStore(),
+        notifications,  # type: ignore[arg-type]
+    )
+
+    async def invalid_share(*_args: Any, **_kwargs: Any) -> list[ShareMediaFile]:
+        raise BdpanCliError("分享链接已失效、已取消或不存在", code="13004")
+
+    service._list_share_media = invalid_share  # type: ignore[method-assign]
+    for _ in range(2):
+        with pytest.raises(BdpanCliError):
+            await service.check_item("m1")
+
+    assert notifications.invalid_links == [("m1", "分享链接已失效、已取消或不存在")]

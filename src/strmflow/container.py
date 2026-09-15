@@ -18,6 +18,7 @@ from strmflow.services.emby import EmbyClient
 from strmflow.services.emby302 import Emby302Gateway
 from strmflow.services.legacy_import import LegacyJsonImporter
 from strmflow.services.media import MediaService
+from strmflow.services.notifications import WecomWebhookService
 from strmflow.services.openlist import OpenListClient
 from strmflow.services.path_config import PathConfigService
 from strmflow.services.storage import StorageService
@@ -37,6 +38,7 @@ class ServiceContainer:
     path_config: PathConfigService
     emby302: Emby302Gateway
     bdpan: BdpanAutomationService
+    notifications: WecomWebhookService
     system_status: SystemStatusService
 
 
@@ -46,6 +48,7 @@ def build_container(
     openlist_http: httpx.AsyncClient,
     emby_http: httpx.AsyncClient,
     baidu_http: httpx.AsyncClient,
+    notification_http: httpx.AsyncClient,
     runtime_logs: RuntimeLogStore,
 ) -> ServiceContainer:
     openlist = OpenListClient(settings, openlist_http)
@@ -66,6 +69,9 @@ def build_container(
         RuntimeSettingsRepository(database.sessions),
         runtime_logs,
     )
+    notifications = WecomWebhookService(
+        RuntimeSettingsRepository(database.sessions), notification_http, runtime_logs
+    )
     bdpan = BdpanAutomationService(
         settings,
         bdpan_cli,
@@ -75,6 +81,7 @@ def build_container(
         emby,
         path_config,
         runtime_logs,
+        notifications,
     )
     system_status = SystemStatusService(
         settings,
@@ -98,5 +105,6 @@ def build_container(
         path_config=path_config,
         emby302=emby302,
         bdpan=bdpan,
+        notifications=notifications,
         system_status=system_status,
     )

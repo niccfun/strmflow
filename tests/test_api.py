@@ -222,6 +222,26 @@ def test_bdpan_runtime_config_is_available_when_cli_is_missing(tmp_path) -> None
         assert invalid.status_code == 422
         assert secret_like_code not in invalid.text
 
+        webhook = (
+            "https://qyapi.weixin.qq.com/cgi-bin/webhook/send"
+            "?key=12345678-1234-1234-1234-123456789abc"
+        )
+        notification = client.put(
+            "/api/notifications/wecom",
+            headers=headers,
+            json={
+                "webhookUrl": webhook,
+                "episodeUpdateEnabled": True,
+                "linkInvalidEnabled": True,
+            },
+        )
+        assert notification.status_code == 200
+        notification_config = notification.json()["data"]["config"]
+        assert notification_config["webhookConfigured"] is True
+        assert notification_config["episodeUpdateEnabled"] is True
+        assert webhook not in notification.text
+        assert client.get("/api/notifications/wecom", headers=headers).status_code == 200
+
 
 def test_emby302_gateway_can_be_started_and_stopped(tmp_path) -> None:
     with socket.socket() as probe:

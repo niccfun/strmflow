@@ -408,6 +408,17 @@
     .bdpan-watch-path { min-width: 0; overflow: hidden; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
     .bdpan-watch-error { color: var(--danger-text) !important; }
     .bdpan-watch-empty { padding: 22px; border: 1px dashed var(--border-strong); border-radius: var(--radius-md); color: var(--muted); text-align: center; }
+    .notification-settings-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, .65fr); gap: 14px; }
+    .notification-webhook-card { min-width: 0; display: grid; gap: 8px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .notification-webhook-status { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+    .notification-toggle-grid { display: grid; gap: 10px; }
+    .notification-option { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); cursor: pointer; }
+    .notification-option > span:first-child { min-width: 0; display: grid; gap: 2px; }
+    .notification-option strong { font-size: 13px; }
+    .notification-option small { color: var(--muted); font-size: 10px; }
+    .notification-option input { width: 17px; height: 17px; flex: 0 0 auto; accent-color: var(--primary); }
+    .notification-actions { display: flex; justify-content: space-between; gap: 10px; }
+    .notification-actions > div { display: flex; gap: 10px; }
     .page-title-row { display: flex; align-items: center; gap: 10px; }
     .gateway-status { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; background: var(--panel-soft); color: var(--muted); font-size: 11px; font-weight: 700; }
     .gateway-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
@@ -687,6 +698,7 @@
       .bdpan-login-panel, .bdpan-watch { grid-template-columns: 1fr; }
       .bdpan-callout { grid-template-columns: 1fr; }
       .bdpan-watch-path { white-space: normal; overflow-wrap: anywhere; }
+      .notification-settings-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 880px) {
       .sidebar { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding-bottom: 8px; }
@@ -711,6 +723,7 @@
       .controls { margin-top: 8px; }
       .page-form-actions { display: grid; grid-template-columns: 1fr; }
       .page-form-actions button { width: 100%; }
+      .notification-actions, .notification-actions > div { display: grid; grid-template-columns: 1fr; }
       #newButton { position: fixed; right: 18px; bottom: 18px; z-index: 10; padding: 12px 18px; box-shadow: var(--shadow-lg); }
       .list { grid-template-columns: 1fr; }
       .status-service-grid, .capacity-stats, .status-metric-grid { grid-template-columns: 1fr; }
@@ -1215,6 +1228,46 @@
             <button id="bdpanSaveButton" class="primary" type="button">保存并应用</button>
           </div>
         </section>
+
+        <section class="panel settings-content" aria-labelledby="wecomSettingsTitle">
+          <div class="bdpan-title-row settings-section-title">
+            <div class="bdpan-title-copy">
+              <h3 id="wecomSettingsTitle">企业微信通知 <span class="bdpan-official-badge">群机器人 Webhook</span></h3>
+              <p>剧集完成转存同步或百度网盘分享链接失效时，将消息发送到企业微信群。</p>
+            </div>
+            <span id="wecomHeaderStatus" class="gateway-status offline">正在读取</span>
+          </div>
+
+          <div class="notification-settings-grid">
+            <div class="notification-webhook-card">
+              <div class="field">
+                <label for="wecomWebhookInput">机器人 Webhook 地址</label>
+                <input id="wecomWebhookInput" type="password" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..." autocomplete="new-password">
+                <p class="settings-help">Webhook 密钥保存后不再返回页面；输入新地址可直接替换。</p>
+              </div>
+              <p id="wecomWebhookStatus" class="notification-webhook-status">尚未配置 Webhook</p>
+            </div>
+            <div class="notification-toggle-grid" aria-label="通知类型">
+              <label class="notification-option" for="wecomEpisodeUpdateInput">
+                <span><strong>剧集更新通知</strong><small>新增剧集完成转存和同步后发送</small></span>
+                <input id="wecomEpisodeUpdateInput" type="checkbox">
+              </label>
+              <label class="notification-option" for="wecomLinkInvalidInput">
+                <span><strong>链接失效通知</strong><small>分享失效、取消或不存在时发送一次</small></span>
+                <input id="wecomLinkInvalidInput" type="checkbox">
+              </label>
+            </div>
+          </div>
+          <div id="wecomError" class="editor-error" role="alert"></div>
+          <div class="notification-actions">
+            <button id="wecomClearButton" class="danger-button" type="button">清除 Webhook</button>
+            <div>
+              <button id="wecomTestButton" type="button">发送测试通知</button>
+              <button id="wecomResetButton" type="button">恢复已保存配置</button>
+              <button id="wecomSaveButton" class="primary" type="button">保存通知设置</button>
+            </div>
+          </div>
+        </section>
         </div>
       </section>
 
@@ -1472,6 +1525,9 @@
       bdpanSnapshot: '',
       bdpanLoading: false,
       bdpanTimer: null,
+      wecomData: null,
+      wecomSnapshot: '',
+      wecomLoading: false,
       systemStatusData: null,
       systemStatusLoading: false,
       systemStatusTimer: null,
@@ -1570,6 +1626,16 @@
       bdpanError: document.querySelector('#bdpanError'),
       bdpanReset: document.querySelector('#bdpanResetButton'),
       bdpanSave: document.querySelector('#bdpanSaveButton'),
+      wecomHeaderStatus: document.querySelector('#wecomHeaderStatus'),
+      wecomWebhook: document.querySelector('#wecomWebhookInput'),
+      wecomWebhookStatus: document.querySelector('#wecomWebhookStatus'),
+      wecomEpisodeUpdate: document.querySelector('#wecomEpisodeUpdateInput'),
+      wecomLinkInvalid: document.querySelector('#wecomLinkInvalidInput'),
+      wecomError: document.querySelector('#wecomError'),
+      wecomClear: document.querySelector('#wecomClearButton'),
+      wecomTest: document.querySelector('#wecomTestButton'),
+      wecomReset: document.querySelector('#wecomResetButton'),
+      wecomSave: document.querySelector('#wecomSaveButton'),
       about: document.querySelector('#aboutButton'),
       aboutView: document.querySelector('#aboutView'),
       modal: document.querySelector('#editorModal'),
@@ -1694,6 +1760,7 @@
       settings: '系统设置',
       transfer: '网盘转存',
       bdpan: '百度网盘',
+      notification: '消息通知',
       gateway302: '302 网关',
       activity: '界面操作',
     };
@@ -2304,6 +2371,179 @@
       }
     }
 
+    function wecomValues() {
+      return {
+        webhookUrl: elements.wecomWebhook.value.trim() || null,
+        episodeUpdateEnabled: elements.wecomEpisodeUpdate.checked,
+        linkInvalidEnabled: elements.wecomLinkInvalid.checked,
+      };
+    }
+
+    function wecomIsDirty() {
+      return Boolean(state.wecomSnapshot)
+        && state.wecomSnapshot !== JSON.stringify(wecomValues());
+    }
+
+    function validWecomWebhook(value) {
+      if (!value) return true;
+      try {
+        const url = new URL(value);
+        const key = url.searchParams.get('key') || '';
+        return url.protocol === 'https:'
+          && url.hostname === 'qyapi.weixin.qq.com'
+          && url.pathname.replace(/\/+$/, '') === '/cgi-bin/webhook/send'
+          && /^[A-Za-z0-9_-]{16,128}$/.test(key);
+      } catch {
+        return false;
+      }
+    }
+
+    function validateWecom(showError = false) {
+      const values = wecomValues();
+      const configured = Boolean(state.wecomData?.config?.webhookConfigured);
+      const needsWebhook = values.episodeUpdateEnabled || values.linkInvalidEnabled;
+      let message = '';
+      if (!validWecomWebhook(values.webhookUrl)) {
+        message = '请填写有效的企业微信机器人 Webhook 地址';
+      } else if (needsWebhook && !values.webhookUrl && !configured) {
+        message = '开启通知前请先填写企业微信机器人 Webhook 地址';
+      }
+      elements.wecomWebhook.setAttribute('aria-invalid', message ? 'true' : 'false');
+      elements.wecomSave.disabled = state.busy || Boolean(message);
+      elements.wecomTest.disabled = state.busy || !configured || wecomIsDirty();
+      elements.wecomClear.disabled = state.busy || !configured;
+      if (showError && message) {
+        elements.wecomError.textContent = message;
+        elements.wecomError.classList.add('show');
+        elements.wecomWebhook.focus();
+      } else if (!message) {
+        elements.wecomError.textContent = '';
+        elements.wecomError.classList.remove('show');
+      }
+      return !message;
+    }
+
+    function renderWecom(data) {
+      const config = data?.config || {};
+      const runtime = data?.runtime || {};
+      const configured = Boolean(config.webhookConfigured);
+      const enabled = configured
+        && Boolean(config.episodeUpdateEnabled || config.linkInvalidEnabled);
+      elements.wecomHeaderStatus.className = 'gateway-status '
+        + (runtime.lastError ? 'error' : enabled ? 'online' : 'offline');
+      elements.wecomHeaderStatus.textContent = runtime.lastError
+        ? '发送异常' : enabled ? '通知已启用' : configured ? '已配置' : '未配置';
+      elements.wecomWebhook.placeholder = configured
+        ? config.maskedWebhookUrl + '（留空保持不变）'
+        : 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...';
+      elements.wecomWebhookStatus.textContent = configured
+        ? '当前地址：' + config.maskedWebhookUrl
+          + (runtime.lastSentAt ? ' · 最近发送 ' + formatDate(runtime.lastSentAt) : '')
+        : '尚未配置 Webhook';
+      if (runtime.lastError) elements.wecomWebhookStatus.textContent += ' · ' + runtime.lastError;
+      validateWecom(false);
+    }
+
+    function fillWecomForm(data) {
+      const config = data?.config || {};
+      elements.wecomWebhook.value = '';
+      elements.wecomEpisodeUpdate.checked = Boolean(config.episodeUpdateEnabled);
+      elements.wecomLinkInvalid.checked = Boolean(config.linkInvalidEnabled);
+      state.wecomSnapshot = JSON.stringify(wecomValues());
+      renderWecom(data);
+    }
+
+    async function loadWecom(populateForm = false) {
+      if (state.wecomLoading) return;
+      state.wecomLoading = true;
+      try {
+        const data = await api('/api/notifications/wecom');
+        state.wecomData = data;
+        if (populateForm || !state.wecomSnapshot) fillWecomForm(data);
+        else renderWecom(data);
+      } catch (error) {
+        elements.wecomError.textContent = error.message;
+        elements.wecomError.classList.add('show');
+      } finally {
+        state.wecomLoading = false;
+      }
+    }
+
+    function restoreWecom() {
+      if (!state.wecomData) return;
+      fillWecomForm(state.wecomData);
+      setStatus('已恢复当前保存的企业微信通知设置。', 'success');
+    }
+
+    async function saveWecom() {
+      if (state.busy || !validateWecom(true)) return;
+      setBusy(true);
+      try {
+        const data = await api('/api/notifications/wecom', {
+          method: 'PUT',
+          body: JSON.stringify(wecomValues()),
+        });
+        state.wecomData = data;
+        fillWecomForm(data);
+        setStatus('企业微信通知设置已保存。', 'success');
+      } catch (error) {
+        elements.wecomError.textContent = error.message;
+        elements.wecomError.classList.add('show');
+        setStatus(error.message, 'error');
+      } finally {
+        setBusy(false);
+        validateWecom(false);
+      }
+    }
+
+    async function testWecom() {
+      if (state.busy || elements.wecomTest.disabled) return;
+      elements.wecomTest.disabled = true;
+      setStatus('正在发送企业微信测试通知…', 'running');
+      try {
+        const data = await api('/api/notifications/wecom/test', {
+          method: 'POST',
+          body: '{}',
+        });
+        await loadWecom(false);
+        setStatus(data.message || '测试通知已发送。', 'success');
+      } catch (error) {
+        elements.wecomError.textContent = error.message;
+        elements.wecomError.classList.add('show');
+        setStatus(error.message, 'error');
+      } finally {
+        validateWecom(false);
+      }
+    }
+
+    async function clearWecom() {
+      if (state.busy || !state.wecomData?.config?.webhookConfigured) return;
+      const confirmed = await confirmAction({
+        title: '清除企业微信 Webhook？',
+        message: '清除后将停止发送全部企业微信通知。',
+        okText: '确认清除',
+      });
+      if (!confirmed) return;
+      setBusy(true);
+      try {
+        const data = await api('/api/notifications/wecom', {
+          method: 'PUT',
+          body: JSON.stringify({
+            webhookUrl: '',
+            episodeUpdateEnabled: false,
+            linkInvalidEnabled: false,
+          }),
+        });
+        state.wecomData = data;
+        fillWecomForm(data);
+        setStatus('企业微信 Webhook 已清除。', 'success');
+      } catch (error) {
+        setStatus(error.message, 'error');
+      } finally {
+        setBusy(false);
+      }
+    }
+
     function systemStatusField(name) {
       return elements.systemStatusView.querySelector('[data-status-field="' + name + '"]');
     }
@@ -2700,12 +2940,16 @@
         elements.bdpanMaxItems,
         elements.bdpanDisclaimer,
         elements.bdpanAuthorizationCode,
+        elements.wecomWebhook,
+        elements.wecomEpisodeUpdate,
+        elements.wecomLinkInvalid,
       ].forEach((input) => { input.disabled = value; });
       updateTargetPreview();
       if (!value && state.bdpanData) {
         renderBdpan(state.bdpanData);
         validateBdpan(false);
       }
+      if (!value && state.wecomData) validateWecom(false);
     }
 
     function formatDate(value) {
@@ -3951,7 +4195,10 @@
     async function openSettings() {
       if (!state.settingsInitialized && !resetSettingsForm()) return;
       showView('settings');
-      await loadBdpan(!state.bdpanData, false);
+      await Promise.all([
+        loadBdpan(!state.bdpanData, false),
+        loadWecom(!state.wecomData),
+      ]);
     }
 
     function restoreSettings() {
@@ -4351,6 +4598,18 @@
       input.addEventListener('input', () => validateBdpan(false));
       input.addEventListener('change', () => validateBdpan(false));
     });
+    elements.wecomSave.addEventListener('click', saveWecom);
+    elements.wecomReset.addEventListener('click', restoreWecom);
+    elements.wecomTest.addEventListener('click', testWecom);
+    elements.wecomClear.addEventListener('click', clearWecom);
+    [
+      elements.wecomWebhook,
+      elements.wecomEpisodeUpdate,
+      elements.wecomLinkInvalid,
+    ].forEach((input) => {
+      input.addEventListener('input', () => validateWecom(false));
+      input.addEventListener('change', () => validateWecom(false));
+    });
     elements.about.addEventListener('click', openAbout);
     [elements.settingsListRoot, elements.settingsEmbyRoot].forEach((input) => {
       input.addEventListener('input', () => {
@@ -4365,7 +4624,8 @@
         && state.emby302Snapshot !== JSON.stringify(emby302Values());
       const bdpanDirty = Boolean(state.bdpanSnapshot)
         && state.bdpanSnapshot !== JSON.stringify(bdpanValues());
-      if (!editorIsDirty() && !settingsDirty && !emby302Dirty && !bdpanDirty) return;
+      const wecomDirty = wecomIsDirty();
+      if (!editorIsDirty() && !settingsDirty && !emby302Dirty && !bdpanDirty && !wecomDirty) return;
       event.preventDefault();
       event.returnValue = '';
     });

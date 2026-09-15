@@ -11,6 +11,7 @@ PATH_CONFIG_KEY = "runtime_path_config_v1"
 EMBY302_CONFIG_KEY = "runtime_emby302_config_v1"
 BDPAN_CONFIG_KEY = "runtime_bdpan_config_v1"
 BDPAN_WATCH_STATE_KEY = "runtime_bdpan_watch_state_v1"
+WECOM_WEBHOOK_CONFIG_KEY = "runtime_wecom_webhook_config_v1"
 
 
 class RuntimeSettingsRepository:
@@ -40,6 +41,12 @@ class RuntimeSettingsRepository:
 
     async def save_bdpan_watch_states(self, value: dict[str, Any]) -> None:
         await self._save(BDPAN_WATCH_STATE_KEY, value)
+
+    async def load_wecom_webhook(self) -> dict[str, Any] | None:
+        return await self._load(WECOM_WEBHOOK_CONFIG_KEY)
+
+    async def save_wecom_webhook(self, value: dict[str, Any]) -> None:
+        await self._save(WECOM_WEBHOOK_CONFIG_KEY, value)
 
     async def _load(self, key: str) -> dict[str, Any] | None:
         async with self.sessions() as session:

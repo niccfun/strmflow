@@ -260,6 +260,24 @@ POST /api/bdpan/share/inspect
 POST /api/bdpan/share/import
 ```
 
+## 企业微信通知
+
+“系统设置 → 企业微信通知”支持配置企业微信群机器人的 Webhook，并可分别启用：
+
+- 剧集更新：新增剧集完成网盘转存、OpenList 扫描和 STRM 同步后发送；
+- 链接失效：百度返回 `errno=13004`（分享失效、取消或不存在）时发送，同一链接在恢复
+  前只通知一次。
+
+只接受企业微信官方 `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...` 地址。
+Webhook 密钥保存在 SQLite，API 和页面只返回末四位掩码；运行日志也会隐藏 `key`。
+设置页提供测试发送和清除 Webhook 操作。接口如下：
+
+```text
+GET  /api/notifications/wecom
+PUT  /api/notifications/wecom
+POST /api/notifications/wecom/test
+```
+
 原有通用转存 Provider 接口继续保留，可用于命令预览和手动异步任务：
 
 ```text

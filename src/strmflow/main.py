@@ -53,12 +53,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     base_url=(settings.emby_url or "http://127.0.0.1").rstrip("/") + "/"
                 ) as emby_http,
                 httpx.AsyncClient(base_url="https://pan.baidu.com/") as baidu_http,
+                httpx.AsyncClient(follow_redirects=False) as notification_http,
                 httpx.AsyncClient(base_url="https://challenges.cloudflare.com") as turnstile_http,
             ):
                 app.state.settings = settings
                 app.state.signer = SessionSigner(settings)
                 app.state.services = build_container(
-                    settings, database, openlist_http, emby_http, baidu_http, runtime_logs
+                    settings,
+                    database,
+                    openlist_http,
+                    emby_http,
+                    baidu_http,
+                    notification_http,
+                    runtime_logs,
                 )
                 app.state.turnstile_http = turnstile_http
                 await app.state.services.path_config.initialize()
@@ -66,6 +73,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await app.state.services.legacy_importer.run_once()
                 await app.state.services.emby302.initialize()
                 await app.state.services.emby302.start_configured()
+                await app.state.services.notifications.initialize()
                 await app.state.services.bdpan.initialize()
                 runtime_logs.add(
                     category="system",

@@ -125,6 +125,15 @@ def test_index_has_unique_element_ids() -> None:
     assert "'/api/bdpan/check'" in template
     assert "首次检查只建立基线" in template
     assert "百度网盘分享链接（用于自动追更）" in template
+    assert 'id="wecomSettingsTitle"' in template
+    assert 'id="wecomWebhookInput"' in template
+    assert 'id="wecomEpisodeUpdateInput"' in template
+    assert 'id="wecomLinkInvalidInput"' in template
+    assert 'id="wecomTestButton"' in template
+    assert 'id="wecomClearButton"' in template
+    assert "'/api/notifications/wecom'" in template
+    assert "'/api/notifications/wecom/test'" in template
+    assert "Webhook 密钥保存后不再返回页面" in template
     assert 'id="addModeSwitch"' in template
     assert 'data-add-mode="saved"' in template
     assert 'data-add-mode="share"' in template

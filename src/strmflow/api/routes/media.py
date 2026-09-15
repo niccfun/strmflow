@@ -121,4 +121,16 @@ async def preview_publish(body: PublishRequest, request: Request) -> dict[str, A
 
 @router.post("/emby/publish")
 async def publish(body: PublishRequest, request: Request) -> dict[str, Any]:
-    return ok(await services(request).media.publish(body))
+    container = services(request)
+    previous = await container.media.get_item(body.id) if body.id else None
+    result = await container.media.publish(body)
+    new_episodes = sum(
+        str(name).casefold().endswith(".strm") for name in result.get("newFiles") or []
+    )
+    if previous and previous.get("lastSyncedAt") and new_episodes > 0:
+        await container.notifications.notify_episode_update(
+            previous,
+            new_episodes,
+            int(result.get("episodeCount") or 0),
+        )
+    return ok(result)
