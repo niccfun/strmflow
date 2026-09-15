@@ -3091,9 +3091,11 @@
     }
 
     function renderMediaDetail(folder) {
-      const syncedCount = Array.isArray(folder.syncedFiles)
-        ? folder.syncedFiles.filter((file) => /\.strm$/i.test(file)).length
-        : 0;
+      const syncedCount = Number.isInteger(Number(folder.episodeCount))
+        ? Number(folder.episodeCount)
+        : (Array.isArray(folder.syncedFiles)
+          ? folder.syncedFiles.filter((file) => /\.strm$/i.test(file)).length
+          : 0);
       elements.mediaDetailSynced.textContent = '已同步 ' + syncedCount + ' 集';
       elements.mediaDetailLastSync.textContent = folder.lastSyncedAt
         ? '最近同步 ' + formatDate(folder.lastSyncedAt)
@@ -4068,9 +4070,11 @@
         const top = document.createElement('div');
         top.className = 'item-top';
 
-        const syncedCount = Array.isArray(folder.syncedFiles)
-          ? folder.syncedFiles.filter((file) => /\.strm$/i.test(file)).length
-          : 0;
+        const syncedCount = Number.isInteger(Number(folder.episodeCount))
+          ? Number(folder.episodeCount)
+          : (Array.isArray(folder.syncedFiles)
+            ? folder.syncedFiles.filter((file) => /\.strm$/i.test(file)).length
+            : 0);
         const statusText = isCompleted ? '已完结' : '更新中';
         const baiduUrl = normalizeExternalUrl(folder.baiduLink);
         const parsedTotal = Number.parseInt(String(folder.totalEpisodes || ''), 10);

@@ -14,6 +14,7 @@ from strmflow.schemas.api import MediaItemInput, PublishRequest
 from strmflow.services.openlist import OpenListClient
 from strmflow.services.path_config import PathConfigService
 from strmflow.services.storage import StorageService
+from strmflow.utils.episodes import select_preferred_episodes, source_season_episode
 from strmflow.utils.paths import (
     join_virtual_path,
     normalize_virtual_path,
@@ -191,9 +192,10 @@ class MediaService:
             sourcePath=source,
             targetPath=target,
         )
-        files = await self.collect_files(source)
-        if not files:
+        discovered_files = await self.collect_files(source)
+        if not discovered_files:
             raise AppError(409, f"本地 STRM 目录为空，请先扫描生成：{source}")
+        files, duplicate_files = self._preferred_media_files(discovered_files, context)
         targets = set(await self.collect_files(target, tolerant=True, skip_empty_strm=True))
         plan = self._build_plan(files, context, body.rename_plan)
         seasons = self._effective_seasons(files, context)
@@ -206,6 +208,7 @@ class MediaService:
             targetFileCount=len(targets),
             pendingFileCount=len(missing),
             seasonCount=len(seasons),
+            skippedDuplicateCount=len(duplicate_files),
         )
         return {
             **{key: context.get(key) for key in ("id", "name") if context.get(key)},
@@ -213,13 +216,15 @@ class MediaService:
             "generatedPath": source,
             "targetDir": target,
             "totalFiles": len(files),
-            "episodeCount": sum(name.lower().endswith(".strm") for name in files),
+            "episodeCount": self._episode_count(files, context),
             "totalEpisodes": context.get("totalEpisodes", ""),
             "seasons": seasons,
             "seasonCount": len(seasons),
             "newFiles": [name for name in files if name not in synced],
             "missingTargetFiles": [entry["sourceRel"] for entry in missing],
             "pendingFiles": len(missing),
+            "skippedDuplicateFiles": duplicate_files,
+            "skippedDuplicateCount": len(duplicate_files),
             "plan": [
                 {**entry, "changed": entry["sourceRel"] != entry["targetRel"]} for entry in missing
             ],
@@ -234,10 +239,21 @@ class MediaService:
             sourcePath=source,
             targetPath=target,
         )
-        files = await self.collect_files(source)
-        if not files:
+        discovered_files = await self.collect_files(source)
+        if not discovered_files:
             raise AppError(409, f"本地 STRM 目录为空，请先扫描生成：{source}")
-        target_files = set(await self.collect_files(target, tolerant=True, skip_empty_strm=True))
+        files, duplicate_files = self._preferred_media_files(discovered_files, context)
+        target_file_list = await self.collect_files(target, tolerant=True, skip_empty_strm=True)
+        target_file_list, target_duplicates = self._preferred_media_files(target_file_list, context)
+        if target_duplicates:
+            await self._remove_relative_files(target, target_duplicates)
+            self._log(
+                "success",
+                f"已清理目标目录中的重复剧集：{context.get('name') or source}",
+                removedCount=len(target_duplicates),
+                removedFiles=target_duplicates[:20],
+            )
+        target_files = set(target_file_list)
         plan = self._build_plan(files, context, body.rename_plan)
         seasons = self._effective_seasons(files, context)
         missing = [entry for entry in plan if entry["targetRel"] not in target_files]
@@ -251,10 +267,12 @@ class MediaService:
             existingTargetCount=len(target_files),
             pendingFileCount=len(missing),
             seasons=seasons,
+            skippedDuplicateCount=len(duplicate_files),
+            removedTargetDuplicateCount=len(target_duplicates),
         )
         await self.openlist.mkdir(target)
         copied, renamed = await self._copy_plan(source, target, missing)
-        episode_count = sum(name.lower().endswith(".strm") for name in files)
+        episode_count = self._episode_count(files, context)
         auto_completed = False
         status = context.get("status", "ongoing")
         if context.get("id"):
@@ -279,6 +297,7 @@ class MediaService:
             renamedCount=len(renamed),
             status=status,
             autoCompleted=auto_completed,
+            skippedDuplicateCount=len(duplicate_files),
         )
         return {
             **{key: context.get(key) for key in ("id", "name") if context.get(key)},
@@ -296,6 +315,10 @@ class MediaService:
             "autoCompleted": auto_completed,
             "refreshed": False,
             "renamedFiles": renamed,
+            "skippedDuplicateFiles": duplicate_files,
+            "skippedDuplicateCount": len(duplicate_files),
+            "removedTargetDuplicateFiles": target_duplicates,
+            "removedTargetDuplicateCount": len(target_duplicates),
         }
 
     async def _resolve_publish(self, body: PublishRequest) -> tuple[dict[str, Any], str, str]:
@@ -406,6 +429,14 @@ class MediaService:
             current = join_virtual_path(current, segment)
             await self.openlist.mkdir(current)
 
+    async def _remove_relative_files(self, root: str, files: list[str]) -> None:
+        groups: dict[str, list[str]] = {}
+        for relative in files:
+            directory, separator, name = relative.rpartition("/")
+            groups.setdefault(directory if separator else "", []).append(name or relative)
+        for directory, names in groups.items():
+            await self.openlist.remove(join_virtual_path(root, directory), names)
+
     def _build_plan(
         self,
         files: list[str],
@@ -488,45 +519,36 @@ class MediaService:
 
     @staticmethod
     def _source_season_episode(source: str) -> tuple[int | None, int | None]:
-        normalized = unquote(source.replace("\\", "/").strip("/"))
-        *directories, filename = normalized.split("/")
-        directory_season: int | None = None
-        for segment in reversed(directories):
-            match = re.match(
-                r"(?i)^\s*(?:season[ ._-]*0*(\d{1,2})|s0*(\d{1,2})(?:\b|[ ._-])|第\s*0*(\d{1,2})\s*季)",
-                segment,
-            )
-            if match:
-                directory_season = int(next(group for group in match.groups() if group is not None))
-                break
+        return source_season_episode(source)
 
-        base = filename[:-5] if filename.casefold().endswith(".strm") else filename
-        season_episode = re.search(
-            r"(?i)(?:Season[ ._-]*0*(\d{1,2})[ ._-]+Episode[ ._-]*0*(\d{1,4})|"
-            r"(?:^|[ ._\-()[\]【】])S0*(\d{1,2})[ ._-]*E(?:P)?0*(\d{1,4})"
-            r"(?=$|[ ._\-()[\]【】])|第\s*0*(\d{1,2})\s*季.*?第\s*0*(\d{1,4})\s*[集话話]|"
-            r"(?<!\d)(\d{1,2})x0*(\d{1,4})(?!\d))",
-            base,
+    @staticmethod
+    def _preferred_media_files(
+        files: list[str], context: dict[str, Any]
+    ) -> tuple[list[str], list[str]]:
+        if context.get("mediaType") != "tv":
+            return files, []
+        strm_files = [name for name in files if name.casefold().endswith(".strm")]
+        _, duplicates = select_preferred_episodes(
+            strm_files,
+            path=lambda name: name,
+            default_season=int(context.get("season") or 1),
         )
-        filename_season: int | None = None
-        episode: int | None = None
-        if season_episode:
-            groups = season_episode.groups()
-            for index in range(0, len(groups), 2):
-                if groups[index] is not None:
-                    filename_season = int(groups[index])
-                    episode = int(groups[index + 1])
-                    break
-        if episode is None:
-            episode_match = re.search(
-                r"(?i)(?:第\s*0*(\d{1,4})\s*[集话話]|"
-                r"(?:^|[ ._\-()[\]【】])(?:EP|E)0*(\d{1,4})(?=$|[ ._\-()[\]【】])|"
-                r"^\s*0*(\d{1,4})(?=$|[ ._\-()[\]【】]))",
-                base,
-            )
-            if episode_match:
-                episode = int(next(group for group in episode_match.groups() if group is not None))
-        return directory_season if directory_season is not None else filename_season, episode
+        duplicate_set = set(duplicates)
+        return [name for name in files if name not in duplicate_set], duplicates
+
+    @staticmethod
+    def _episode_count(files: list[str], context: dict[str, Any]) -> int:
+        strm_files = [name for name in files if name.casefold().endswith(".strm")]
+        if context.get("mediaType") != "tv":
+            return len(strm_files)
+        default_season = int(context.get("season") or 1)
+        identities = {
+            (season or default_season, episode)
+            for name in strm_files
+            for season, episode in [source_season_episode(name)]
+            if episode is not None
+        }
+        return len(identities) if identities else len(strm_files)
 
     @staticmethod
     def _normalize_season_directory(source: str, season: int) -> str:
@@ -592,6 +614,11 @@ class MediaService:
             return None
         synced_files = item.get("syncedFiles") if isinstance(item.get("syncedFiles"), list) else []
         season = int(item.get("season") or 1)
+        if item.get("mediaType") == "tv":
+            synced_files, _ = cls._preferred_media_files(
+                synced_files,
+                {**item, "season": season},
+            )
         return {
             **item,
             "name": item.get("name") or path_base(item["targetDir"]),
@@ -603,6 +630,7 @@ class MediaService:
             ),
             "targetDir": normalize_virtual_path(item["targetDir"]),
             "syncedFiles": synced_files,
+            "episodeCount": cls._episode_count(synced_files, {**item, "season": season}),
             "status": "completed" if item.get("status") == "completed" else "ongoing",
             "totalEpisodes": item.get("totalEpisodes") or "",
             "season": season,

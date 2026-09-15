@@ -173,6 +173,18 @@ class OpenListClient:
             },
         )
 
+    async def remove(self, directory: str, names: list[str]) -> None:
+        if not names:
+            return
+        await self.request(
+            "POST",
+            "/api/fs/remove",
+            {
+                "dir": normalize_virtual_path(directory),
+                "names": names,
+            },
+        )
+
     async def batch_rename(self, directory: str, changes: list[dict[str, str]]) -> None:
         await self.request(
             "POST",

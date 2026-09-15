@@ -2,6 +2,7 @@ import pytest
 
 from strmflow.core.config import Settings
 from strmflow.services.media import MediaService
+from strmflow.utils.episodes import select_preferred_episodes
 
 
 class VirtualStrmOpenList:
@@ -36,6 +37,31 @@ def test_configured_season_is_used_when_filename_has_only_episode() -> None:
     )
     assert MediaService._normalized_target_name("第4集.strm", context) == (
         "Season 02/示例剧 - S02E04.strm"
+    )
+
+
+def test_duplicate_episode_prefers_canonical_high_quality_file() -> None:
+    files = [
+        "S01E06 1080p WEB-DL.strm",
+        "S01E06 4K WEB-DL.strm",
+        "S01E06 4K WEB-DL(1).strm",
+    ]
+    preferred, duplicates = select_preferred_episodes(files, path=lambda value: value)
+    assert preferred == ["S01E06 4K WEB-DL.strm"]
+    assert set(duplicates) == {
+        "S01E06 1080p WEB-DL.strm",
+        "S01E06 4K WEB-DL(1).strm",
+    }
+
+
+def test_episode_count_deduplicates_same_episode_suffixes() -> None:
+    service = MediaService(Settings(), None, None, None, None)  # type: ignore[arg-type]
+    assert (
+        service._episode_count(
+            ["S01E06 4K.strm", "S01E06 4K(1).strm", "S01E07 4K.strm"],
+            {"mediaType": "tv", "season": 1},
+        )
+        == 2
     )
 
 

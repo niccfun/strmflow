@@ -27,6 +27,7 @@ from strmflow.services.emby import EmbyClient
 from strmflow.services.media import MediaService
 from strmflow.services.openlist import OpenListClient
 from strmflow.services.path_config import PathConfigService
+from strmflow.utils.episodes import select_preferred_episodes
 from strmflow.utils.paths import join_virtual_path, relative_virtual_path, validate_folder_name
 
 if TYPE_CHECKING:
@@ -299,6 +300,7 @@ class BdpanAutomationService:
                     "title",
                     "year",
                     "fileCount",
+                    "duplicateCount",
                     "totalBytes",
                     "sampleFiles",
                 )
@@ -453,7 +455,7 @@ class BdpanAutomationService:
                     f"{share_url}\0{code}\0{candidate['prefix']}".encode()
                 ).hexdigest(),
                 "watchPrefix": candidate["prefix"],
-                "seen": sorted(file.fingerprint for file in files),
+                "seen": sorted(candidate.get("allFingerprints") or []),
                 "lastCheckedAt": now,
                 "lastTransferAt": now,
                 "nextCheckAt": self._next_check_at(),
@@ -563,11 +565,15 @@ class BdpanAutomationService:
 
         state.pop("linkInvalidNotificationKey", None)
 
+        discovered_count = len(files)
+        files, duplicate_files = self._preferred_share_files(files, item)
         self._log(
             "info",
             f"百度网盘分享读取完成：{item['name']}",
             itemId=item_id,
             mediaFileCount=len(files),
+            discoveredFileCount=discovered_count,
+            skippedDuplicateCount=len(duplicate_files),
         )
 
         prefix = str(state.get("watchPrefix") or "") if "watchPrefix" in state else None
@@ -1214,6 +1220,12 @@ class BdpanAutomationService:
         candidates: list[dict[str, Any]] = []
         for prefix, grouped_files in sorted(grouped.items(), key=lambda item: item[0].casefold()):
             normalized = cls._files_for_prefix(grouped_files, prefix)
+            all_fingerprints = sorted(file.fingerprint for file in normalized)
+            normalized, duplicates = select_preferred_episodes(
+                normalized,
+                path=lambda file: "/".join(file.relative_parts),
+                size=lambda file: file.size,
+            )
             name = prefix or cls._infer_media_name(normalized)
             match = re.match(r"^(.*?)\s*[（(](\d{4})[）)]\s*$", name)
             title = match.group(1).strip() if match else name
@@ -1227,12 +1239,27 @@ class BdpanAutomationService:
                     "title": title,
                     "year": year,
                     "fileCount": len(normalized),
+                    "duplicateCount": len(duplicates),
                     "totalBytes": sum(max(0, file.size) for file in normalized),
                     "sampleFiles": ["/".join(file.relative_parts) for file in normalized[:5]],
                     "files": normalized,
+                    "allFingerprints": all_fingerprints,
                 }
             )
         return candidates
+
+    @staticmethod
+    def _preferred_share_files(
+        files: list[ShareMediaFile], item: dict[str, Any]
+    ) -> tuple[list[ShareMediaFile], list[ShareMediaFile]]:
+        if item.get("mediaType") != "tv":
+            return files, []
+        return select_preferred_episodes(
+            files,
+            path=lambda file: "/".join(file.relative_parts),
+            size=lambda file: file.size,
+            default_season=int(item.get("season") or 1),
+        )
 
     @staticmethod
     def _files_for_prefix(files: list[ShareMediaFile], prefix: str) -> list[ShareMediaFile]:

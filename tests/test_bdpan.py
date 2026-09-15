@@ -463,6 +463,20 @@ def test_share_candidates_separate_multiple_top_level_media() -> None:
     assert all(candidate["fileCount"] == 1 for candidate in candidates)
 
 
+def test_share_candidates_deduplicate_same_episode_and_keep_quality_variant() -> None:
+    candidates = BdpanAutomationService._share_candidates(
+        [
+            media_file("1001", "百花杀 (2026)/S01E06 1080p.strm"),
+            media_file("1002", "百花杀 (2026)/S01E06 4K.strm"),
+            media_file("1003", "百花杀 (2026)/S01E06 4K(1).strm"),
+            media_file("1004", "百花杀 (2026)/S01E07 4K.strm"),
+        ]
+    )
+    assert candidates[0]["fileCount"] == 2
+    assert candidates[0]["duplicateCount"] == 2
+    assert candidates[0]["sampleFiles"] == ["S01E06 4K.strm", "S01E07 4K.strm"]
+
+
 def test_share_page_accepts_documented_payload_shape() -> None:
     items, has_more = BdpanAutomationService._share_page(
         {"errno": 0, "data": {"count": 1, "has_more": True, "list": [{"fs_id": "1"}]}}
