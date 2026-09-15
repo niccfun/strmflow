@@ -99,6 +99,18 @@ LEGACY_JSON_IMPORT=false
 目录缓存。打开添加弹窗时只刷新一级目录；选择一级目录后才刷新其二级分类，选择
 二级分类后才刷新媒体资源。每次只读取当前层级，不再预先递归扫描整棵目录树。
 
+“添加媒体”提供两个独立入口：
+
+- **已保存媒体**：按上述三级目录选择已经存在于只读源 STRM 根目录中的媒体，保存后
+  立即扫描并同步；
+- **百度网盘分享**：粘贴分享链接后先检查视频和 STRM 文件；分享中包含多个媒体时可
+  选择其中一个，再选择只读源根目录下的一级目录、二级分类并确认片名。系统随后提交
+  转存，文件落盘后自动触发 OpenList 扫描、STRM 整理和 Emby 刷新。
+
+分享检查结果只在服务进程内保留 15 分钟，页面拿到的是临时候选编号，不包含百度
+`fs_id`。检查和转存接口分别为 `POST /api/bdpan/share/inspect` 与
+`POST /api/bdpan/share/import`。
+
 首次保存媒体后会自动执行 OpenList 扫描、STRM 发布和 Emby 媒体库刷新。电视剧会从
 `Season 02`、`S02`、`第2季` 等源目录，或 `S02E01`、`2x01` 等文件名中识别季度；
 检测到多季时会按 Emby 推荐结构分别发布。只有一个可识别季度时仍优先使用用户填写的
@@ -244,6 +256,8 @@ POST /api/bdpan/check
 POST /api/bdpan/items/{item_id}/check
 POST /api/bdpan/login/start
 POST /api/bdpan/login/complete
+POST /api/bdpan/share/inspect
+POST /api/bdpan/share/import
 ```
 
 原有通用转存 Provider 接口继续保留，可用于命令预览和手动异步任务：

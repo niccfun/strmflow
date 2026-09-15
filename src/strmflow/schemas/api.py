@@ -139,6 +139,30 @@ class BdpanLoginStartRequest(ApiModel):
     accepted: bool = False
 
 
+class BdpanShareInspectRequest(ApiModel):
+    share_url: str = Field(min_length=1, max_length=2_048)
+    extract_code: str = Field(default="", max_length=16)
+
+
+class BdpanShareImportRequest(ApiModel):
+    preview_id: str = Field(min_length=16, max_length=200)
+    candidate_id: str = Field(min_length=8, max_length=200)
+    type_dir: str = Field(min_length=1, max_length=255)
+    category: str = Field(min_length=1, max_length=255)
+    title: str = Field(min_length=1, max_length=100)
+    year: str | int | None = ""
+    media_type: Literal["tv", "movie"] = "tv"
+    status: Literal["ongoing", "completed"] = "ongoing"
+    total_episodes: int | None = Field(default=None, gt=0)
+    season: int = Field(default=1, ge=1, le=99)
+    update_schedule: str = Field(default="", max_length=500)
+
+    @field_validator("total_episodes", mode="before")
+    @classmethod
+    def empty_import_episode_count(cls, value: object) -> object:
+        return None if value == "" else value
+
+
 class TransferJob(ApiModel):
     id: str
     provider: str

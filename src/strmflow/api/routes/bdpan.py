@@ -8,6 +8,8 @@ from strmflow.schemas.api import (
     BdpanAutomationConfigUpdate,
     BdpanLoginCompleteRequest,
     BdpanLoginStartRequest,
+    BdpanShareImportRequest,
+    BdpanShareInspectRequest,
 )
 
 router = APIRouter(tags=["bdpan"], dependencies=[Depends(require_auth)])
@@ -41,3 +43,13 @@ async def login_start(body: BdpanLoginStartRequest, request: Request) -> dict[st
 @router.post("/bdpan/login/complete")
 async def login_complete(body: BdpanLoginCompleteRequest, request: Request) -> dict[str, Any]:
     return ok(await services(request).bdpan.complete_login(body.code))
+
+
+@router.post("/bdpan/share/inspect")
+async def inspect_share(body: BdpanShareInspectRequest, request: Request) -> dict[str, Any]:
+    return ok(await services(request).bdpan.inspect_share(body.share_url, body.extract_code))
+
+
+@router.post("/bdpan/share/import", status_code=202)
+async def import_share(body: BdpanShareImportRequest, request: Request) -> dict[str, Any]:
+    return ok(await services(request).bdpan.import_share(body))

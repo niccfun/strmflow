@@ -5,6 +5,7 @@ import hashlib
 import posixpath
 import random
 import re
+import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import PurePosixPath
@@ -14,13 +15,18 @@ from strmflow.core.config import Settings
 from strmflow.core.errors import AppError
 from strmflow.core.runtime_logs import RuntimeLogStore
 from strmflow.repositories.runtime_settings import RuntimeSettingsRepository
-from strmflow.schemas.api import BdpanAutomationConfigUpdate, PublishRequest
+from strmflow.schemas.api import (
+    BdpanAutomationConfigUpdate,
+    BdpanShareImportRequest,
+    MediaItemInput,
+    PublishRequest,
+)
 from strmflow.services.bdpan import BdpanCli, BdpanCliError
 from strmflow.services.emby import EmbyClient
 from strmflow.services.media import MediaService
 from strmflow.services.openlist import OpenListClient
 from strmflow.services.path_config import PathConfigService
-from strmflow.utils.paths import relative_virtual_path
+from strmflow.utils.paths import join_virtual_path, relative_virtual_path, validate_folder_name
 
 VIDEO_EXTENSIONS = {
     ".3gp",
@@ -91,6 +97,7 @@ class BdpanAutomationService:
         self._manual_check_pending = False
         self._status_cache: tuple[float, dict[str, Any]] | None = None
         self._quota_cache: tuple[float, int, dict[str, Any]] | None = None
+        self._share_previews: dict[str, dict[str, Any]] = {}
 
     async def initialize(self) -> None:
         stored_config = await self.repository.load_bdpan()
@@ -226,6 +233,209 @@ class BdpanAutomationService:
         self._log("success", "百度网盘授权已完成")
         return result
 
+    async def inspect_share(self, value: str, extract_code: str = "") -> dict[str, Any]:
+        """Inspect a share once and keep its file identifiers only in short-lived memory."""
+        cli_status = await self._cli_status()
+        if not cli_status["available"]:
+            raise AppError(503, "bdpan CLI 未安装或配置路径不正确")
+        if not cli_status["loggedIn"]:
+            raise AppError(409, "请先在系统设置中完成百度网盘授权")
+        if self._operation_lock.locked():
+            raise AppError(409, "已有百度网盘任务正在运行，请稍后重试")
+
+        share_url, code = self.cli.parse_share_input(value, extract_code)
+        async with self._operation_lock:
+            try:
+                files = await self._list_share_media(
+                    share_url,
+                    code,
+                    self.cli.new_session_id(),
+                    strip_wrapper=False,
+                )
+            except BdpanCliError as exc:
+                raise AppError(502, str(exc)) from exc
+        if not files:
+            raise AppError(409, "分享中未发现可保存的视频或 STRM 媒体文件")
+
+        candidates = self._share_candidates(files)
+        preview_id = secrets.token_urlsafe(24)
+        now = asyncio.get_running_loop().time()
+        self._prune_share_previews(now)
+        self._share_previews[preview_id] = {
+            "createdAt": now,
+            "shareUrl": share_url,
+            "extractCode": code,
+            "candidates": candidates,
+        }
+        public_candidates = [
+            {
+                key: candidate[key]
+                for key in (
+                    "id",
+                    "name",
+                    "title",
+                    "year",
+                    "fileCount",
+                    "totalBytes",
+                    "sampleFiles",
+                )
+            }
+            for candidate in candidates
+        ]
+        self._log(
+            "info",
+            f"百度网盘分享检查完成：发现 {len(files)} 个有效媒体文件",
+            candidateCount=len(candidates),
+        )
+        return {
+            "previewId": preview_id,
+            "fileCount": len(files),
+            "candidateCount": len(candidates),
+            "candidates": public_candidates,
+            "expiresIn": 900,
+        }
+
+    async def import_share(self, body: BdpanShareImportRequest) -> dict[str, Any]:
+        """Transfer an inspected share into the selected two-level media directory."""
+        preview = self._get_share_preview(body.preview_id)
+        candidate = next(
+            (
+                item
+                for item in preview["candidates"]
+                if isinstance(item, dict) and item.get("id") == body.candidate_id
+            ),
+            None,
+        )
+        if not candidate:
+            raise AppError(404, "选择的分享媒体已过期，请重新检查分享链接")
+        type_dir = validate_folder_name(body.type_dir)
+        category = validate_folder_name(body.category)
+        title = validate_folder_name(body.title)
+        year = str(body.year or "").strip()
+        if year and not re.fullmatch(r"\d{4}", year):
+            raise AppError(400, "年份必须是 4 位数字")
+        folder_name = validate_folder_name(f"{title} ({year})" if year else title)
+        if not self.path_config.list_root:
+            raise AppError(409, "请先设置只读源 STRM 根目录")
+        source_path = join_virtual_path(
+            self.path_config.list_root,
+            type_dir,
+            category,
+            folder_name,
+        )
+        duplicate = next(
+            (
+                item
+                for item in await self.media.list_items()
+                if item.get("sourcePath") == source_path
+            ),
+            None,
+        )
+        if duplicate:
+            raise AppError(409, f"该媒体已添加：{duplicate.get('name') or source_path}")
+
+        cli_status = await self._cli_status()
+        if not cli_status["available"] or not cli_status["loggedIn"]:
+            raise AppError(409, "百度网盘授权状态已变化，请重新检查分享链接")
+        files = list(candidate["files"])
+        if not files or any(not file.fsid for file in files):
+            raise AppError(409, "分享媒体缺少可转存的文件标识，请重新检查")
+
+        share_url = str(preview["shareUrl"])
+        code = str(preview["extractCode"])
+        base_destination = "/".join(
+            filter(None, [self.config["saveRoot"], type_dir, category, folder_name])
+        )
+        groups: dict[str, list[ShareMediaFile]] = {}
+        for file in files:
+            parent = "/".join(file.relative_parts[:-1])
+            destination = "/".join(filter(None, [base_destination, parent]))
+            groups.setdefault(destination, []).append(file)
+
+        submitted_tasks: list[dict[str, str]] = []
+        session_id = self.cli.new_session_id()
+        now = self._iso_now()
+        async with self._operation_lock:
+            try:
+                for group_index, (destination, group) in enumerate(
+                    sorted(groups.items(), key=lambda item: item[0].casefold())
+                ):
+                    result = await self.cli.execute(
+                        self.cli.select_command(
+                            share_url,
+                            [file.fsid for file in group],
+                            destination,
+                            code,
+                            binary=self.config["binary"],
+                            session_id=session_id,
+                        ),
+                        timeout=self.settings.bdpan_timeout,
+                        require_json=True,
+                    )
+                    task_id = self._task_id(result.payload)
+                    if task_id:
+                        submitted_tasks.append(
+                            {"taskId": task_id, "destination": destination, "submittedAt": now}
+                        )
+                    if group_index + 1 < len(groups):
+                        await asyncio.sleep(2)
+            except BdpanCliError as exc:
+                raise AppError(502, str(exc)) from exc
+
+            baidu_link = share_url + (
+                ("&" if "?" in share_url else "?") + f"pwd={code}" if code else ""
+            )
+            item = await self.media.save_item(
+                MediaItemInput(
+                    source_path=source_path,
+                    title=title,
+                    year=year,
+                    total_episodes=body.total_episodes,
+                    season=body.season,
+                    update_schedule=body.update_schedule,
+                    category=category,
+                    media_type=body.media_type,
+                    status=body.status,
+                    baidu_link=baidu_link,
+                )
+            )
+            pending_at = (
+                datetime.now(UTC) + timedelta(seconds=int(self.config["settleSeconds"]))
+            ).isoformat()
+            self.states[item["id"]] = {
+                "initialized": True,
+                "shareKey": hashlib.sha256(
+                    f"{share_url}\0{code}\0{candidate['prefix']}".encode()
+                ).hexdigest(),
+                "watchPrefix": candidate["prefix"],
+                "seen": sorted(file.fingerprint for file in files),
+                "lastCheckedAt": now,
+                "lastTransferAt": now,
+                "nextCheckAt": self._next_check_at(),
+                "lastError": "",
+                "failureCount": 0,
+                "lastResult": f"已提交初始转存，共 {len(files)} 个媒体文件",
+                "pendingSyncAt": pending_at,
+                "pendingSyncAttempts": 0,
+                "submittedTasks": submitted_tasks,
+            }
+            await self._save_states()
+
+        self._share_previews.pop(body.preview_id, None)
+        self._wake.set()
+        self._log(
+            "success",
+            f"百度网盘媒体已添加：{item['name']}，提交 {len(files)} 个文件",
+            itemId=item["id"],
+        )
+        return {
+            "item": item,
+            "submittedCount": len(files),
+            "taskCount": len(submitted_tasks),
+            "pendingSyncAt": pending_at,
+            "message": "转存已提交，文件落盘后将自动扫描并同步到 Emby",
+        }
+
     async def trigger_check(self, item_id: str = "") -> dict[str, Any]:
         if self._operation_lock.locked() or self._manual_check_pending:
             return {"started": False, "message": "已有百度网盘检查或同步任务正在运行"}
@@ -278,16 +488,29 @@ class BdpanAutomationService:
         if not cli_status["loggedIn"]:
             raise AppError(409, "bdpan 尚未完成百度网盘授权")
 
+        state = self.states.setdefault(item_id, {})
         try:
             share_url, extract_code = self.cli.parse_share_input(str(item["baiduLink"]))
             session_id = self.cli.new_session_id()
-            files = await self._list_share_media(share_url, extract_code, session_id)
+            if "watchPrefix" in state:
+                raw_files = await self._list_share_media(
+                    share_url,
+                    extract_code,
+                    session_id,
+                    strip_wrapper=False,
+                )
+                files = self._files_for_prefix(raw_files, str(state.get("watchPrefix") or ""))
+            else:
+                files = await self._list_share_media(share_url, extract_code, session_id)
         except (BdpanCliError, AppError) as exc:
             await self._record_failure(item, exc)
             raise
 
-        state = self.states.setdefault(item_id, {})
-        share_key = hashlib.sha256(f"{share_url}\0{extract_code}".encode()).hexdigest()
+        prefix = str(state.get("watchPrefix") or "") if "watchPrefix" in state else None
+        share_key_source = f"{share_url}\0{extract_code}"
+        if prefix is not None:
+            share_key_source += f"\0{prefix}"
+        share_key = hashlib.sha256(share_key_source.encode()).hexdigest()
         fingerprints = {file.fingerprint for file in files}
         previous = set(state.get("seen") or [])
         now = self._iso_now()
@@ -407,7 +630,12 @@ class BdpanAutomationService:
         }
 
     async def _list_share_media(
-        self, share_url: str, extract_code: str, session_id: str
+        self,
+        share_url: str,
+        extract_code: str,
+        session_id: str,
+        *,
+        strip_wrapper: bool = True,
     ) -> list[ShareMediaFile]:
         queue: list[tuple[str, tuple[str, ...], int]] = [("", (), 0)]
         visited: set[str] = set()
@@ -466,7 +694,7 @@ class BdpanAutomationService:
                 await asyncio.sleep(0.35)
             if queue:
                 await asyncio.sleep(0.35)
-        return self._strip_single_wrapper(files)
+        return self._strip_single_wrapper(files) if strip_wrapper else files
 
     def _group_transfers(
         self, item: dict[str, Any], files: list[ShareMediaFile]
@@ -729,6 +957,94 @@ class BdpanAutomationService:
         interval = int(self.config["checkIntervalMinutes"]) * 60
         jittered = max(300, interval + random.randint(-max(1, interval // 10), interval // 10))
         return (datetime.now(UTC) + timedelta(seconds=jittered)).isoformat()
+
+    def _prune_share_previews(self, now: float) -> None:
+        self._share_previews = {
+            key: value
+            for key, value in self._share_previews.items()
+            if now - float(value.get("createdAt") or 0) < 900
+        }
+        while len(self._share_previews) >= 20:
+            oldest = min(
+                self._share_previews,
+                key=lambda key: float(self._share_previews[key].get("createdAt") or 0),
+            )
+            self._share_previews.pop(oldest, None)
+
+    def _get_share_preview(self, preview_id: str) -> dict[str, Any]:
+        now = asyncio.get_running_loop().time()
+        self._prune_share_previews(now)
+        preview = self._share_previews.get(str(preview_id))
+        if not preview:
+            raise AppError(404, "分享检查结果已过期，请重新检查分享链接")
+        return preview
+
+    @classmethod
+    def _share_candidates(cls, files: list[ShareMediaFile]) -> list[dict[str, Any]]:
+        grouped: dict[str, list[ShareMediaFile]] = {}
+        for file in files:
+            prefix = ""
+            if len(file.relative_parts) > 1 and not SEASON_DIRECTORY.match(file.relative_parts[0]):
+                prefix = file.relative_parts[0]
+            grouped.setdefault(prefix, []).append(file)
+
+        candidates: list[dict[str, Any]] = []
+        for prefix, grouped_files in sorted(grouped.items(), key=lambda item: item[0].casefold()):
+            normalized = cls._files_for_prefix(grouped_files, prefix)
+            name = prefix or cls._infer_media_name(normalized)
+            match = re.match(r"^(.*?)\s*[（(](\d{4})[）)]\s*$", name)
+            title = match.group(1).strip() if match else name
+            year = match.group(2) if match else ""
+            identity = "\0".join([prefix, *sorted(file.fingerprint for file in normalized)])
+            candidates.append(
+                {
+                    "id": "c" + hashlib.sha256(identity.encode()).hexdigest()[:16],
+                    "prefix": prefix,
+                    "name": name,
+                    "title": title,
+                    "year": year,
+                    "fileCount": len(normalized),
+                    "totalBytes": sum(max(0, file.size) for file in normalized),
+                    "sampleFiles": ["/".join(file.relative_parts) for file in normalized[:5]],
+                    "files": normalized,
+                }
+            )
+        return candidates
+
+    @staticmethod
+    def _files_for_prefix(files: list[ShareMediaFile], prefix: str) -> list[ShareMediaFile]:
+        selected: list[ShareMediaFile] = []
+        for file in files:
+            parts = file.relative_parts
+            if prefix:
+                if len(parts) < 2 or parts[0] != prefix:
+                    continue
+                parts = parts[1:]
+            elif len(parts) > 1 and not SEASON_DIRECTORY.match(parts[0]):
+                continue
+            selected.append(
+                ShareMediaFile(
+                    fsid=file.fsid,
+                    name=file.name,
+                    relative_parts=parts,
+                    size=file.size,
+                    modified=file.modified,
+                )
+            )
+        return selected
+
+    @staticmethod
+    def _infer_media_name(files: list[ShareMediaFile]) -> str:
+        if not files:
+            return "新媒体"
+        stem = PurePosixPath(files[0].name).stem
+        stem = re.sub(
+            r"(?i)[ ._-]*(?:S\d{1,2}[ ._-]*E\d{1,4}|EP?\d{1,4}|第\s*\d+\s*集).*$",
+            "",
+            stem,
+        )
+        stem = re.sub(r"[._]+", " ", stem).strip(" -_")
+        return stem or "新媒体"
 
     @staticmethod
     def _share_page(payload: Any) -> tuple[list[dict[str, Any]], bool]:

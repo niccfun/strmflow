@@ -115,6 +115,20 @@ def test_index_has_unique_element_ids() -> None:
     assert "'/api/bdpan/check'" in template
     assert "首次检查只建立基线" in template
     assert "百度网盘分享链接（用于自动追更）" in template
+    assert 'id="addModeSwitch"' in template
+    assert 'data-add-mode="saved"' in template
+    assert 'data-add-mode="share"' in template
+    assert "已保存添加" in template
+    assert "分享链接添加" in template
+    assert 'id="shareImportPanel"' in template
+    assert 'id="shareLinkInput"' in template
+    assert 'id="shareInspectButton"' in template
+    assert 'id="shareCandidateInput"' in template
+    assert "'/api/bdpan/share/inspect'" in template
+    assert "'/api/bdpan/share/import'" in template
+    assert "function configureAddMode(mode)" in template
+    assert "function inspectShare()" in template
+    assert "转存已提交，文件落盘后将自动扫描同步" in template
     assert "v0.2.0" in template
     assert 'id="sourceFolderInput"' in template
     assert 'id="sourceTypeInput"' in template

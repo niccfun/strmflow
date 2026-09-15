@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from strmflow.core.config import Settings
 from strmflow.core.runtime_logs import RuntimeLogStore
+from strmflow.schemas.api import BdpanShareImportRequest
 from strmflow.services.bdpan import BdpanCli, BdpanRunResult
 from strmflow.services.bdpan_automation import BdpanAutomationService, ShareMediaFile
 
@@ -56,6 +57,28 @@ class FakeMedia:
     async def publish(self, request: Any) -> dict[str, Any]:
         self.published.append(request.id)
         return {"copied": 1, "newFiles": ["Season 02/交锋.S02E01.strm"]}
+
+
+class FakeImportMedia:
+    def __init__(self) -> None:
+        self.saved: Any = None
+
+    async def list_items(self) -> list[dict[str, Any]]:
+        return []
+
+    async def save_item(self, body: Any) -> dict[str, Any]:
+        self.saved = body
+        return {
+            "id": "m2",
+            "name": f"{body.title} ({body.year})" if body.year else body.title,
+            "title": body.title,
+            "year": str(body.year or ""),
+            "mediaType": body.media_type,
+            "category": body.category,
+            "status": body.status,
+            "sourcePath": body.source_path,
+            "baiduLink": body.baidu_link,
+        }
 
 
 class FakeOpenList:
@@ -328,6 +351,89 @@ async def test_automation_establishes_baseline_then_selects_only_new_files() -> 
     assert service.states["m1"]["pendingSyncAt"]
     assert service.states["m1"]["submittedTasks"][0]["taskId"] == "task-1"
     assert repository.states == service.states
+
+
+@pytest.mark.asyncio
+async def test_inspect_and_import_share_creates_media_and_pending_sync() -> None:
+    settings = Settings(bdpan_binary="bdpan", bdpan_save_root="StrmFlow")
+    cli = FakeBdpanCli(settings)
+    repository = FakeRuntimeRepository()
+    media = FakeImportMedia()
+    service = BdpanAutomationService(
+        settings,
+        cli,
+        repository,  # type: ignore[arg-type]
+        media,  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        FakePathConfig(),  # type: ignore[arg-type]
+        RuntimeLogStore(),
+    )
+    shared_files = [
+        media_file("1001", "Jiao.锋 (2026)/Season 01/Jiao.S01E01.mp4"),
+        media_file("1002", "Jiao.锋 (2026)/Season 01/Jiao.S01E02.mp4"),
+    ]
+
+    async def list_share_media(
+        _share_url: str,
+        _extract_code: str,
+        _session_id: str,
+        *,
+        strip_wrapper: bool = True,
+    ) -> list[ShareMediaFile]:
+        return (
+            BdpanAutomationService._strip_single_wrapper(shared_files)
+            if strip_wrapper
+            else shared_files
+        )
+
+    service._list_share_media = list_share_media  # type: ignore[method-assign]
+
+    preview = await service.inspect_share("https://pan.baidu.com/s/example?pwd=ab12")
+
+    assert preview["fileCount"] == 2
+    assert preview["candidateCount"] == 1
+    assert preview["candidates"][0]["name"] == "Jiao.锋 (2026)"
+    assert preview["candidates"][0]["title"] == "Jiao.锋"
+    assert preview["candidates"][0]["year"] == "2026"
+    assert "fsid" not in json.dumps(preview)
+
+    result = await service.import_share(
+        BdpanShareImportRequest(
+            preview_id=preview["previewId"],
+            candidate_id=preview["candidates"][0]["id"],
+            type_dir="TV",
+            category="国产剧",
+            title="交锋",
+            year="2026",
+            total_episodes=24,
+            season=1,
+        )
+    )
+
+    assert result["submittedCount"] == 2
+    assert result["taskCount"] == 1
+    assert result["item"]["sourcePath"] == "/temp_strm/TV/国产剧/交锋 (2026)"
+    assert media.saved.source_path == "/temp_strm/TV/国产剧/交锋 (2026)"
+    assert media.saved.baidu_link == "https://pan.baidu.com/s/example?pwd=ab12"
+    command = cli.executed[0]
+    assert command[command.index("--fsid") + 1] == "1001,1002"
+    assert command[command.index("-d") + 1] == ("StrmFlow/TV/国产剧/交锋 (2026)/Season 01")
+    assert service.states["m2"]["watchPrefix"] == "Jiao.锋 (2026)"
+    assert service.states["m2"]["pendingSyncAt"]
+    assert repository.states == service.states
+
+
+def test_share_candidates_separate_multiple_top_level_media() -> None:
+    candidates = BdpanAutomationService._share_candidates(
+        [
+            media_file("1001", "甲剧 (2025)/Season 01/甲剧.S01E01.mp4"),
+            media_file("1002", "乙剧 (2026)/Season 01/乙剧.S01E01.mp4"),
+        ]
+    )
+
+    assert [candidate["name"] for candidate in candidates] == ["乙剧 (2026)", "甲剧 (2025)"]
+    assert all(candidate["fileCount"] == 1 for candidate in candidates)
 
 
 def test_share_page_accepts_documented_payload_shape() -> None:
