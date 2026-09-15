@@ -260,6 +260,13 @@ class MediaService:
         synced = set(context.get("syncedFiles") or [])
         new_files = [name for name in files if name not in synced]
         missing_target_files = [entry["sourceRel"] for entry in missing]
+        warmup_sources = set(new_files) | set(missing_target_files)
+        warmup_paths = [
+            join_virtual_path(target, entry["targetRel"])
+            for entry in plan
+            if entry["sourceRel"] in warmup_sources
+            and entry["targetRel"].casefold().endswith(".strm")
+        ]
         self._log(
             "info",
             f"媒体文件清点完成：{context.get('name') or source}",
@@ -307,6 +314,7 @@ class MediaService:
             "copied": copied,
             "newFiles": new_files,
             "missingTargetFiles": missing_target_files,
+            "warmupPaths": warmup_paths,
             "totalFiles": len(files),
             "episodeCount": episode_count,
             "seasons": seasons,

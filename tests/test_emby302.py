@@ -1,3 +1,5 @@
+import asyncio
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -36,7 +38,9 @@ def test_response_header_unicode_is_latin1_safe() -> None:
 
 
 class MemorySettingsRepository:
-    value: dict[str, Any] | None = None
+    def __init__(self) -> None:
+        self.value: dict[str, Any] | None = None
+        self.link_cache: dict[str, Any] | None = None
 
     async def load_emby302(self) -> dict[str, Any] | None:
         return self.value
@@ -44,12 +48,43 @@ class MemorySettingsRepository:
     async def save_emby302(self, value: dict[str, Any]) -> None:
         self.value = value
 
+    async def load_emby302_link_cache(self) -> dict[str, Any] | None:
+        return self.link_cache
+
+    async def save_emby302_link_cache(self, value: dict[str, Any]) -> None:
+        self.link_cache = value
+
+
+def test_provider_expiry_prefers_openlist_timestamp() -> None:
+    now = datetime(2026, 9, 15, tzinfo=UTC).timestamp()
+    expected = now + 3_600
+    actual, source = Emby302Gateway._provider_expiry(
+        datetime.fromtimestamp(expected, UTC).isoformat(),
+        f"https://cdn.test/video.mkv?expires=8h&dstime={int(now)}",
+        now,
+    )
+    assert actual == expected
+    assert source == "openlist"
+
+
+def test_provider_expiry_understands_baidu_duration_and_dstime() -> None:
+    now = datetime(2026, 9, 15, tzinfo=UTC).timestamp()
+    actual, source = Emby302Gateway._provider_expiry(
+        None,
+        f"https://d.pcs.baidu.com/file/video.mkv?expires=8h&dstime={int(now)}",
+        now,
+    )
+    assert actual == now + 8 * 60 * 60
+    assert source == "url"
+
 
 async def test_emby302_redirects_strm_stream_and_reuses_cache() -> None:
     emby_queries = 0
+    fs_get_queries = 0
+    link_queries: list[str] = []
 
     async def upstream(request: httpx.Request) -> httpx.Response:
-        nonlocal emby_queries
+        nonlocal emby_queries, fs_get_queries
         if request.url.host == "emby.test" and request.url.path == "/emby/Items":
             emby_queries += 1
             return httpx.Response(
@@ -69,14 +104,35 @@ async def test_emby302_redirects_strm_stream_and_reuses_cache() -> None:
                 },
             )
         if request.url.host == "openlist.test" and request.url.path == "/api/fs/get":
-            assert request.headers["user-agent"] == "test-player"
+            fs_get_queries += 1
+            return httpx.Response(500)
+        if request.url.host == "openlist.test" and request.url.path == "/api/fs/link":
+            path = str(request.read().decode())
+            link_queries.append(path)
+            if "E01.strm" in path:
+                return httpx.Response(
+                    200,
+                    json={
+                        "code": 200,
+                        "data": {
+                            "url": "http://openlist.test/manifest.strm",
+                            "header": {"X-Manifest": ["yes"]},
+                        },
+                    },
+                )
             return httpx.Response(
                 200,
                 json={
                     "code": 200,
-                    "data": {"raw_url": "https://cdn.test/video.mkv?token=secret"},
+                    "data": {
+                        "url": "https://cdn.test/video.mkv?token=secret",
+                        "Expiration": None,
+                    },
                 },
             )
+        if request.url.host == "openlist.test" and request.url.path == "/manifest.strm":
+            assert request.headers["x-manifest"] == "yes"
+            return httpx.Response(200, text="http://openlist.test/d/provider/video.mkv\n")
         return httpx.Response(404)
 
     settings = Settings(
@@ -116,12 +172,75 @@ async def test_emby302_redirects_strm_stream_and_reuses_cache() -> None:
             second = await client.get(
                 "/emby/Videos/item-1/stream", params={"MediaSourceId": "source-1"}
             )
+        await gateway.close()
+
+        restored_gateway = Emby302Gateway(
+            settings,
+            emby_http,
+            OpenListClient(settings, openlist_http),
+            repository,  # type: ignore[arg-type]
+            RuntimeLogStore(),
+        )
+        await restored_gateway.initialize()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=restored_gateway),
+            base_url="http://gateway.test",
+            follow_redirects=False,
+        ) as client:
+            restored = await client.get(
+                "/emby/Videos/item-1/stream", params={"MediaSourceId": "source-1"}
+            )
+        await restored_gateway.close()
 
     assert first.status_code == 302
     assert first.headers["location"] == "https://cdn.test/video.mkv?token=secret"
     assert second.status_code == 302
+    assert restored.status_code == 302
     assert emby_queries == 1
+    assert fs_get_queries == 0
+    assert len(link_queries) == 2
+    assert repository.link_cache
+    assert len(repository.link_cache["entries"]) == 2
     snapshot = gateway.snapshot()
     assert snapshot["stats"]["redirects"] == 2
     assert snapshot["stats"]["cacheHits"] == 1
     assert snapshot["recentRedirects"][0]["targetHost"] == "cdn.test"
+    assert restored_gateway.snapshot()["stats"]["restoredCacheEntries"] == 2
+
+
+async def test_prewarm_keeps_latest_six_episodes_and_persists() -> None:
+    settings = Settings(
+        app_password="secret",
+        openlist_token="token",
+        emby_api_key="emby-key",
+        emby_302_enabled=True,
+    )
+    repository = MemorySettingsRepository()
+    async with (
+        httpx.AsyncClient() as emby_http,
+        httpx.AsyncClient(base_url=settings.openlist_url) as openlist_http,
+    ):
+        gateway = Emby302Gateway(
+            settings,
+            emby_http,
+            OpenListClient(settings, openlist_http),
+            repository,  # type: ignore[arg-type]
+            RuntimeLogStore(),
+        )
+
+        async def resolve(path: str) -> dict[str, Any]:
+            return gateway._new_cache_entry(
+                f"https://cdn.test/{path.rsplit('/', 1)[-1]}",
+                source_path=path,
+                provider_path="/provider/video.mkv",
+            )
+
+        gateway._resolve_openlist_target_once = resolve  # type: ignore[method-assign]
+        paths = [f"/library/Season 01/Demo.S01E{episode:02d}.strm" for episode in range(1, 9)]
+        assert gateway.schedule_prewarm({"id": "m1", "name": "Demo"}, paths) == 6
+        await asyncio.gather(*tuple(gateway._prewarm_tasks))
+        await gateway.close()
+
+    cached_paths = {key.removeprefix("path:") for key in (repository.link_cache or {})["entries"]}
+    assert cached_paths == set(paths[2:])
+    assert gateway.snapshot()["stats"]["prewarmedLinks"] == 6

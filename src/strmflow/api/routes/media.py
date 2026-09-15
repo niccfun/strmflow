@@ -144,6 +144,11 @@ async def publish(body: PublishRequest, request: Request) -> dict[str, Any]:
     container = services(request)
     previous = await container.media.get_item(body.id) if body.id else None
     result = await container.media.publish(body)
+    current = await container.media.get_item(body.id) if body.id else result
+    result["prewarmed"] = container.emby302.schedule_prewarm(
+        current,
+        result.get("warmupPaths") or [],
+    )
     new_episodes = sum(
         str(name).casefold().endswith(".strm") for name in result.get("newFiles") or []
     )

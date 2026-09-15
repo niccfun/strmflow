@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import re
 import socket
 from collections import OrderedDict, deque
@@ -8,9 +9,9 @@ from collections.abc import AsyncIterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from time import monotonic, perf_counter
+from time import perf_counter, time
 from typing import Any
-from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qs, parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
 
 import httpx
 import uvicorn
@@ -29,6 +30,7 @@ from strmflow.core.errors import AppError
 from strmflow.core.runtime_logs import RuntimeLogStore, status_level
 from strmflow.repositories.runtime_settings import RuntimeSettingsRepository
 from strmflow.services.openlist import OpenListClient
+from strmflow.utils.episodes import source_season_episode
 from strmflow.utils.paths import normalize_virtual_path
 
 HOP_BY_HOP_HEADERS = {
@@ -45,6 +47,15 @@ BODYLESS_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
 VIDEO_PATH = re.compile(r"/(?:videos)/([^/]+)/(?:stream|original)(?:\.[^/]*)?$", re.IGNORECASE)
 ITEM_PATH = re.compile(r"/(?:videos|items)/([^/]+)", re.IGNORECASE)
 PLAYBACK_INFO_PATH = re.compile(r"/items/[^/]+/playbackinfo$", re.IGNORECASE)
+CACHE_POLICY_VERSION = 2
+LEGACY_CACHE_TTL = 180
+DEFAULT_CACHE_TTL = 6 * 60 * 60
+EXPIRY_SAFETY_SECONDS = 5 * 60
+PREWARM_LATEST_COUNT = 6
+CACHE_PERSIST_DEBOUNCE_SECONDS = 0.35
+
+
+type LinkCacheEntry = dict[str, Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,7 +109,13 @@ class Emby302Gateway:
         self._server: EmbeddedUvicornServer | None = None
         self._server_task: asyncio.Task[None] | None = None
         self._socket: socket.socket | None = None
-        self._cache: OrderedDict[str, tuple[float, str]] = OrderedDict()
+        self._cache: OrderedDict[str, LinkCacheEntry] = OrderedDict()
+        self._cache_dirty = False
+        self._cache_persist_task: asyncio.Task[None] | None = None
+        self._prewarm_tasks: set[asyncio.Task[None]] = set()
+        self._resolution_tasks: dict[str, asyncio.Task[LinkCacheEntry]] = {}
+        self._restored_cache_entries = 0
+        self._prewarmed_links = 0
         self._booted_at = datetime.now(UTC)
         self._started_at: datetime | None = None
         self._last_request_at: datetime | None = None
@@ -115,6 +132,19 @@ class Emby302Gateway:
         stored = await self.repository.load_emby302()
         if stored:
             try:
+                stored = dict(stored)
+                if (
+                    int(stored.get("cachePolicyVersion") or 1) < CACHE_POLICY_VERSION
+                    and int(stored.get("cacheTtl") or 0) == LEGACY_CACHE_TTL
+                ):
+                    stored["cacheTtl"] = DEFAULT_CACHE_TTL
+                    stored["cachePolicyVersion"] = CACHE_POLICY_VERSION
+                    await self.repository.save_emby302(stored)
+                    self.runtime_logs.add(
+                        category="gateway302",
+                        level="success",
+                        message="302 直链缓存已升级为 6 小时上限",
+                    )
                 self.config = self._parse_config(stored)
             except (TypeError, ValueError):
                 self.runtime_logs.add(
@@ -122,6 +152,7 @@ class Emby302Gateway:
                     level="warning",
                     message="已忽略无效的 302 网关持久化配置",
                 )
+        await self._restore_cache()
 
     async def start_configured(self) -> None:
         if not self.config.enabled:
@@ -144,21 +175,37 @@ class Emby302Gateway:
             )
 
     async def close(self) -> None:
+        for task in tuple(self._prewarm_tasks):
+            task.cancel()
+        if self._prewarm_tasks:
+            await asyncio.gather(*self._prewarm_tasks, return_exceptions=True)
+        self._prewarm_tasks.clear()
+        for task in tuple(self._resolution_tasks.values()):
+            task.cancel()
+        if self._resolution_tasks:
+            await asyncio.gather(*self._resolution_tasks.values(), return_exceptions=True)
+        self._resolution_tasks.clear()
         async with self._lock:
             await self._stop_server()
+        await self._flush_cache()
 
     async def update(self, value: dict[str, Any]) -> dict[str, Any]:
         new_config = self._parse_config(value)
         self._validate_runtime_config(new_config)
         async with self._lock:
             old_config = self.config
+            await self._flush_cache()
             await self._stop_server()
             self.config = new_config
             self._cache.clear()
+            self._cache_dirty = True
             try:
                 if new_config.enabled:
                     await self._start_server()
-                await self.repository.save_emby302(new_config.as_dict())
+                await self.repository.save_emby302(
+                    {**new_config.as_dict(), "cachePolicyVersion": CACHE_POLICY_VERSION}
+                )
+                await self._persist_cache()
             except Exception as exc:
                 await self._stop_server()
                 self.config = old_config
@@ -178,9 +225,11 @@ class Emby302Gateway:
         )
         return self.snapshot()
 
-    def clear_cache(self) -> int:
+    async def clear_cache(self) -> int:
         count = len(self._cache)
         self._cache.clear()
+        self._cache_dirty = True
+        await self._flush_cache()
         self.runtime_logs.add(
             category="gateway302",
             level="success",
@@ -210,6 +259,12 @@ class Emby302Gateway:
                 "proxyRequests": self._proxy_requests,
                 "errors": self._errors,
                 "cacheEntries": len(self._cache),
+                "restoredCacheEntries": self._restored_cache_entries,
+                "prewarmedLinks": self._prewarmed_links,
+                "prewarmedCacheEntries": sum(
+                    bool(entry.get("prewarmed")) for entry in self._cache.values()
+                ),
+                "nextCacheExpiryAt": self._next_cache_expiry(),
                 "uptimeSeconds": max(0, int((now - active_since).total_seconds()))
                 if running
                 else 0,
@@ -282,7 +337,7 @@ class Emby302Gateway:
             durationMs=duration_ms,
             client=request.client.host if request.client else "unknown",
             protocol=f"HTTP/{scope.get('http_version', '1.1')}",
-            redirectTo=response.headers.get("location", ""),
+            redirectTo=self._redacted_redirect(response.headers.get("location", "")),
             gatewayAction=action,
             userAgent=request.headers.get("user-agent", "")[:240],
         )
@@ -311,12 +366,11 @@ class Emby302Gateway:
             return PlainTextResponse("Bad Request", status_code=400), "invalid-stream"
 
         media_source_id = request.query_params.get("MediaSourceId")
-        user_agent = request.headers.get("user-agent", "")
-        cache_key = f"{item_id}:{media_source_id or 'default'}:{user_agent}"
+        cache_key = self._request_cache_key(item_id, media_source_id)
         cached = self._get_cache(cache_key)
         if cached:
             self._cache_hits += 1
-            return self._redirect(cached, item_id, "", True), "cache-hit"
+            return self._redirect(str(cached["url"]), item_id, "", True), "cache-hit"
 
         media_source = await self._get_emby_media_source(request.url.path, item_id, media_source_id)
         if not media_source or not media_source.get("Path"):
@@ -325,62 +379,180 @@ class Emby302Gateway:
         if not openlist_path:
             return await self._proxy(request), "non-openlist-source"
 
-        info = await self.openlist.get_file_info(
-            openlist_path,
-            base_url=self.config.openlist_url,
-            timeout=self.config.timeout_ms / 1_000,
-            user_agent=user_agent,
-        )
-        raw_url = str(info.get("raw_url") or info.get("rawUrl") or info.get("url") or "")
-        if not raw_url:
-            return PlainTextResponse("OpenList API Error", status_code=502), "openlist-error"
-        # A Strm provider's ``raw_url`` points to the .strm text file itself.
-        # Read that one-line manifest and redirect the player to the real media
-        # URL; redirecting to the manifest makes Emby report ``load failed``.
-        if str(info.get("provider") or "").casefold() == "strm" and urlsplit(
-            raw_url
-        ).path.casefold().endswith(".strm"):
+        path_key = self._path_cache_key(openlist_path)
+        cached = self._get_cache(path_key)
+        if cached:
+            self._cache_hits += 1
+            self._set_cache_entry(cache_key, cached, prewarmed=False)
+            return (
+                self._redirect(str(cached["url"]), item_id, openlist_path, True),
+                "path-cache-hit",
+            )
+
+        try:
+            entry = await self._resolve_openlist_target_once(openlist_path)
+        except AppError as exc:
+            if exc.status_code == 404:
+                return PlainTextResponse(exc.message, status_code=502), "openlist-error"
+            raise
+        self._set_cache_entry(path_key, entry, prewarmed=False)
+        self._set_cache_entry(cache_key, entry, prewarmed=False)
+        return self._redirect(str(entry["url"]), item_id, openlist_path, False), "redirect"
+
+    async def _resolve_openlist_target(self, openlist_path: str) -> LinkCacheEntry:
+        """Resolve one Emby/OpenList media source with the shortest uncached chain."""
+        timeout = self.config.timeout_ms / 1_000
+        raw_url = ""
+        provider_path = ""
+        expiration: object = None
+
+        if urlsplit(openlist_path).path.casefold().endswith(".strm"):
+            # The Emby media source already proves that this path exists. Calling
+            # fs/get before fs/link duplicates the slowest OpenList lookup, so the
+            # playback path reads the one-line manifest directly.
             manifest = await self.openlist.read_text(
                 openlist_path,
                 base_url=self.config.openlist_url,
-                timeout=self.config.timeout_ms / 1_000,
+                timeout=timeout,
+                verify_exists=False,
             )
-            target_url = next((line.strip() for line in manifest.splitlines() if line.strip()), "")
-            if not target_url.startswith(("http://", "https://")):
-                return PlainTextResponse(
-                    "STRM 文件内容不是有效媒体地址", status_code=502
-                ), "strm-error"
-            raw_url = target_url
-            self.runtime_logs.add(
-                category="gateway302",
-                level="info",
-                message="已解析 STRM 文件中的媒体直链",
-                itemId=item_id,
-                openListPath=openlist_path,
-                targetHost=urlsplit(target_url).netloc,
+            raw_url = next(
+                (
+                    line.strip()
+                    for line in manifest.lstrip("\ufeff").splitlines()
+                    if line.strip().startswith(("http://", "https://"))
+                ),
+                "",
             )
-        # Resolve OpenList's /d or /p media address through /api/fs/link. A
-        # BaiduNetdisk storage returns its d.pcs.baidu.com CDN URL here, so the
-        # actual video bytes bypass both StrmFlow and OpenList.
-        provider_path = self._extract_openlist_path({"Path": raw_url, "IsRemote": True})
+            if not raw_url:
+                raise AppError(502, "STRM 文件内容不是有效媒体地址")
+            provider_path = self._extract_openlist_path({"Path": raw_url, "IsRemote": True}) or ""
+        else:
+            # A non-STRM OpenList source can be resolved in one fs/link call.
+            provider_path = openlist_path
+
         if provider_path:
-            direct_url = await self.openlist.direct_link(
+            link = await self.openlist.direct_link_info(
                 provider_path,
                 base_url=self.config.openlist_url,
-                timeout=self.config.timeout_ms / 1_000,
+                timeout=timeout,
             )
-            if direct_url and direct_url != raw_url:
-                self.runtime_logs.add(
-                    category="gateway302",
-                    level="info",
-                    message="已将 OpenList 地址解析为网盘 CDN 直链",
-                    itemId=item_id,
-                    openListPath=provider_path,
-                    targetHost=urlsplit(direct_url).netloc,
-                )
-                raw_url = direct_url
-        self._set_cache(cache_key, raw_url)
-        return self._redirect(raw_url, item_id, openlist_path, False), "redirect"
+            raw_url = str(link["url"])
+            expiration = link.get("expiration")
+
+        if not raw_url.startswith(("http://", "https://")):
+            raise AppError(502, "OpenList 未返回有效的媒体直链")
+        entry = self._new_cache_entry(
+            raw_url,
+            source_path=openlist_path,
+            provider_path=provider_path,
+            expiration=expiration,
+        )
+        self.runtime_logs.add(
+            category="gateway302",
+            level="info",
+            message="OpenList 媒体地址已解析为网盘 CDN 直链",
+            openListPath=provider_path or openlist_path,
+            targetHost=urlsplit(raw_url).netloc,
+            expirySource=entry["expirySource"],
+            cacheExpiresAt=datetime.fromtimestamp(float(entry["expiresAt"]), UTC).isoformat(),
+        )
+        return entry
+
+    async def _resolve_openlist_target_once(self, openlist_path: str) -> LinkCacheEntry:
+        """Coalesce concurrent player/prewarm lookups for the same STRM file."""
+        key = normalize_virtual_path(openlist_path)
+        task = self._resolution_tasks.get(key)
+        if task is None or task.done():
+            task = asyncio.create_task(
+                self._resolve_openlist_target(key),
+                name="strmflow-emby302-link-resolve",
+            )
+            self._resolution_tasks[key] = task
+
+            def discard(completed: asyncio.Task[LinkCacheEntry]) -> None:
+                if self._resolution_tasks.get(key) is completed:
+                    self._resolution_tasks.pop(key, None)
+
+            task.add_done_callback(discard)
+        return await asyncio.shield(task)
+
+    def schedule_prewarm(
+        self,
+        item: dict[str, Any] | None,
+        paths: list[str] | tuple[str, ...] | None,
+    ) -> int:
+        """Warm the latest published STRM files without delaying the sync response."""
+        if not self.config.enabled:
+            return 0
+        candidates = {
+            normalize_virtual_path(path)
+            for path in paths or []
+            if str(path).casefold().endswith(".strm")
+        }
+        selected = sorted(candidates, key=self._episode_sort_key)[-PREWARM_LATEST_COUNT:]
+        if not selected:
+            return 0
+        task = asyncio.create_task(
+            self._prewarm_paths(item or {}, selected),
+            name=f"strmflow-emby302-prewarm-{(item or {}).get('id') or 'media'!s}",
+        )
+        self._prewarm_tasks.add(task)
+        task.add_done_callback(self._prewarm_tasks.discard)
+        self.runtime_logs.add(
+            category="gateway302",
+            level="info",
+            message=f"已提交最新 {len(selected)} 个 STRM 直链预热任务",
+            itemId=str((item or {}).get("id") or ""),
+            mediaName=str((item or {}).get("name") or ""),
+        )
+        return len(selected)
+
+    async def _prewarm_paths(self, item: dict[str, Any], paths: list[str]) -> None:
+        success = 0
+        skipped = 0
+        failed = 0
+        semaphore = asyncio.Semaphore(2)
+
+        async def warm(path: str) -> None:
+            nonlocal success, skipped, failed
+            key = self._path_cache_key(path)
+            if self._get_cache(key):
+                skipped += 1
+                return
+            async with semaphore:
+                try:
+                    entry = await self._resolve_openlist_target_once(path)
+                    self._set_cache_entry(key, entry, prewarmed=True)
+                    success += 1
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:  # noqa: BLE001 - one bad episode must not stop the batch
+                    failed += 1
+                    self.runtime_logs.add(
+                        category="gateway302",
+                        level="warning",
+                        message=f"302 直链预热失败：{str(exc)[:240]}",
+                        mediaName=str(item.get("name") or ""),
+                        sourcePath=path,
+                    )
+
+        await asyncio.gather(*(warm(path) for path in paths))
+        if success:
+            self._prewarmed_links += success
+            await self._flush_cache()
+        self.runtime_logs.add(
+            category="gateway302",
+            level="success" if not failed else "warning",
+            message=(f"302 最新剧集直链预热完成：成功 {success}、已缓存 {skipped}、失败 {failed}"),
+            itemId=str(item.get("id") or ""),
+            mediaName=str(item.get("name") or ""),
+        )
+
+    @staticmethod
+    def _episode_sort_key(path: str) -> tuple[int, int, str]:
+        season, episode = source_season_episode(path)
+        return season or 0, episode if episode is not None else -1, path.casefold()
 
     def _redirect(
         self, raw_url: str, item_id: str, openlist_path: str, cache_hit: bool
@@ -410,6 +582,18 @@ class Emby302Gateway:
         query = quote(parsed.query, safe="=&/?%:+,;@-._~!$'()*[]")
         fragment = quote(parsed.fragment, safe="/%?=&:+,;@-._~!$'()*[]")
         return urlunsplit((parsed.scheme, netloc, path, query, fragment))
+
+    @staticmethod
+    def _redacted_redirect(value: str) -> str:
+        if not value:
+            return ""
+        try:
+            parsed = urlsplit(value)
+        except ValueError:
+            return ""
+        if parsed.scheme not in {"http", "https"}:
+            return value
+        return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
 
     async def _handle_base_html_player(self, request: Request) -> Response:
         upstream = await self._proxy_buffered(request)
@@ -679,27 +863,291 @@ class Emby302Gateway:
     def _direct_stream_path(self, path: str, item_id: str) -> str:
         return f"{self._emby_prefix(path)}/Videos/{quote(item_id, safe='')}/stream"
 
-    def _get_cache(self, key: str) -> str:
+    @staticmethod
+    def _request_cache_key(item_id: str, media_source_id: str | None) -> str:
+        return f"request:{item_id}:{media_source_id or 'default'}"
+
+    @staticmethod
+    def _path_cache_key(path: str) -> str:
+        return f"path:{normalize_virtual_path(path)}"
+
+    def _get_cache(self, key: str) -> LinkCacheEntry | None:
         self._cleanup_cache()
         entry = self._cache.get(key)
-        if not entry or monotonic() > entry[0]:
-            self._cache.pop(key, None)
-            return ""
+        if not entry or time() >= float(entry.get("expiresAt") or 0):
+            if self._cache.pop(key, None) is not None:
+                self._mark_cache_dirty()
+            return None
         self._cache.move_to_end(key)
-        return entry[1]
+        return dict(entry)
 
-    def _set_cache(self, key: str, url: str) -> None:
-        self._cache[key] = (monotonic() + self.config.cache_ttl, url)
+    def _set_cache_entry(
+        self,
+        key: str,
+        entry: LinkCacheEntry,
+        *,
+        prewarmed: bool,
+    ) -> None:
+        if time() >= float(entry.get("expiresAt") or 0):
+            return
+        value = dict(entry)
+        value["prewarmed"] = prewarmed
+        self._cache[key] = value
         self._cache.move_to_end(key)
         self._cleanup_cache()
         while len(self._cache) > self.config.cache_max:
             self._cache.popitem(last=False)
+        self._mark_cache_dirty()
 
     def _cleanup_cache(self) -> None:
-        now = monotonic()
-        expired = [key for key, (expires_at, _) in self._cache.items() if now > expires_at]
+        now = time()
+        expired = [
+            key for key, entry in self._cache.items() if now >= float(entry.get("expiresAt") or 0)
+        ]
+        if not expired:
+            return
         for key in expired:
             self._cache.pop(key, None)
+        self._mark_cache_dirty()
+
+    def _new_cache_entry(
+        self,
+        url: str,
+        *,
+        source_path: str,
+        provider_path: str,
+        expiration: object = None,
+    ) -> LinkCacheEntry:
+        now = time()
+        provider_expiry, source = self._provider_expiry(expiration, url, now)
+        configured_expiry = now + self.config.cache_ttl
+        expires_at = configured_expiry
+        if provider_expiry is not None:
+            remaining = max(0.0, provider_expiry - now)
+            margin = min(float(EXPIRY_SAFETY_SECONDS), max(5.0, remaining * 0.05))
+            expires_at = min(configured_expiry, max(now + 1, provider_expiry - margin))
+        return {
+            "url": url,
+            "cachedAt": now,
+            "expiresAt": expires_at,
+            "providerExpiresAt": provider_expiry,
+            "expirySource": source,
+            "sourcePath": normalize_virtual_path(source_path),
+            "providerPath": normalize_virtual_path(provider_path) if provider_path else "",
+            "prewarmed": False,
+        }
+
+    @classmethod
+    def _provider_expiry(
+        cls,
+        official_expiration: object,
+        url: str,
+        now: float | None = None,
+    ) -> tuple[float | None, str]:
+        """Prefer OpenList's Link.Expiration, then infer common signed URL expiry."""
+        current = time() if now is None else now
+        official = cls._absolute_timestamp(official_expiration)
+        if official and official > current:
+            return official, "openlist"
+
+        try:
+            query = parse_qs(urlsplit(url).query, keep_blank_values=True)
+        except ValueError:
+            return None, "configured"
+
+        bases = [
+            cls._absolute_timestamp((query.get(name) or [None])[0])
+            for name in ("dstime", "time", "timestamp", "start_time")
+        ]
+        base = next((value for value in bases if value), current)
+        for name in ("expires", "expire", "expiration", "expiry"):
+            raw = (query.get(name) or [None])[0]
+            if raw is None:
+                continue
+            absolute = cls._absolute_timestamp(raw)
+            if absolute and absolute > current and absolute >= 1_000_000_000:
+                return absolute, "url"
+            duration = cls._duration_seconds(raw)
+            if duration and base + duration > current:
+                return base + duration, "url"
+
+        sign = (query.get("sign") or [""])[0]
+        if ":" in sign:
+            absolute = cls._absolute_timestamp(sign.rsplit(":", 1)[-1])
+            if absolute and absolute > current:
+                return absolute, "openlist-sign"
+        return None, "configured"
+
+    @staticmethod
+    def _absolute_timestamp(value: object) -> float | None:
+        if value is None or isinstance(value, bool):
+            return None
+        if isinstance(value, datetime):
+            parsed = value if value.tzinfo else value.replace(tzinfo=UTC)
+            return parsed.timestamp()
+        if isinstance(value, (int, float)):
+            number = float(value)
+            if not math.isfinite(number) or number <= 0:
+                return None
+            while number >= 100_000_000_000:
+                number /= 1_000
+            return number
+        text = str(value).strip()
+        if not text or text in {"0", "null", "None"}:
+            return None
+        try:
+            number = float(text)
+        except ValueError:
+            try:
+                parsed = datetime.fromisoformat(text)
+            except ValueError:
+                return None
+            if not parsed.tzinfo:
+                parsed = parsed.replace(tzinfo=UTC)
+            return parsed.timestamp()
+        if not math.isfinite(number) or number <= 0:
+            return None
+        while number >= 100_000_000_000:
+            number /= 1_000
+        return number
+
+    @staticmethod
+    def _duration_seconds(value: object) -> float | None:
+        text = str(value or "").strip().casefold()
+        if not text:
+            return None
+        try:
+            number = float(text)
+        except ValueError:
+            number = 0
+        if number > 0 and number < 1_000_000_000:
+            return number
+        matches = list(re.finditer(r"(\d+(?:\.\d+)?)(ms|[smhd])", text))
+        if not matches or "".join(match.group(0) for match in matches) != text:
+            return None
+        multipliers = {"ms": 0.001, "s": 1, "m": 60, "h": 3_600, "d": 86_400}
+        return sum(float(match.group(1)) * multipliers[match.group(2)] for match in matches)
+
+    def _cache_scope(self) -> str:
+        return f"{self.config.emby_url.rstrip('/')}\n{self.config.openlist_url.rstrip('/')}"
+
+    async def _restore_cache(self) -> None:
+        loader = getattr(self.repository, "load_emby302_link_cache", None)
+        if loader is None:
+            return
+        stored = await loader()
+        if not isinstance(stored, dict) or stored.get("scope") != self._cache_scope():
+            return
+        raw_entries = stored.get("entries")
+        if not isinstance(raw_entries, dict):
+            return
+        restored: list[tuple[str, LinkCacheEntry]] = []
+        now = time()
+        for key, raw in raw_entries.items():
+            if not isinstance(key, str) or not isinstance(raw, dict):
+                continue
+            url = str(raw.get("url") or "")
+            try:
+                expires_at = float(raw.get("expiresAt") or 0)
+            except (TypeError, ValueError):
+                continue
+            if (
+                not url.startswith(("http://", "https://"))
+                or not math.isfinite(expires_at)
+                or expires_at <= now
+            ):
+                continue
+            restored.append((key, dict(raw)))
+        for key, entry in sorted(restored, key=lambda row: float(row[1].get("cachedAt") or 0))[
+            -self.config.cache_max :
+        ]:
+            self._cache[key] = entry
+        self._restored_cache_entries = len(self._cache)
+        if self._restored_cache_entries:
+            self.runtime_logs.add(
+                category="gateway302",
+                level="success",
+                message=f"已从 SQLite 恢复 {self._restored_cache_entries} 条有效直链缓存",
+                nextExpiryAt=self._next_cache_expiry(),
+            )
+        if len(restored) != len(raw_entries):
+            self._cache_dirty = True
+            self._schedule_cache_persist()
+
+    def _mark_cache_dirty(self) -> None:
+        self._cache_dirty = True
+        self._schedule_cache_persist()
+
+    def _schedule_cache_persist(self) -> None:
+        if self._cache_persist_task and not self._cache_persist_task.done():
+            return
+        try:
+            self._cache_persist_task = asyncio.create_task(
+                self._persist_cache_debounced(),
+                name="strmflow-emby302-cache-persist",
+            )
+        except RuntimeError:
+            # snapshot() can be called while an event loop is shutting down;
+            # close() performs a final synchronous flush before SQLite closes.
+            self._cache_persist_task = None
+
+    async def _persist_cache_debounced(self) -> None:
+        try:
+            await asyncio.sleep(CACHE_PERSIST_DEBOUNCE_SECONDS)
+            while self._cache_dirty:
+                await self._persist_cache()
+                await asyncio.sleep(0)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - cache persistence must not break playback
+            self.runtime_logs.add(
+                category="gateway302",
+                level="warning",
+                message=f"302 直链缓存写入 SQLite 失败：{str(exc)[:240]}",
+            )
+        finally:
+            self._cache_persist_task = None
+
+    async def _persist_cache(self) -> None:
+        saver = getattr(self.repository, "save_emby302_link_cache", None)
+        if saver is None:
+            self._cache_dirty = False
+            return
+        self._cleanup_cache()
+        payload = {
+            "version": CACHE_POLICY_VERSION,
+            "scope": self._cache_scope(),
+            "savedAt": datetime.now(UTC).isoformat(),
+            "entries": {key: dict(entry) for key, entry in self._cache.items()},
+        }
+        self._cache_dirty = False
+        try:
+            await saver(payload)
+        except Exception:
+            self._cache_dirty = True
+            raise
+
+    async def _flush_cache(self) -> None:
+        task = self._cache_persist_task
+        if task and task is not asyncio.current_task() and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            self._cache_persist_task = None
+        if self._cache_dirty:
+            try:
+                await self._persist_cache()
+            except Exception as exc:  # noqa: BLE001 - shutdown/config updates remain available
+                self.runtime_logs.add(
+                    category="gateway302",
+                    level="warning",
+                    message=f"302 直链缓存持久化失败：{str(exc)[:240]}",
+                )
+
+    def _next_cache_expiry(self) -> str | None:
+        expirations = [float(entry.get("expiresAt") or 0) for entry in self._cache.values()]
+        if not expirations:
+            return None
+        return datetime.fromtimestamp(min(expirations), UTC).isoformat()
 
     async def _start_server(self) -> None:
         self._validate_runtime_config(self.config)

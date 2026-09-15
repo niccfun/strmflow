@@ -178,22 +178,25 @@ Docker 部署时建议让 StrmFlow、Emby 和 OpenList 加入同一个网络，�
 走 Docker 内网，不依赖宿主机映射端口；Emby API Key、OpenList Token 与路径密码仍从
 `.env` 读取。
 
-客户端连接网关端口后，STRM 视频流请求会查询 Emby 媒体源，再通过 OpenList 获取
-`raw_url` 并返回 HTTP 302。普通请求继续反向代理到 Emby。管理页会显示请求量、302
-次数、缓存命中率、反代数量、错误数量和最近跳转记录。
+客户端连接网关端口后，STRM 视频流请求会查询 Emby 媒体源，读取 STRM 内的
+OpenList 媒体路径，再通过 `/api/fs/link` 解析为网盘 CDN 直链并返回 HTTP 302。
+播放快速路径不再预先请求 `/api/fs/get`；每次媒体同步后会在后台预热最新 6 个
+STRM 直链。普通请求继续反向代理到 Emby。管理页会显示请求量、302 次数、缓存命中率、
+反代数量、错误数量和最近跳转记录。
 
 ```env
 EMBY_302_ENABLED=false
 EMBY_302_HOST=0.0.0.0
 EMBY_302_PORT=18096
-EMBY_302_CACHE_TTL=180
+EMBY_302_CACHE_TTL=21600
 EMBY_302_CACHE_MAX=1000
 EMBY_302_BODY_BUFFER_MAX=1048576
 EMBY_302_TIMEOUT_MS=30000
 ```
 
 管理接口为 `GET/PUT /api/emby302`，缓存清理接口为
-`POST /api/emby302/cache/clear`。
+`POST /api/emby302/cache/clear`。直链缓存会写入 SQLite，容器重启后继续有效；
+实际有效时间取“配置上限”与上游直链过期时间中的较小值，并预留安全余量。
 
 ## 百度网盘自动追更
 

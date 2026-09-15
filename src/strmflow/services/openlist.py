@@ -112,38 +112,44 @@ class OpenListClient:
         *,
         base_url: str = "",
         timeout: float | None = None,
+        verify_exists: bool = True,
     ) -> str:
         normalized = normalize_virtual_path(path)
         # 部分 OpenList 版本会为不存在的文件生成 /api/fs/link URL，随后访问该
-        # URL 才返回 HTTP 500。先读取文件元数据，明确区分“不存在”和上游故障。
-        try:
-            await self.request(
-                "POST",
-                "/api/fs/get",
-                {"path": normalized, "password": self.settings.openlist_path_password},
-                base_url=base_url,
-                timeout=timeout,
-            )
-        except AppError as exc:
-            if (
-                "object not found" in exc.message.casefold()
-                or "not found" in exc.message.casefold()
-            ):
-                raise AppError(404, "配置文件不存在") from exc
-            raise
+        # URL 才返回 HTTP 500。配置文件保留预检查；302 播放链路已经从 Emby
+        # 取得了确切路径，可跳过这次额外的 /api/fs/get 以缩短起播时间。
+        if verify_exists:
+            try:
+                await self.request(
+                    "POST",
+                    "/api/fs/get",
+                    {"path": normalized, "password": self.settings.openlist_path_password},
+                    base_url=base_url,
+                    timeout=timeout,
+                )
+            except AppError as exc:
+                if (
+                    "object not found" in exc.message.casefold()
+                    or "not found" in exc.message.casefold()
+                ):
+                    raise AppError(404, "配置文件不存在") from exc
+                raise
 
-        data = await self.request(
-            "POST",
-            "/api/fs/link",
-            {"path": normalized},
-            base_url=base_url,
-            timeout=timeout,
-        )
-        url = data.get("url") or data.get("URL") if isinstance(data, dict) else None
+        link = await self.direct_link_info(normalized, base_url=base_url, timeout=timeout)
+        url = link["url"]
         if not url:
             raise AppError(404, "配置文件不存在")
+        request_headers = {
+            name: str(values[0] if isinstance(values, list) and values else values)
+            for name, values in link["headers"].items()
+            if values is not None and (not isinstance(values, list) or values)
+        }
         try:
-            response = await self.http.get(url, timeout=timeout or self.settings.openlist_timeout)
+            response = await self.http.get(
+                url,
+                headers=request_headers,
+                timeout=timeout or self.settings.openlist_timeout,
+            )
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code == 404:
@@ -161,6 +167,16 @@ class OpenListClient:
         timeout: float | None = None,
     ) -> str:
         """Ask OpenList for the provider's direct URL without downloading the file."""
+        return (await self.direct_link_info(path, base_url=base_url, timeout=timeout))["url"]
+
+    async def direct_link_info(
+        self,
+        path: str,
+        *,
+        base_url: str = "",
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """Return the direct URL plus headers and provider expiry reported by OpenList."""
         data = await self.request(
             "POST",
             "/api/fs/link",
@@ -171,7 +187,13 @@ class OpenListClient:
         url = data.get("url") or data.get("URL") if isinstance(data, dict) else None
         if not url:
             raise AppError(404, "文件直链不存在")
-        return str(url)
+        raw_headers = data.get("header") or data.get("Header") or {}
+        headers = raw_headers if isinstance(raw_headers, dict) else {}
+        return {
+            "url": str(url),
+            "headers": headers,
+            "expiration": data.get("expiration") or data.get("Expiration"),
+        }
 
     async def write_text(self, path: str, text: str) -> None:
         normalized = normalize_virtual_path(path)

@@ -95,7 +95,7 @@ class Emby302ConfigUpdate(ApiModel):
     openlist_url: str | None = Field(default=None, max_length=2_048)
     host: str = Field(default="0.0.0.0", min_length=1, max_length=255)
     port: int = Field(default=18096, ge=1, le=65_535)
-    cache_ttl: int = Field(default=180, ge=1, le=86_400)
+    cache_ttl: int = Field(default=21_600, ge=1, le=86_400)
     cache_max: int = Field(default=1_000, ge=1, le=100_000)
     body_buffer_max: int = Field(default=1_048_576, ge=1_024, le=107_374_182_400)
     timeout_ms: int = Field(default=30_000, ge=1_000, le=600_000)

@@ -92,6 +92,7 @@ def build_container(
         path_config,
         runtime_logs,
         notifications,
+        emby302,
     )
     system_status = SystemStatusService(
         settings,

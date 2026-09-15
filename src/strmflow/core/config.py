@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     emby_302_enabled: bool = False
     emby_302_host: str = "0.0.0.0"
     emby_302_port: int = Field(default=18096, ge=1, le=65_535)
-    emby_302_cache_ttl: int = Field(default=180, ge=1, le=86_400)
+    emby_302_cache_ttl: int = Field(default=21_600, ge=1, le=86_400)
     emby_302_cache_max: int = Field(default=1_000, ge=1, le=100_000)
     emby_302_body_buffer_max: int = Field(default=1_048_576, ge=1_024, le=107_374_182_400)
     emby_302_timeout_ms: int = Field(default=30_000, ge=1_000, le=600_000)

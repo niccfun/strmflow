@@ -26,4 +26,4 @@ async def update_emby302(body: Emby302ConfigUpdate, request: Request) -> dict[st
 @router.post("/cache/clear")
 async def clear_emby302_cache(request: Request) -> dict[str, Any]:
     gateway = services(request).emby302
-    return ok({"cleared": gateway.clear_cache(), **gateway.snapshot()})
+    return ok({"cleared": await gateway.clear_cache(), **gateway.snapshot()})

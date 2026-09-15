@@ -31,6 +31,7 @@ from strmflow.utils.episodes import select_preferred_episodes
 from strmflow.utils.paths import join_virtual_path, relative_virtual_path, validate_folder_name
 
 if TYPE_CHECKING:
+    from strmflow.services.emby302 import Emby302Gateway
     from strmflow.services.notifications import WecomWebhookService
 
 VIDEO_EXTENSIONS = {
@@ -83,6 +84,7 @@ class BdpanAutomationService:
         path_config: PathConfigService,
         runtime_logs: RuntimeLogStore,
         notifications: WecomWebhookService | None = None,
+        emby302: Emby302Gateway | None = None,
     ) -> None:
         self.settings = settings
         self.cli = cli
@@ -93,6 +95,7 @@ class BdpanAutomationService:
         self.path_config = path_config
         self.runtime_logs = runtime_logs
         self.notifications = notifications
+        self.emby302 = emby302
         self.config = self._default_config()
         self.states: dict[str, dict[str, Any]] = {}
         self._scheduler: asyncio.Task[None] | None = None
@@ -896,6 +899,12 @@ class BdpanAutomationService:
                     targetPath=item.get("targetDir") or "由媒体配置解析",
                 )
                 result = await self.media.publish(PublishRequest(id=item_id))
+                if self.emby302:
+                    current_item = await self.media.get_item(item_id)
+                    self.emby302.schedule_prewarm(
+                        current_item,
+                        result.get("warmupPaths") or [],
+                    )
                 copied = int(result.get("copied") or 0)
                 new_files = len(result.get("newFiles") or [])
                 episode_count = int(result.get("episodeCount") or 0)

@@ -1020,8 +1020,9 @@
                 <input id="emby302PortInput" type="number" value="18096" min="1" max="65535" inputmode="numeric">
               </div>
               <div class="field">
-                <label for="emby302CacheTtlInput">直链缓存时间（秒）</label>
-                <input id="emby302CacheTtlInput" type="number" value="180" min="1" max="86400" inputmode="numeric">
+                <label for="emby302CacheTtlInput">直链缓存上限（秒）</label>
+                <input id="emby302CacheTtlInput" type="number" value="21600" min="1" max="86400" inputmode="numeric">
+                <p class="gateway-field-help">推荐 21600（6 小时）；实际到期时间会自动取上游直链与此上限的较小值。</p>
               </div>
               <div class="field">
                 <label for="emby302CacheMaxInput">最大缓存数量</label>
@@ -1980,7 +1981,7 @@
       elements.emby302OpenListUrl.value = config.openlistUrl || '';
       elements.emby302Host.value = config.host || '0.0.0.0';
       elements.emby302Port.value = String(config.port || 18096);
-      elements.emby302CacheTtl.value = String(config.cacheTtl || 180);
+      elements.emby302CacheTtl.value = String(config.cacheTtl || 21600);
       elements.emby302CacheMax.value = String(config.cacheMax || 1000);
       elements.emby302Timeout.value = String(config.timeoutMs || 30000);
       elements.emby302BodyLimit.value = String(config.bodyBufferMax || 1048576);
@@ -2002,7 +2003,13 @@
       elements.emby302RedirectsStat.textContent = Number(stats.redirects || 0).toLocaleString('zh-CN');
       elements.emby302LastRedirectStat.textContent = stats.lastRedirectAt ? '最近 ' + formatDate(stats.lastRedirectAt) : '暂无跳转';
       elements.emby302HitRateStat.textContent = String(stats.cacheHitRate || 0) + '%';
-      elements.emby302CacheStat.textContent = String(stats.cacheEntries || 0) + ' 个缓存 · 命中 ' + String(stats.cacheHits || 0) + ' 次';
+      const cacheSummary = [
+        String(stats.cacheEntries || 0) + ' 个持久化缓存',
+        '命中 ' + String(stats.cacheHits || 0) + ' 次',
+      ];
+      if (stats.prewarmedCacheEntries) cacheSummary.push('预热 ' + String(stats.prewarmedCacheEntries) + ' 个');
+      if (stats.nextCacheExpiryAt) cacheSummary.push('最近到期 ' + formatDate(stats.nextCacheExpiryAt));
+      elements.emby302CacheStat.textContent = cacheSummary.join(' · ');
       elements.emby302ProxyStat.textContent = Number(stats.proxyRequests || 0).toLocaleString('zh-CN');
       elements.emby302ErrorsStat.textContent = Number(stats.errors || 0).toLocaleString('zh-CN');
       elements.emby302LastRequestStat.textContent = stats.lastRequestAt ? '最近 ' + formatDate(stats.lastRequestAt) : '暂无请求';
