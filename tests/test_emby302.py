@@ -346,17 +346,83 @@ async def test_zero_progress_is_acknowledged_without_erasing_upstream_resume() -
     assert upstream_calls == 0
 
 
-async def test_stopped_event_restores_last_positive_progress_for_strm_resume() -> None:
-    calls: list[tuple[str, dict[str, Any], str]] = []
+async def test_invalid_runtime_and_stop_position_are_not_forwarded_to_emby() -> None:
+    calls: list[tuple[str, dict[str, Any]]] = []
 
     async def upstream(request: httpx.Request) -> httpx.Response:
+        calls.append((request.url.path, json.loads(request.content)))
+        return httpx.Response(204)
+
+    settings = Settings(app_password="secret", openlist_token="token", emby_api_key="key")
+    transport = httpx.MockTransport(upstream)
+    async with (
+        httpx.AsyncClient(transport=transport) as emby_http,
+        httpx.AsyncClient(transport=transport) as openlist_http,
+    ):
+        gateway = Emby302Gateway(
+            settings,
+            emby_http,
+            OpenListClient(settings, openlist_http),
+            MemorySettingsRepository(),  # type: ignore[arg-type]
+            RuntimeLogStore(),
+        )
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=gateway), base_url="http://gateway.test"
+        ) as client:
+            await client.post(
+                "/emby/Sessions/Playing/Progress",
+                json={
+                    "ItemId": "item-1",
+                    "PlaySessionId": "session-1",
+                    "PositionTicks": 20_000_000,
+                    "RunTimeTicks": 0,
+                },
+            )
+            await client.post(
+                "/emby/Sessions/Playing/Stopped",
+                json={
+                    "ItemId": "item-1",
+                    "PlaySessionId": "session-2",
+                    "PositionTicks": 0,
+                    "RunTimeTicks": 0,
+                },
+            )
+        await gateway.close()
+
+    assert calls[0][1]["PositionTicks"] == 20_000_000
+    assert "RunTimeTicks" not in calls[0][1]
+    assert "PositionTicks" not in calls[1][1]
+    assert "RunTimeTicks" not in calls[1][1]
+
+
+async def test_stopped_event_restores_last_positive_progress_for_strm_resume() -> None:
+    calls: list[tuple[str, str, dict[str, Any], str]] = []
+    user_id = "0123456789abcdef0123456789abcdef"
+    stored_user_data: dict[str, Any] = {
+        "PlaybackPositionTicks": 0,
+        "Played": True,
+        "PlayCount": 1,
+        "IsFavorite": False,
+    }
+
+    async def upstream(request: httpx.Request) -> httpx.Response:
+        nonlocal stored_user_data
+        body = json.loads(request.content) if request.content else {}
         calls.append(
             (
+                request.method,
                 request.url.path,
-                json.loads(request.content),
-                request.headers.get("x-emby-token", ""),
+                body,
+                request.headers.get("x-emby-authorization", ""),
             )
         )
+        if request.method == "GET" and request.url.path.endswith("/Items/item-1"):
+            return httpx.Response(
+                200,
+                json={"RunTimeTicks": None, "UserData": dict(stored_user_data)},
+            )
+        if request.method == "POST" and request.url.path.endswith("/Items/item-1/UserData"):
+            stored_user_data = body
         return httpx.Response(204)
 
     settings = Settings(app_password="secret", openlist_token="token", emby_api_key="key")
@@ -383,14 +449,18 @@ async def test_stopped_event_restores_last_positive_progress_for_strm_resume() -
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=gateway),
             base_url="http://gateway.test",
-            headers={"X-Emby-Token": "client-token"},
+            headers={
+                "X-Emby-Authorization": (
+                    f'Emby UserId="{user_id}", Client="Test", Token="client-token"'
+                )
+            },
         ) as client:
             progress = await client.post(
-                "/emby/emby/Sessions/Playing/Progress",
+                "/emby/emby/Sessions/Playing/Progress?api_key=client-token",
                 json={**common, "PositionTicks": progress_ticks},
             )
             stopped = await client.post(
-                "/emby/emby/Sessions/Playing/Stopped",
+                "/emby/emby/Sessions/Playing/Stopped?api_key=client-token",
                 json={**common, "PositionTicks": 0},
             )
         if gateway._playstate_tasks:
@@ -399,16 +469,16 @@ async def test_stopped_event_restores_last_positive_progress_for_strm_resume() -
 
     assert progress.status_code == 204
     assert stopped.status_code == 204
-    assert [call[0] for call in calls] == [
-        "/emby/Sessions/Playing/Progress",
-        "/emby/Sessions/Playing/Stopped",
-        "/emby/Sessions/Playing/Progress",
-        "/emby/Sessions/Playing/Stopped",
+    assert [(call[0], call[1]) for call in calls] == [
+        ("POST", "/emby/Sessions/Playing/Progress"),
+        ("POST", "/emby/Sessions/Playing/Stopped"),
+        ("GET", f"/emby/Users/{user_id}/Items/item-1"),
+        ("POST", f"/emby/Users/{user_id}/Items/item-1/UserData"),
+        ("GET", f"/emby/Users/{user_id}/Items/item-1"),
     ]
-    assert calls[0][1]["PositionTicks"] == progress_ticks
-    assert calls[1][1]["PositionTicks"] == 0
-    assert calls[2][1]["PositionTicks"] == progress_ticks
-    assert calls[3][1]["PositionTicks"] == progress_ticks
-    assert calls[2][1]["PlaySessionId"] != "session-1"
-    assert calls[2][1]["PlaySessionId"] == calls[3][1]["PlaySessionId"]
-    assert all(call[2] == "client-token" for call in calls)
+    assert calls[0][2]["PositionTicks"] == progress_ticks
+    assert calls[1][2]["PositionTicks"] == progress_ticks
+    assert calls[3][2]["PlaybackPositionTicks"] == progress_ticks
+    assert calls[3][2]["Played"] is False
+    assert calls[3][2]["PlayCount"] == 1
+    assert all(f'UserId="{user_id}"' in call[3] for call in calls)

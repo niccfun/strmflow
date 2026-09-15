@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import math
 import re
-import secrets
 import socket
 from collections import OrderedDict, deque
 from collections.abc import AsyncIterator
@@ -51,6 +51,8 @@ ITEM_PATH = re.compile(r"/(?:videos|items)/([^/]+)", re.IGNORECASE)
 PLAYBACK_INFO_PATH = re.compile(r"/items/[^/]+/playbackinfo$", re.IGNORECASE)
 PLAYING_PROGRESS_PATH = re.compile(r"/sessions/playing/progress$", re.IGNORECASE)
 PLAYING_STOPPED_PATH = re.compile(r"/sessions/playing/stopped$", re.IGNORECASE)
+USER_PATH = re.compile(r"/users/([0-9a-f-]{16,64})(?:/|$)", re.IGNORECASE)
+AUTH_USER_ID = re.compile(r"\bUserId\s*=\s*[\"']([^\"']+)[\"']", re.IGNORECASE)
 CACHE_POLICY_VERSION = 2
 LEGACY_CACHE_TTL = 180
 DEFAULT_CACHE_TTL = 6 * 60 * 60
@@ -121,7 +123,9 @@ class Emby302Gateway:
         self._cache_persist_task: asyncio.Task[None] | None = None
         self._prewarm_tasks: set[asyncio.Task[None]] = set()
         self._playstate_tasks: set[asyncio.Task[None]] = set()
-        self._playstate_positions: OrderedDict[str, tuple[int, float]] = OrderedDict()
+        self._playstate_positions: OrderedDict[str, tuple[int, int | None, float]] = OrderedDict()
+        self._playstate_users: OrderedDict[str, tuple[str, float]] = OrderedDict()
+        self._client_users: OrderedDict[str, tuple[str, float]] = OrderedDict()
         self._resolution_tasks: dict[str, asyncio.Task[LinkCacheEntry]] = {}
         self._restored_cache_entries = 0
         self._prewarmed_links = 0
@@ -198,6 +202,8 @@ class Emby302Gateway:
             await asyncio.gather(*tuple(self._playstate_tasks), return_exceptions=True)
         self._playstate_tasks.clear()
         self._playstate_positions.clear()
+        self._playstate_users.clear()
+        self._client_users.clear()
         async with self._lock:
             await self._stop_server()
         await self._flush_cache()
@@ -302,6 +308,7 @@ class Emby302Gateway:
                 await send({"type": "websocket.close", "code": 1011})
             return
         request = Request(scope, receive)
+        self._observe_user_request(request)
         started = perf_counter()
         self._total_requests += 1
         self._last_request_at = datetime.now(UTC)
@@ -657,6 +664,8 @@ class Emby302Gateway:
             return self._buffered_response(upstream)
 
         item_id = self._parse_item_id(request.url.path)
+        request_payload = await self._playstate_payload(request)
+        user_id = self._resolve_user_id(request, request_payload)
         sources = body.get("MediaSources")
         if isinstance(sources, list):
             for source in sources:
@@ -678,6 +687,12 @@ class Emby302Gateway:
                 )
                 if direct_stream_url:
                     source["DirectStreamUrl"] = direct_stream_url
+                    user_id = user_id or self._query_value(
+                        urlsplit(direct_stream_url).query, "UserId"
+                    )
+        play_session_id = self._payload_text(body, "PlaySessionId")
+        if play_session_id and user_id:
+            self._remember_playstate_user(play_session_id, user_id)
         return JSONResponse(
             body,
             status_code=upstream.status_code,
@@ -687,8 +702,13 @@ class Emby302Gateway:
     async def _handle_playing_progress(self, request: Request) -> tuple[Response, str]:
         payload = await self._playstate_payload(request)
         position = self._position_ticks(payload)
+        runtime = self._runtime_ticks(payload)
         item_id = self._payload_text(payload, "ItemId")
         session_key = self._playstate_key(payload)
+        play_session_id = self._payload_text(payload, "PlaySessionId")
+        user_id = self._resolve_user_id(request, payload)
+        if play_session_id and user_id:
+            self._remember_playstate_user(play_session_id, user_id)
 
         # Some clients report a zero position immediately after a CDN redirect.
         # Passing it upstream can erase a valid resume point for duration-less STRM
@@ -701,12 +721,24 @@ class Emby302Gateway:
                 eventType="playback-progress-ignored",
                 itemId=item_id,
                 positionSeconds=round(position / TICKS_PER_SECOND, 1),
+                runtimeSeconds=(
+                    round(runtime / TICKS_PER_SECOND, 1) if runtime is not None else None
+                ),
             )
             return Response(status_code=204), "ignored-zero-progress"
 
         if position is not None and session_key:
-            self._remember_playstate(session_key, position)
-        upstream = await self._proxy_buffered(request)
+            self._remember_playstate(session_key, position, runtime)
+        forwarded_payload = payload
+        if runtime == 0:
+            forwarded_payload = dict(payload)
+            forwarded_payload.pop("RunTimeTicks", None)
+        upstream = await self._proxy_buffered(
+            request,
+            content_override=(
+                self._json_bytes(forwarded_payload) if forwarded_payload is not payload else None
+            ),
+        )
         if position is not None:
             self.runtime_logs.add(
                 category="gateway302",
@@ -715,6 +747,9 @@ class Emby302Gateway:
                 eventType="playback-progress",
                 itemId=item_id,
                 positionSeconds=round(position / TICKS_PER_SECOND, 1),
+                runtimeSeconds=(
+                    round(runtime / TICKS_PER_SECOND, 1) if runtime is not None else None
+                ),
                 upstreamStatus=upstream.status_code,
             )
         return self._buffered_response(upstream), "playback-progress"
@@ -722,27 +757,52 @@ class Emby302Gateway:
     async def _handle_playing_stopped(self, request: Request) -> tuple[Response, str]:
         payload = await self._playstate_payload(request)
         reported_position = self._position_ticks(payload)
+        reported_runtime = self._runtime_ticks(payload)
         session_key = self._playstate_key(payload)
-        remembered_position = self._take_playstate(session_key) if session_key else None
+        remembered = self._take_playstate(session_key) if session_key else None
+        remembered_position = remembered[0] if remembered else None
+        remembered_runtime = remembered[1] if remembered else None
         position = reported_position
         if (position is None or position <= TICKS_PER_SECOND) and remembered_position is not None:
             position = remembered_position
-
-        # Preserve the client's original stop event, then write an isolated final
-        # checkpoint. Emby otherwise tends to reset duration-less STRM items to zero.
-        upstream = await self._proxy_buffered(request)
+        runtime = (
+            reported_runtime if reported_runtime and reported_runtime > 0 else remembered_runtime
+        )
         item_id = self._payload_text(payload, "ItemId")
+        play_session_id = self._payload_text(payload, "PlaySessionId")
+        user_id = self._resolve_user_id(request, payload)
+        if play_session_id:
+            self._playstate_users.pop(play_session_id, None)
+
+        # End the real session but never let a final zero overwrite an existing
+        # resume point. A remembered client position is substituted when available;
+        # otherwise position fields are omitted, which Emby accepts for session close.
+        forwarded_payload = dict(payload)
+        if position is not None and position > TICKS_PER_SECOND:
+            forwarded_payload["PositionTicks"] = position
+        else:
+            forwarded_payload.pop("PositionTicks", None)
+        if runtime is not None and runtime > 0:
+            forwarded_payload["RunTimeTicks"] = runtime
+        else:
+            forwarded_payload.pop("RunTimeTicks", None)
+        upstream = await self._proxy_buffered(
+            request,
+            content_override=self._json_bytes(forwarded_payload),
+        )
         if upstream.is_success and item_id and position is not None and position > TICKS_PER_SECOND:
             headers = self._request_headers(request)
             headers.pop("content-length", None)
             headers["content-type"] = "application/json"
             task = asyncio.create_task(
-                self._send_resume_checkpoint(
+                self._ensure_resume_position(
                     request.url.path,
                     request.url.query,
                     headers,
                     item_id,
                     position,
+                    runtime,
+                    user_id,
                 ),
                 name=f"strmflow-emby302-resume-{item_id}",
             )
@@ -755,6 +815,10 @@ class Emby302Gateway:
                 eventType="playback-resume-checkpoint",
                 itemId=item_id,
                 positionSeconds=round(position / TICKS_PER_SECOND, 1),
+                runtimeSeconds=(
+                    round(runtime / TICKS_PER_SECOND, 1) if runtime is not None else None
+                ),
+                userResolved=bool(user_id),
                 usedRememberedPosition=bool(
                     remembered_position is not None
                     and (reported_position is None or reported_position <= TICKS_PER_SECOND)
@@ -770,53 +834,124 @@ class Emby302Gateway:
                 positionSeconds=(
                     round(position / TICKS_PER_SECOND, 1) if position is not None else None
                 ),
+                runtimeSeconds=(
+                    round(runtime / TICKS_PER_SECOND, 1) if runtime is not None else None
+                ),
                 upstreamStatus=upstream.status_code,
             )
         return self._buffered_response(upstream), "playback-stopped"
 
-    async def _send_resume_checkpoint(
+    async def _ensure_resume_position(
         self,
         stopped_path: str,
         query: str,
         headers: dict[str, str],
         item_id: str,
         position: int,
+        runtime: int | None,
+        user_id: str,
     ) -> None:
-        progress_path = PLAYING_STOPPED_PATH.sub("/Sessions/Playing/Progress", stopped_path)
-        stopped_path = PLAYING_STOPPED_PATH.sub("/Sessions/Playing/Stopped", stopped_path)
-        checkpoint = {
-            "ItemId": item_id,
-            "PlaySessionId": secrets.token_hex(16),
-            "PositionTicks": position,
-        }
-        try:
-            for path in (progress_path, stopped_path):
-                response = await self.emby_http.post(
-                    self._upstream_url(path, query),
-                    headers=headers,
-                    content=json.dumps(checkpoint, separators=(",", ":")).encode(),
-                    timeout=self.config.timeout_ms / 1_000,
-                    follow_redirects=False,
-                )
-                if response.status_code != 204:
-                    raise httpx.HTTPStatusError(
-                        f"Emby returned {response.status_code}",
-                        request=response.request,
-                        response=response,
-                    )
-            self.runtime_logs.add(
-                category="gateway302",
-                level="success",
-                message=f"Emby 续播断点已保存：{self._format_position(position)}",
-                eventType="playback-resume-saved",
-                itemId=item_id,
-                positionSeconds=round(position / TICKS_PER_SECOND, 1),
-            )
-        except (httpx.HTTPError, ValueError) as exc:
+        if not user_id:
             self.runtime_logs.add(
                 category="gateway302",
                 level="error",
-                message=f"Emby 续播断点保存失败：{str(exc)[:240]}",
+                message="Emby 续播断点校正失败：没有识别到当前播放用户",
+                eventType="playback-resume-error",
+                itemId=item_id,
+                positionSeconds=round(position / TICKS_PER_SECOND, 1),
+            )
+            return
+
+        prefix = PLAYING_STOPPED_PATH.sub("", stopped_path).rstrip("/")
+        item_path = f"{prefix}/Users/{quote(user_id, safe='')}/Items/{quote(item_id, safe='')}"
+        item_url = self._upstream_url(item_path, query)
+        user_data_url = self._upstream_url(f"{item_path}/UserData", query)
+        try:
+            current = await self.emby_http.get(
+                item_url,
+                headers=headers,
+                timeout=self.config.timeout_ms / 1_000,
+                follow_redirects=False,
+            )
+            current.raise_for_status()
+            item = current.json()
+            if not isinstance(item, dict):
+                raise TypeError("Emby item response is not an object")
+            user_data = item.get("UserData")
+            if not isinstance(user_data, dict):
+                user_data = {}
+
+            known_runtime = runtime or self._item_runtime_ticks(item)
+            if self._is_playback_complete(position, known_runtime):
+                self.runtime_logs.add(
+                    category="gateway302",
+                    level="success",
+                    message="播放已到片尾，保留 Emby 的已看完状态",
+                    eventType="playback-completed",
+                    itemId=item_id,
+                    positionSeconds=round(position / TICKS_PER_SECOND, 1),
+                    runtimeSeconds=round(known_runtime / TICKS_PER_SECOND, 1),
+                )
+                return
+
+            saved_position = self._ticks_value(user_data.get("PlaybackPositionTicks")) or 0
+            if saved_position == position and user_data.get("Played") is False:
+                self.runtime_logs.add(
+                    category="gateway302",
+                    level="success",
+                    message=f"Emby 已正常记录续播断点：{self._format_position(position)}",
+                    eventType="playback-resume-saved",
+                    itemId=item_id,
+                    positionSeconds=round(position / TICKS_PER_SECOND, 1),
+                )
+                return
+
+            user_data = dict(user_data)
+            user_data["PlaybackPositionTicks"] = position
+            user_data["Played"] = False
+            if known_runtime:
+                user_data["PlayedPercentage"] = round(position / known_runtime * 100, 4)
+            update = await self.emby_http.post(
+                user_data_url,
+                headers=headers,
+                content=self._json_bytes(user_data),
+                timeout=self.config.timeout_ms / 1_000,
+                follow_redirects=False,
+            )
+            update.raise_for_status()
+
+            verified = await self.emby_http.get(
+                item_url,
+                headers=headers,
+                timeout=self.config.timeout_ms / 1_000,
+                follow_redirects=False,
+            )
+            verified.raise_for_status()
+            verified_body = verified.json()
+            verified_user_data = (
+                verified_body.get("UserData") if isinstance(verified_body, dict) else None
+            )
+            verified_position = self._ticks_value(
+                verified_user_data.get("PlaybackPositionTicks")
+                if isinstance(verified_user_data, dict)
+                else None
+            )
+            if verified_position != position:
+                raise ValueError(f"Emby verified position is {verified_position or 0}")
+            self.runtime_logs.add(
+                category="gateway302",
+                level="success",
+                message=f"Emby 续播断点已校正并验证：{self._format_position(position)}",
+                eventType="playback-resume-saved",
+                itemId=item_id,
+                positionSeconds=round(position / TICKS_PER_SECOND, 1),
+                previousPositionSeconds=round(saved_position / TICKS_PER_SECOND, 1),
+            )
+        except (httpx.HTTPError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            self.runtime_logs.add(
+                category="gateway302",
+                level="error",
+                message=f"Emby 续播断点保存失败：{self._safe_error(exc)}",
                 eventType="playback-resume-error",
                 itemId=item_id,
                 positionSeconds=round(position / TICKS_PER_SECOND, 1),
@@ -839,14 +974,54 @@ class Emby302Gateway:
 
     @staticmethod
     def _position_ticks(payload: dict[str, Any]) -> int | None:
-        value = payload.get("PositionTicks")
+        return Emby302Gateway._ticks_value(payload.get("PositionTicks"))
+
+    @staticmethod
+    def _runtime_ticks(payload: dict[str, Any]) -> int | None:
+        return Emby302Gateway._ticks_value(payload.get("RunTimeTicks"))
+
+    @staticmethod
+    def _ticks_value(value: object) -> int | None:
         if value is None or isinstance(value, bool):
             return None
         try:
-            position = int(value)
+            ticks = int(value)
         except (TypeError, ValueError, OverflowError):
             return None
-        return max(0, position)
+        return max(0, ticks)
+
+    @classmethod
+    def _item_runtime_ticks(cls, item: dict[str, Any]) -> int | None:
+        runtime = cls._ticks_value(item.get("RunTimeTicks"))
+        if runtime:
+            return runtime
+        sources = item.get("MediaSources")
+        if isinstance(sources, list):
+            for source in sources:
+                if not isinstance(source, dict):
+                    continue
+                runtime = cls._ticks_value(source.get("RunTimeTicks"))
+                if runtime:
+                    return runtime
+        return None
+
+    @staticmethod
+    def _is_playback_complete(position: int, runtime: int | None) -> bool:
+        return bool(runtime and runtime >= 60 * TICKS_PER_SECOND and position / runtime >= 0.95)
+
+    @staticmethod
+    def _json_bytes(value: dict[str, Any]) -> bytes:
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+    @staticmethod
+    def _safe_error(exc: Exception) -> str:
+        if isinstance(exc, httpx.HTTPStatusError):
+            return f"Emby 返回 HTTP {exc.response.status_code}"
+        if isinstance(exc, httpx.TimeoutException):
+            return "请求 Emby 超时"
+        if isinstance(exc, httpx.RequestError):
+            return "连接 Emby 失败"
+        return str(exc)[:240]
 
     def _playstate_key(self, payload: dict[str, Any]) -> str:
         item_id = self._payload_text(payload, "ItemId")
@@ -862,25 +1037,130 @@ class Emby302Gateway:
         )
         return f"{item_id}:{session}"
 
-    def _remember_playstate(self, key: str, position: int) -> None:
+    def _remember_playstate(self, key: str, position: int, runtime: int | None) -> None:
         self._cleanup_playstates()
-        self._playstate_positions[key] = (position, time())
+        self._playstate_positions[key] = (
+            position,
+            runtime if runtime and runtime > 0 else None,
+            time(),
+        )
         self._playstate_positions.move_to_end(key)
         while len(self._playstate_positions) > PLAYSTATE_CACHE_MAX:
             self._playstate_positions.popitem(last=False)
 
-    def _take_playstate(self, key: str) -> int | None:
+    def _take_playstate(self, key: str) -> tuple[int, int | None] | None:
         self._cleanup_playstates()
         stored = self._playstate_positions.pop(key, None)
-        return stored[0] if stored else None
+        return (stored[0], stored[1]) if stored else None
 
     def _cleanup_playstates(self) -> None:
         cutoff = time() - PLAYSTATE_CACHE_TTL
         while self._playstate_positions:
             first_key = next(iter(self._playstate_positions))
-            if self._playstate_positions[first_key][1] >= cutoff:
+            if self._playstate_positions[first_key][2] >= cutoff:
                 break
             self._playstate_positions.popitem(last=False)
+        self._cleanup_timed_mapping(self._playstate_users, cutoff)
+        self._cleanup_timed_mapping(self._client_users, cutoff)
+
+    @staticmethod
+    def _cleanup_timed_mapping(mapping: OrderedDict[str, tuple[str, float]], cutoff: float) -> None:
+        while mapping:
+            first_key = next(iter(mapping))
+            if mapping[first_key][1] >= cutoff:
+                break
+            mapping.popitem(last=False)
+
+    def _observe_user_request(self, request: Request) -> None:
+        match = USER_PATH.search(request.url.path)
+        if not match:
+            return
+        user_id = match.group(1)
+        identity = self._request_identity(request)
+        if identity:
+            self._remember_client_user(identity, user_id)
+
+    def _resolve_user_id(self, request: Request, payload: dict[str, Any]) -> str:
+        candidates = [
+            self._payload_text(payload, "UserId"),
+            self._query_value(request.url.query, "UserId"),
+            self._authorization_user_id(request),
+        ]
+        play_session_id = self._payload_text(payload, "PlaySessionId")
+        if play_session_id:
+            stored = self._playstate_users.get(play_session_id)
+            if stored:
+                candidates.append(stored[0])
+                self._playstate_users.move_to_end(play_session_id)
+        identity = self._request_identity(request)
+        if identity:
+            stored = self._client_users.get(identity)
+            if stored:
+                candidates.append(stored[0])
+                self._client_users.move_to_end(identity)
+        user_id = next(
+            (value for value in candidates if USER_PATH.fullmatch(f"/users/{value}")), ""
+        )
+        if user_id and identity:
+            self._remember_client_user(identity, user_id)
+        if user_id and play_session_id:
+            self._remember_playstate_user(play_session_id, user_id)
+        return user_id
+
+    @staticmethod
+    def _authorization_user_id(request: Request) -> str:
+        for name in ("x-emby-authorization", "authorization"):
+            match = AUTH_USER_ID.search(request.headers.get(name, ""))
+            if match:
+                return match.group(1).strip()
+        return ""
+
+    @staticmethod
+    def _query_value(query: str, name: str) -> str:
+        target = name.casefold()
+        return next(
+            (
+                value
+                for key, value in parse_qsl(query, keep_blank_values=True)
+                if key.casefold() == target
+            ),
+            "",
+        )
+
+    @staticmethod
+    def _request_identity(request: Request) -> str:
+        material = next(
+            (
+                value
+                for value in (
+                    request.headers.get("x-emby-token", ""),
+                    request.headers.get("x-mediabrowser-token", ""),
+                    request.headers.get("x-emby-authorization", ""),
+                    request.headers.get("authorization", ""),
+                    Emby302Gateway._query_value(request.url.query, "api_key"),
+                )
+                if value
+            ),
+            "",
+        )
+        if not material:
+            client = request.client.host if request.client else "unknown"
+            material = f"{client}\n{request.headers.get('user-agent', '')}"
+        return hashlib.sha256(material.encode("utf-8", "replace")).hexdigest()
+
+    def _remember_playstate_user(self, play_session_id: str, user_id: str) -> None:
+        self._cleanup_playstates()
+        self._playstate_users[play_session_id] = (user_id, time())
+        self._playstate_users.move_to_end(play_session_id)
+        while len(self._playstate_users) > PLAYSTATE_CACHE_MAX:
+            self._playstate_users.popitem(last=False)
+
+    def _remember_client_user(self, identity: str, user_id: str) -> None:
+        self._cleanup_playstates()
+        self._client_users[identity] = (user_id, time())
+        self._client_users.move_to_end(identity)
+        while len(self._client_users) > PLAYSTATE_CACHE_MAX:
+            self._client_users.popitem(last=False)
 
     @staticmethod
     def _format_position(position: int) -> str:
@@ -957,13 +1237,20 @@ class Emby302Gateway:
             background=BackgroundTask(upstream.aclose),
         )
 
-    async def _proxy_buffered(self, request: Request) -> httpx.Response:
+    async def _proxy_buffered(
+        self,
+        request: Request,
+        *,
+        content_override: bytes | None = None,
+    ) -> httpx.Response:
         self._proxy_requests += 1
         url = self._upstream_url(request.url.path, request.url.query)
         headers = self._request_headers(request)
         body = b""
         if request.method not in BODYLESS_METHODS:
-            body = await self._read_body(request)
+            body = (
+                content_override if content_override is not None else await self._read_body(request)
+            )
             headers["content-length"] = str(len(body))
         try:
             return await self.emby_http.request(
