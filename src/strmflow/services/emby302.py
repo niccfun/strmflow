@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from time import perf_counter, time
 from typing import Any
-from urllib.parse import parse_qs, parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qs, quote, unquote, urlsplit, urlunsplit
 
 import httpx
 import uvicorn
@@ -57,8 +57,6 @@ WEBSOCKET_MANAGED_HEADERS = {
 BODYLESS_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
 VIDEO_PATH = re.compile(r"/(?:videos)/([^/]+)/(?:stream|original)(?:\.[^/]*)?$", re.IGNORECASE)
 ITEM_PATH = re.compile(r"/(?:videos|items)/([^/]+)", re.IGNORECASE)
-PLAYBACK_INFO_PATH = re.compile(r"/items/[^/]+/playbackinfo$", re.IGNORECASE)
-PLAYSTATE_CONTROL_PATH = re.compile(r"/sessions/playing(?:/[^/]+)?$", re.IGNORECASE)
 CACHE_POLICY_VERSION = 2
 LEGACY_CACHE_TTL = 180
 DEFAULT_CACHE_TTL = 6 * 60 * 60
@@ -561,21 +559,11 @@ class Emby302Gateway:
         lower_path = path.casefold()
         if path == "/__strmflow302/health":
             return JSONResponse({"ok": True, "stats": self.snapshot()["stats"]}), "health"
-        if lower_path.endswith("/basehtmlplayer.js"):
-            return await self._handle_base_html_player(request), "patched-player"
-        if lower_path.endswith("/system/info"):
-            return await self._handle_system_info(request), "patched-system-info"
-        if PLAYBACK_INFO_PATH.search(lower_path):
-            return await self._handle_playback_info(request), "patched-playback-info"
-        if PLAYSTATE_CONTROL_PATH.search(lower_path):
-            return await self._proxy(request), "transparent-control"
-        if VIDEO_PATH.search(lower_path):
+        if request.method == "GET" and VIDEO_PATH.search(lower_path):
             return await self._handle_video_stream(request)
         return await self._proxy(request), "proxy"
 
     async def _handle_video_stream(self, request: Request) -> tuple[Response, str]:
-        if request.method != "GET":
-            return await self._proxy(request), "proxy"
         item_id = self._parse_item_id(request.url.path)
         if not item_id:
             return PlainTextResponse("Bad Request", status_code=400), "invalid-stream"
@@ -810,78 +798,6 @@ class Emby302Gateway:
             return value
         return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
 
-    async def _handle_base_html_player(self, request: Request) -> Response:
-        upstream = await self._proxy_buffered(request)
-        if not upstream.is_success:
-            return self._buffered_response(upstream)
-        modified = re.sub(
-            r'mediaSource\.IsRemote\s*&&\s*"DirectPlay"\s*===\s*playMethod\s*\?\s*null\s*:\s*"anonymous"',
-            "null",
-            upstream.text,
-        )
-        return Response(
-            modified,
-            status_code=upstream.status_code,
-            media_type="application/javascript",
-            headers=self._response_headers(upstream, strip_content=True),
-        )
-
-    async def _handle_system_info(self, request: Request) -> Response:
-        upstream = await self._proxy_buffered(request)
-        if not upstream.is_success:
-            return self._buffered_response(upstream)
-        try:
-            body = upstream.json()
-        except ValueError:
-            return self._buffered_response(upstream)
-        if isinstance(body, dict):
-            body["WebSocketPortNumber"] = self.config.port
-            body["HttpServerPortNumber"] = self.config.port
-        return JSONResponse(
-            body,
-            status_code=upstream.status_code,
-            headers=self._response_headers(upstream, strip_content=True),
-        )
-
-    async def _handle_playback_info(self, request: Request) -> Response:
-        upstream = await self._proxy_buffered(request)
-        if not upstream.is_success:
-            return self._buffered_response(upstream)
-        try:
-            body = upstream.json()
-        except ValueError:
-            return self._buffered_response(upstream)
-        if not isinstance(body, dict):
-            return self._buffered_response(upstream)
-
-        item_id = self._parse_item_id(request.url.path)
-        sources = body.get("MediaSources")
-        if isinstance(sources, list):
-            for source in sources:
-                if not isinstance(source, dict) or not self._is_strm_media_source(source):
-                    continue
-                if not self._extract_openlist_path(source):
-                    continue
-                source["SupportsDirectPlay"] = True
-                source["SupportsDirectStream"] = True
-                source["SupportsTranscoding"] = False
-                source.pop("TranscodingUrl", None)
-                source.pop("TranscodingSubProtocol", None)
-                source.pop("TranscodingContainer", None)
-                direct_stream_url = self._direct_stream_url(
-                    source.get("DirectStreamUrl"),
-                    request.url.query,
-                    item_id,
-                    str(source.get("Id") or ""),
-                )
-                if direct_stream_url:
-                    source["DirectStreamUrl"] = direct_stream_url
-        return JSONResponse(
-            body,
-            status_code=upstream.status_code,
-            headers=self._response_headers(upstream, strip_content=True),
-        )
-
     async def _get_emby_media_source(
         self, request_path: str, item_id: str, media_source_id: str | None
     ) -> dict[str, Any] | None:
@@ -952,35 +868,6 @@ class Emby302Gateway:
             background=BackgroundTask(upstream.aclose),
         )
 
-    async def _proxy_buffered(
-        self,
-        request: Request,
-        *,
-        content_override: bytes | None = None,
-    ) -> httpx.Response:
-        self._proxy_requests += 1
-        url = self._upstream_url(request.url.path, request.url.query)
-        headers = self._request_headers(request)
-        body = b""
-        if request.method not in BODYLESS_METHODS:
-            body = (
-                content_override if content_override is not None else await self._read_body(request)
-            )
-            headers["content-length"] = str(len(body))
-        try:
-            return await self.emby_http.request(
-                request.method,
-                url,
-                headers=headers,
-                content=body,
-                timeout=self.config.timeout_ms / 1_000,
-                follow_redirects=False,
-            )
-        except httpx.TimeoutException as exc:
-            raise AppError(504, "Emby 上游请求超时") from exc
-        except httpx.HTTPError as exc:
-            raise AppError(502, "无法连接 Emby 上游服务") from exc
-
     async def _read_body(self, request: Request) -> bytes:
         body = await request.body()
         if len(body) > self.config.body_buffer_max:
@@ -1009,16 +896,11 @@ class Emby302Gateway:
         headers["x-forwarded-proto"] = request.url.scheme
         return headers
 
-    def _response_headers(
-        self, upstream: httpx.Response, *, strip_content: bool = False
-    ) -> dict[str, str]:
-        blocked = set(HOP_BY_HOP_HEADERS)
-        if strip_content:
-            blocked.update({"content-length", "content-encoding", "content-type"})
+    def _response_headers(self, upstream: httpx.Response) -> dict[str, str]:
         return {
             name: self._header_value(name, value)
             for name, value in upstream.headers.items()
-            if name.casefold() not in blocked
+            if name.casefold() not in HOP_BY_HOP_HEADERS
         }
 
     @staticmethod
@@ -1032,14 +914,6 @@ class Emby302Gateway:
             # still require latin-1 here. Preserve the header while replacing only
             # the invalid octets instead of failing the entire playback request.
             return value.encode("latin-1", "replace").decode("latin-1")
-
-    def _buffered_response(self, upstream: httpx.Response) -> Response:
-        return Response(
-            upstream.content,
-            status_code=upstream.status_code,
-            headers=self._response_headers(upstream, strip_content=True),
-            media_type=upstream.headers.get("content-type"),
-        )
 
     def _upstream_url(self, path: str, query: str) -> str:
         base = urlsplit(self.config.emby_url)
@@ -1091,40 +965,6 @@ class Emby302Gateway:
     def _emby_prefix(path: str) -> str:
         match = re.match(r"^(.*)/(?:videos|items)/[^/]+", path, re.IGNORECASE)
         return match.group(1) if match else ""
-
-    @staticmethod
-    def _direct_stream_url(
-        upstream_value: object,
-        request_query: str,
-        item_id: str,
-        media_source_id: str,
-    ) -> str:
-        """Keep Emby's canonical stream path and every playback query parameter."""
-        raw = str(upstream_value or "").strip()
-        path = ""
-        query = ""
-        if raw:
-            try:
-                parsed = urlsplit(raw)
-                path = "/" + parsed.path.lstrip("/") if parsed.path else ""
-                query = parsed.query
-            except ValueError:
-                path = ""
-
-        if not path and item_id:
-            path = f"/videos/{quote(item_id, safe='')}/stream"
-            query = request_query
-        if not path:
-            return ""
-
-        params = list(parse_qsl(query, keep_blank_values=True))
-        names = {name.casefold() for name, _ in params}
-        if media_source_id and "mediasourceid" not in names:
-            params.append(("MediaSourceId", media_source_id))
-        if "static" not in names:
-            params.append(("Static", "true"))
-        encoded = urlencode(params)
-        return f"{path}?{encoded}" if encoded else path
 
     @staticmethod
     def _request_cache_key(item_id: str, media_source_id: str | None) -> str:

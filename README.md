@@ -181,10 +181,10 @@ Docker 部署时建议让 StrmFlow、Emby 和 OpenList 加入同一个网络，�
 客户端连接网关端口后，STRM 视频流请求会查询 Emby 媒体源，读取 STRM 内的
 OpenList 媒体路径，再通过 `/api/fs/link` 解析为网盘 CDN 直链并返回 HTTP 302。
 播放快速路径不再预先请求 `/api/fs/get`；每次媒体同步后会在后台预热最新 6 个
-STRM 直链。除视频流外的控制请求均按 demo 的方式透明代理到 Emby：请求方法、查询参数、
-认证 Header 和原始请求体保持不变，`Sessions/Playing`、`Progress`、`Stopped` 由 Emby
-原生记录；WebSocket 控制通道也会双向透传。管理页会显示请求量、302 次数、缓存命中率、
-反代数量、错误数量和最近跳转记录。
+STRM 直链。网关只特殊处理需要跳转的 GET 视频流请求，其余 HTTP 请求全部透明代理到
+Emby，请求方法、查询参数、认证 Header、原始请求体和上游响应均不改写；WebSocket
+控制通道也会双向透传。管理页会显示请求量、302 次数、缓存命中率、反代数量、错误数量
+和最近跳转记录。
 
 ```env
 EMBY_302_ENABLED=false

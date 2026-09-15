@@ -1,7 +1,6 @@
 import asyncio
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
@@ -247,25 +246,23 @@ async def test_prewarm_keeps_latest_six_episodes_and_persists() -> None:
     assert gateway.snapshot()["stats"]["prewarmedLinks"] == 6
 
 
-async def test_playback_info_preserves_canonical_stream_url_and_session_query() -> None:
+async def test_playback_info_is_proxied_without_rewriting_request_or_response() -> None:
+    request_body = b'{ "UserId": "user-1", "StartTimeTicks": 0 }'
+    response_body = (
+        b'{ "PlaySessionId": "session-1", "MediaSources": [{ "Id": "source-1", '
+        b'"SupportsDirectPlay": false, "SupportsTranscoding": true, '
+        b'"DirectStreamUrl": "/videos/item-1/original.strm?Static=false" }] }'
+    )
+
     async def upstream(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/emby/Items/item-1/PlaybackInfo"
+        assert request.url.query == b"api_key=client-token"
+        assert request.content == request_body
+        assert request.headers["x-test-control"] == "keep"
         return httpx.Response(
             200,
-            json={
-                "PlaySessionId": "session-1",
-                "MediaSources": [
-                    {
-                        "Id": "source-1",
-                        "Path": "http://openlist.test/d/TV/Demo/E01.strm",
-                        "IsRemote": True,
-                        "DirectStreamUrl": (
-                            "/videos/item-1/stream.strm?UserId=user-1&api_key=client-token"
-                            "&MediaSourceId=source-1&PlaySessionId=session-1&Static=true"
-                        ),
-                    }
-                ],
-            },
+            stream=httpx.ByteStream(response_body),
+            headers={"Content-Type": "application/json", "X-Test-Upstream": "keep"},
         )
 
     settings = Settings(app_password="secret", openlist_token="token", emby_api_key="key")
@@ -290,21 +287,16 @@ async def test_playback_info_preserves_canonical_stream_url_and_session_query() 
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=gateway), base_url="http://gateway.test"
         ) as client:
-            response = await client.post("/emby/Items/item-1/PlaybackInfo", json={})
+            response = await client.post(
+                "/emby/Items/item-1/PlaybackInfo?api_key=client-token",
+                content=request_body,
+                headers={"Content-Type": "application/json", "X-Test-Control": "keep"},
+            )
         await gateway.close()
 
     assert response.status_code == 200
-    direct_stream_url = response.json()["MediaSources"][0]["DirectStreamUrl"]
-    parsed = urlsplit(direct_stream_url)
-    assert parsed.path == "/videos/item-1/stream.strm"
-    assert "/emby/emby/" not in direct_stream_url.casefold()
-    assert parse_qs(parsed.query) == {
-        "UserId": ["user-1"],
-        "api_key": ["client-token"],
-        "MediaSourceId": ["source-1"],
-        "PlaySessionId": ["session-1"],
-        "Static": ["true"],
-    }
+    assert response.content == response_body
+    assert response.headers["x-test-upstream"] == "keep"
 
 
 async def test_playstate_control_requests_are_transparently_proxied() -> None:
