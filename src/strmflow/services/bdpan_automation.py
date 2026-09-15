@@ -741,31 +741,31 @@ class BdpanAutomationService:
                 result = await self.media.publish(PublishRequest(id=item_id))
                 copied = int(result.get("copied") or 0)
                 new_files = len(result.get("newFiles") or [])
+                episode_count = int(result.get("episodeCount") or 0)
+                total_files = int(result.get("totalFiles") or 0)
                 if copied and self.settings.emby_url and self.settings.emby_api_key:
                     await self.emby.refresh_library()
-                attempts = int(state.get("pendingSyncAttempts") or 0)
-                waiting_for_source = new_files == 0 and copied == 0 and attempts < 3
-                if waiting_for_source:
-                    state["pendingSyncAttempts"] = attempts + 1
-                    state["pendingSyncAt"] = (
-                        datetime.now(UTC) + timedelta(minutes=5 * (attempts + 1))
-                    ).isoformat()
-                    state["lastResult"] = "转存已提交，等待网盘文件落盘"
-                else:
-                    state["pendingSyncAt"] = None
-                    state["pendingSyncAttempts"] = 0
-                    state["lastResult"] = f"自动同步完成，新增 {new_files} 个文件"
-                    state["lastSyncedAt"] = self._iso_now()
+                # publish() raises when the source directory is still empty. Reaching
+                # this point therefore means the transferred files are visible. A user
+                # may have manually synchronized them while this task was waiting; in
+                # that case copied/newFiles are both zero, but the transfer is complete.
+                state["pendingSyncAt"] = None
+                state["pendingSyncAttempts"] = 0
+                current_count = episode_count or total_files
+                state["lastResult"] = (
+                    f"转存落盘并同步完成，当前 {current_count} 集"
+                    if episode_count
+                    else f"转存落盘并同步完成，共 {total_files} 个文件"
+                )
+                state["lastSyncedAt"] = self._iso_now()
                 state["lastError"] = ""
                 await self._save_states()
                 self._log(
-                    "info" if waiting_for_source else "success",
-                    (
-                        f"百度网盘转存等待落盘：{item['name']}"
-                        if waiting_for_source
-                        else f"百度网盘更新已同步：{item['name']}，新增 {new_files} 个文件"
-                    ),
+                    "success",
+                    f"百度网盘更新已同步：{item['name']}，当前 {current_count} 个媒体文件",
                     copied=copied,
+                    newFiles=new_files,
+                    episodeCount=episode_count,
                 )
             except Exception as exc:  # noqa: BLE001 - scheduler must retain failure state
                 attempts = int(state.get("pendingSyncAttempts") or 0) + 1

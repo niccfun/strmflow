@@ -59,6 +59,17 @@ class FakeMedia:
         return {"copied": 1, "newFiles": ["Season 02/交锋.S02E01.strm"]}
 
 
+class FakeAlreadySyncedMedia(FakeMedia):
+    async def publish(self, request: Any) -> dict[str, Any]:
+        self.published.append(request.id)
+        return {
+            "copied": 0,
+            "newFiles": [],
+            "episodeCount": 3,
+            "totalFiles": 3,
+        }
+
+
 class FakeImportMedia:
     def __init__(self) -> None:
         self.saved: Any = None
@@ -493,3 +504,33 @@ async def test_pending_transfer_triggers_openlist_publish_and_emby_refresh() -> 
     assert emby.refreshes == 1
     assert service.states["m1"]["pendingSyncAt"] is None
     assert service.states["m1"]["lastSyncedAt"]
+
+
+@pytest.mark.asyncio
+async def test_pending_transfer_finishes_when_user_already_synchronized_files() -> None:
+    settings = Settings(bdpan_binary="bdpan")
+    media = FakeAlreadySyncedMedia()
+    repository = FakeRuntimeRepository()
+    service = BdpanAutomationService(
+        settings,
+        FakeBdpanCli(settings),
+        repository,  # type: ignore[arg-type]
+        media,  # type: ignore[arg-type]
+        FakeOpenList(),  # type: ignore[arg-type]
+        FakeEmby(),  # type: ignore[arg-type]
+        FakePathConfig(),  # type: ignore[arg-type]
+        RuntimeLogStore(),
+    )
+    service.states["m1"] = {
+        "pendingSyncAttempts": 2,
+        "pendingSyncAt": "now",
+        "lastResult": "转存已提交，等待网盘文件落盘",
+    }
+
+    await service._sync_item("m1")
+
+    state = service.states["m1"]
+    assert state["pendingSyncAt"] is None
+    assert state["pendingSyncAttempts"] == 0
+    assert state["lastResult"] == "转存落盘并同步完成，当前 3 集"
+    assert state["lastSyncedAt"]
