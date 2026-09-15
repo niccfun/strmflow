@@ -58,6 +58,11 @@ class FakeMedia:
         self.published.append(request.id)
         return {"copied": 1, "newFiles": ["Season 02/交锋.S02E01.strm"]}
 
+    async def collect_files(self, root: str, *, tolerant: bool = False) -> list[str]:
+        assert root == self.item["sourcePath"]
+        assert tolerant is False
+        return ["Season 01/交锋.S01E01.strm"]
+
 
 class FakeAlreadySyncedMedia(FakeMedia):
     async def publish(self, request: Any) -> dict[str, Any]:
@@ -475,6 +480,40 @@ def test_share_candidates_deduplicate_same_episode_and_keep_quality_variant() ->
     assert candidates[0]["fileCount"] == 2
     assert candidates[0]["duplicateCount"] == 2
     assert candidates[0]["sampleFiles"] == ["S01E06 4K.strm", "S01E07 4K.strm"]
+
+
+def test_episode_repairs_restore_missing_and_upgrade_inferior_saved_variants() -> None:
+    shared = [
+        media_file("1001", "S01E04 4KHDR60FPS-GyWEB.mp4", size=1_200),
+        media_file("1002", "S01E05 4KHDR60FPS-GyWEB.mp4", size=1_300),
+        media_file("1003", "S01E06 4KHDR60FPS-GyWEB.mp4", size=1_100),
+    ]
+    saved = [
+        "S01E04 4K60FPS-GyWEB.strm",
+        "S01E05 4KHDR60FPS-GyWEB.strm",
+    ]
+
+    missing, upgrades = BdpanAutomationService._episode_repairs(shared, saved)
+
+    assert [file.name for file in missing] == ["S01E06 4KHDR60FPS-GyWEB.mp4"]
+    assert [file.name for file in upgrades] == ["S01E04 4KHDR60FPS-GyWEB.mp4"]
+
+
+def test_pending_transfer_requires_every_selected_episode_and_quality_to_land() -> None:
+    expected = [
+        "S01E04 4KHDR60FPS-GyWEB.mp4",
+        "S01E05 4KHDR60FPS-GyWEB.mp4",
+        "S01E06 4KHDR60FPS-GyWEB.mp4",
+    ]
+    saved = [
+        "S01E04 4K60FPS-GyWEB.strm",
+        "S01E05 4KHDR60FPS-GyWEB.strm",
+    ]
+
+    assert BdpanAutomationService._pending_missing_files(expected, saved) == [
+        "S01E04 4KHDR60FPS-GyWEB.mp4",
+        "S01E06 4KHDR60FPS-GyWEB.mp4",
+    ]
 
 
 def test_share_page_accepts_documented_payload_shape() -> None:

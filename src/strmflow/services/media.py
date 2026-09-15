@@ -280,8 +280,20 @@ class MediaService:
             if normalize_manifests
             else []
         )
-        sync_plan = [entry for entry in plan if entry in missing or entry in legacy_manifests]
         synced = set(context.get("syncedFiles") or [])
+        replacement_manifests = [
+            entry
+            for entry in plan
+            if entry["targetRel"] in target_files
+            and entry["sourceRel"] not in synced
+            and entry["targetRel"].casefold().endswith(".strm")
+        ]
+        sync_plan = list(
+            {
+                (entry["sourceRel"], entry["targetRel"]): entry
+                for entry in [*missing, *legacy_manifests, *replacement_manifests]
+            }.values()
+        )
         new_files = [name for name in files if name not in synced]
         missing_target_files = [entry["sourceRel"] for entry in missing]
         warmup_sources = (
@@ -301,6 +313,7 @@ class MediaService:
             sourceFileCount=len(files),
             existingTargetCount=len(target_files),
             pendingFileCount=len(missing),
+            replacementCount=len(replacement_manifests),
             manifestUpgradeCount=len(legacy_manifests),
             seasons=seasons,
             skippedDuplicateCount=len(duplicate_files),
@@ -332,6 +345,7 @@ class MediaService:
             newFileCount=len(new_files),
             episodeCount=episode_count,
             renamedCount=len(renamed),
+            replacementCount=len(replacement_manifests),
             manifestUpgradeCount=len(legacy_manifests),
             status=status,
             autoCompleted=auto_completed,
@@ -355,6 +369,7 @@ class MediaService:
             "refreshed": False,
             "renamedFiles": renamed,
             "normalizedStrmFiles": len(legacy_manifests),
+            "replacedStrmFiles": len(replacement_manifests),
             "skippedDuplicateFiles": duplicate_files,
             "skippedDuplicateCount": len(duplicate_files),
             "removedTargetDuplicateFiles": target_duplicates,

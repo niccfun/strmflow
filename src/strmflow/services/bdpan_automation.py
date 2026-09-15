@@ -27,7 +27,11 @@ from strmflow.services.emby import EmbyClient
 from strmflow.services.media import MediaService
 from strmflow.services.openlist import OpenListClient
 from strmflow.services.path_config import PathConfigService
-from strmflow.utils.episodes import select_preferred_episodes
+from strmflow.utils.episodes import (
+    media_quality_rank,
+    select_preferred_episodes,
+    source_season_episode,
+)
 from strmflow.utils.paths import join_virtual_path, relative_virtual_path, validate_folder_name
 
 if TYPE_CHECKING:
@@ -458,7 +462,7 @@ class BdpanAutomationService:
                     f"{share_url}\0{code}\0{candidate['prefix']}".encode()
                 ).hexdigest(),
                 "watchPrefix": candidate["prefix"],
-                "seen": sorted(candidate.get("allFingerprints") or []),
+                "seen": sorted(file.fingerprint for file in files),
                 "lastCheckedAt": now,
                 "lastTransferAt": now,
                 "nextCheckAt": self._next_check_at(),
@@ -467,6 +471,7 @@ class BdpanAutomationService:
                 "lastResult": f"已提交初始转存，共 {len(files)} 个媒体文件",
                 "pendingSyncAt": pending_at,
                 "pendingSyncAttempts": 0,
+                "pendingFiles": ["/".join(file.relative_parts) for file in files],
                 "submittedTasks": submitted_tasks,
             }
             await self._save_states()
@@ -611,8 +616,17 @@ class BdpanAutomationService:
             return {"itemId": item_id, "baseline": True, "fileCount": len(files), "newCount": 0}
 
         additions = [file for file in files if file.fingerprint not in previous]
-        additions.sort(key=lambda file: (file.modified, file.relative_parts))
-        if not additions:
+        missing_files, quality_upgrades, inventory_checked = await self._saved_episode_repairs(
+            item, files, state
+        )
+        transfer_candidates = {
+            file.fingerprint: file for file in [*additions, *missing_files, *quality_upgrades]
+        }
+        ordered_candidates = sorted(
+            transfer_candidates.values(),
+            key=lambda file: self._transfer_sort_key(file, item),
+        )
+        if not ordered_candidates:
             state.update(
                 {
                     "seen": sorted(previous | fingerprints),
@@ -620,7 +634,7 @@ class BdpanAutomationService:
                     "nextCheckAt": self._next_check_at(),
                     "lastError": "",
                     "failureCount": 0,
-                    "lastResult": "未发现新剧集",
+                    "lastResult": "未发现新剧集，本地集数完整",
                 }
             )
             await self._save_states()
@@ -630,17 +644,26 @@ class BdpanAutomationService:
                 itemId=item_id,
                 fileCount=len(files),
                 knownFileCount=len(previous | fingerprints),
+                localInventoryChecked=inventory_checked,
                 nextCheckAt=state["nextCheckAt"],
             )
             return {"itemId": item_id, "baseline": False, "fileCount": len(files), "newCount": 0}
 
-        selected = additions[: int(self.config["maxNewItems"])]
+        selected = ordered_candidates[: int(self.config["maxNewItems"])]
+        missing_fingerprints = {file.fingerprint for file in missing_files}
+        upgrade_fingerprints = {file.fingerprint for file in quality_upgrades}
+        notification_fingerprints = (
+            missing_fingerprints if inventory_checked else {file.fingerprint for file in additions}
+        )
         self._log(
             "success",
-            f"百度网盘检查到新剧集：{item['name']}，新增 {len(additions)} 个文件",
+            f"百度网盘检查到需转存内容：{item['name']}，共 {len(ordered_candidates)} 个文件",
             itemId=item_id,
+            shareAdditionCount=len(additions),
+            missingEpisodeCount=len(missing_files),
+            qualityUpgradeCount=len(quality_upgrades),
             selectedCount=len(selected),
-            deferredCount=max(0, len(additions) - len(selected)),
+            deferredCount=max(0, len(ordered_candidates) - len(selected)),
             files=self._file_names(selected),
         )
         if any(not file.fsid for file in selected):
@@ -691,6 +714,9 @@ class BdpanAutomationService:
         except (BdpanCliError, AppError) as exc:
             if transferred:
                 previous.update(file.fingerprint for file in transferred)
+                notification_count = sum(
+                    file.fingerprint in notification_fingerprints for file in transferred
+                )
                 state.update(
                     {
                         "seen": sorted(previous),
@@ -699,10 +725,11 @@ class BdpanAutomationService:
                             datetime.now(UTC) + timedelta(seconds=int(self.config["settleSeconds"]))
                         ).isoformat(),
                         "pendingSyncAttempts": 0,
+                        "pendingFiles": self._merge_pending_files(state, transferred),
                         "pendingNotificationNewCount": int(
                             state.get("pendingNotificationNewCount") or 0
                         )
-                        + len(transferred),
+                        + notification_count,
                         "submittedTasks": self._merge_submitted_tasks(state, submitted_tasks),
                     }
                 )
@@ -713,6 +740,10 @@ class BdpanAutomationService:
             raise
 
         previous.update(file.fingerprint for file in transferred)
+        notification_count = sum(
+            file.fingerprint in notification_fingerprints for file in transferred
+        )
+        transferred_upgrades = sum(file.fingerprint in upgrade_fingerprints for file in transferred)
         state.update(
             {
                 "seen": sorted(previous),
@@ -721,13 +752,17 @@ class BdpanAutomationService:
                 "nextCheckAt": self._next_check_at(),
                 "lastError": "",
                 "failureCount": 0,
-                "lastResult": f"已提交 {len(transferred)} 个新媒体文件",
+                "lastResult": (
+                    f"已提交 {len(transferred)} 个媒体文件"
+                    f"（补齐 {notification_count} 集、质量升级 {transferred_upgrades} 集）"
+                ),
                 "pendingSyncAt": (
                     datetime.now(UTC) + timedelta(seconds=int(self.config["settleSeconds"]))
                 ).isoformat(),
                 "pendingSyncAttempts": 0,
+                "pendingFiles": self._merge_pending_files(state, transferred),
                 "pendingNotificationNewCount": int(state.get("pendingNotificationNewCount") or 0)
-                + len(transferred),
+                + notification_count,
                 "submittedTasks": self._merge_submitted_tasks(state, submitted_tasks),
             }
         )
@@ -737,6 +772,8 @@ class BdpanAutomationService:
             f"百度网盘发现更新：{item['name']}，已提交 {len(transferred)} 个文件",
             itemId=item_id,
             newCount=len(transferred),
+            recoveredEpisodeCount=notification_count,
+            qualityUpgradeCount=transferred_upgrades,
             nextCheckAt=state["nextCheckAt"],
             pendingSyncAt=state["pendingSyncAt"],
         )
@@ -746,6 +783,8 @@ class BdpanAutomationService:
             "baseline": False,
             "fileCount": len(files),
             "newCount": len(additions),
+            "recoveredCount": notification_count,
+            "qualityUpgradeCount": transferred_upgrades,
             "submittedCount": len(transferred),
         }
 
@@ -899,8 +938,8 @@ class BdpanAutomationService:
                     targetPath=item.get("targetDir") or "由媒体配置解析",
                 )
                 result = await self.media.publish(PublishRequest(id=item_id))
+                current_item = await self.media.get_item(item_id)
                 if self.emby302:
-                    current_item = await self.media.get_item(item_id)
                     self.emby302.schedule_prewarm(
                         current_item,
                         result.get("warmupPaths") or [],
@@ -916,12 +955,37 @@ class BdpanAutomationService:
                         f"Emby 媒体库刷新已触发：{item['name']}",
                         itemId=item_id,
                     )
-                # publish() raises when the source directory is still empty. Reaching
-                # this point therefore means the transferred files are visible. A user
-                # may have manually synchronized them while this task was waiting; in
-                # that case copied/newFiles are both zero, but the transfer is complete.
+                # A successful directory scan alone does not prove that every file in
+                # an asynchronous bdpan task has landed. Compare the submitted episode
+                # identities and quality with publish()'s saved source inventory before
+                # marking the operation complete.
                 state["pendingSyncAt"] = None
                 state["pendingSyncAttempts"] = 0
+                expected_files = [str(value) for value in state.get("pendingFiles") or []]
+                missing_after_sync = self._pending_missing_files(
+                    expected_files,
+                    [str(value) for value in current_item.get("syncedFiles") or []],
+                    default_season=int(current_item.get("season") or 1),
+                    media_type=str(current_item.get("mediaType") or "tv"),
+                )
+                state.pop("pendingFiles", None)
+                if missing_after_sync:
+                    state["nextCheckAt"] = (datetime.now(UTC) + timedelta(minutes=5)).isoformat()
+                    state["lastResult"] = (
+                        f"转存落盘不完整，仍缺 {len(missing_after_sync)} 集，已安排自动补齐"
+                    )
+                    state["lastError"] = "等待补齐：" + "、".join(missing_after_sync[:8])
+                    state.pop("pendingNotificationNewCount", None)
+                    await self._save_states()
+                    self._log(
+                        "warning",
+                        f"百度网盘转存落盘不完整：{item['name']}，仍缺 {len(missing_after_sync)} 集",
+                        itemId=item_id,
+                        missingFiles=missing_after_sync[:20],
+                        nextCheckAt=state["nextCheckAt"],
+                    )
+                    self._wake.set()
+                    return
                 current_count = episode_count or total_files
                 notification_count = int(state.pop("pendingNotificationNewCount", 0) or 0)
                 state["lastResult"] = (
@@ -1270,6 +1334,90 @@ class BdpanAutomationService:
             default_season=int(item.get("season") or 1),
         )
 
+    async def _saved_episode_repairs(
+        self,
+        item: dict[str, Any],
+        files: list[ShareMediaFile],
+        state: dict[str, Any],
+    ) -> tuple[list[ShareMediaFile], list[ShareMediaFile], bool]:
+        """Find missing episodes and better variants already hidden by the watch baseline."""
+        if item.get("mediaType") != "tv" or state.get("pendingSyncAt"):
+            return [], [], False
+        collect_files = getattr(self.media, "collect_files", None)
+        if not callable(collect_files):
+            return [], [], False
+        try:
+            saved_files = await collect_files(item["sourcePath"])
+        except (AppError, TypeError) as exc:
+            self._log(
+                "warning",
+                f"读取已保存剧集清单失败，暂只按分享增量检查：{str(exc)[:240]}",
+                itemId=item.get("id") or "",
+            )
+            return [], [], False
+        missing, upgrades = self._episode_repairs(
+            files,
+            saved_files,
+            default_season=int(item.get("season") or 1),
+        )
+        if missing or upgrades:
+            self._log(
+                "warning" if missing else "info",
+                f"本地剧集完整性检查：{item['name']}，缺失 {len(missing)} 集、可升级 {len(upgrades)} 集",
+                itemId=item.get("id") or "",
+                savedFileCount=len(saved_files),
+                missingFiles=self._file_names(missing),
+                upgradeFiles=self._file_names(upgrades),
+            )
+        return missing, upgrades, True
+
+    @staticmethod
+    def _episode_repairs(
+        share_files: list[ShareMediaFile],
+        saved_files: list[str],
+        *,
+        default_season: int = 1,
+    ) -> tuple[list[ShareMediaFile], list[ShareMediaFile]]:
+        saved_by_episode: dict[tuple[int, int], list[str]] = {}
+        for path in saved_files:
+            season, episode = source_season_episode(path)
+            if episode is None:
+                continue
+            saved_by_episode.setdefault((season or default_season, episode), []).append(path)
+
+        missing: list[ShareMediaFile] = []
+        upgrades: list[ShareMediaFile] = []
+        for file in share_files:
+            path = "/".join(file.relative_parts)
+            season, episode = source_season_episode(path)
+            if episode is None:
+                continue
+            existing = saved_by_episode.get((season or default_season, episode), [])
+            if not existing:
+                missing.append(file)
+                continue
+            # The saved object is a small STRM manifest, so its byte size is not
+            # comparable with the shared video. Compare only filename quality
+            # characteristics; current-share selection still uses video size as
+            # the final tie breaker between otherwise identical variants.
+            incoming_rank = media_quality_rank(path)[:-1]
+            saved_rank = max(media_quality_rank(value)[:-1] for value in existing)
+            if incoming_rank > saved_rank:
+                upgrades.append(file)
+        return missing, upgrades
+
+    @staticmethod
+    def _transfer_sort_key(
+        file: ShareMediaFile, item: dict[str, Any]
+    ) -> tuple[int, int, str, tuple[str, ...]]:
+        season, episode = source_season_episode("/".join(file.relative_parts))
+        return (
+            season or int(item.get("season") or 1),
+            episode if episode is not None else 1_000_000,
+            file.modified,
+            tuple(part.casefold() for part in file.relative_parts),
+        )
+
     @staticmethod
     def _files_for_prefix(files: list[ShareMediaFile], prefix: str) -> list[ShareMediaFile]:
         selected: list[ShareMediaFile] = []
@@ -1339,6 +1487,59 @@ class BdpanAutomationService:
             dict(value) for value in state.get("submittedTasks") or [] if isinstance(value, dict)
         ]
         return [*previous, *submitted][-20:]
+
+    @staticmethod
+    def _merge_pending_files(state: dict[str, Any], submitted: list[ShareMediaFile]) -> list[str]:
+        return list(
+            dict.fromkeys(
+                [
+                    *(str(value) for value in state.get("pendingFiles") or []),
+                    *("/".join(file.relative_parts) for file in submitted),
+                ]
+            )
+        )
+
+    @staticmethod
+    def _pending_missing_files(
+        expected_files: list[str],
+        saved_files: list[str],
+        *,
+        default_season: int = 1,
+        media_type: str = "tv",
+    ) -> list[str]:
+        if not expected_files:
+            return []
+        if media_type != "tv":
+            saved_stems = {PurePosixPath(value).stem.casefold() for value in saved_files}
+            return [
+                PurePosixPath(value).name
+                for value in expected_files
+                if PurePosixPath(value).stem.casefold() not in saved_stems
+            ]
+
+        saved_by_episode: dict[tuple[int, int], tuple[int, ...]] = {}
+        for value in saved_files:
+            season, episode = source_season_episode(value)
+            if episode is None:
+                continue
+            identity = (season or default_season, episode)
+            rank = media_quality_rank(value)[:-1]
+            saved_by_episode[identity] = max(saved_by_episode.get(identity, rank), rank)
+
+        missing: list[str] = []
+        for value in expected_files:
+            season, episode = source_season_episode(value)
+            if episode is None:
+                if not any(
+                    PurePosixPath(saved).stem.casefold() == PurePosixPath(value).stem.casefold()
+                    for saved in saved_files
+                ):
+                    missing.append(PurePosixPath(value).name)
+                continue
+            saved_rank = saved_by_episode.get((season or default_season, episode))
+            if saved_rank is None or saved_rank < media_quality_rank(value)[:-1]:
+                missing.append(PurePosixPath(value).name)
+        return missing
 
     @staticmethod
     def _strip_single_wrapper(files: list[ShareMediaFile]) -> list[ShareMediaFile]:

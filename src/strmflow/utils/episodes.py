@@ -55,9 +55,9 @@ def media_quality_rank(source: str, size: int = 0) -> tuple[int, ...]:
     resolution = _highest_match(
         name,
         (
-            (4320, (r"(?<![a-z0-9])(?:8k|4320p?)(?![a-z])",)),
-            (2160, (r"(?<![a-z0-9])(?:4k|uhd|2160p?)(?![a-z])",)),
-            (1440, (r"(?<![a-z0-9])(?:2k|1440p?)(?![a-z])",)),
+            (4320, (r"(?<![a-z0-9])(?:8k|4320p?)(?=$|[^a-z0-9]|hdr|dovi|dv|\d+fps)",)),
+            (2160, (r"(?<![a-z0-9])(?:4k|uhd|2160p?)(?=$|[^a-z0-9]|hdr|dovi|dv|\d+fps)",)),
+            (1440, (r"(?<![a-z0-9])(?:2k|1440p?)(?=$|[^a-z0-9]|hdr|dovi|dv|\d+fps)",)),
             (1080, (r"\b1080[pi]?\b",)),
             (720, (r"\b720p?\b",)),
             (576, (r"\b576p?\b",)),
@@ -78,10 +78,10 @@ def media_quality_rank(source: str, size: int = 0) -> tuple[int, ...]:
     dynamic_range = _highest_match(
         name,
         (
-            (4, (r"\b(?:dolby[ ._-]?vision|dovi|dv)\b",)),
-            (3, (r"\b(?:hdr10\+|hdr10plus)\b",)),
-            (2, (r"\b(?:hdr10|hdr)\b",)),
-            (1, (r"\b(?:sdr)\b",)),
+            (4, (r"(?:dolby[ ._-]?vision|dovi|(?<![a-z])dv)(?=$|[^a-z])",)),
+            (3, (r"hdr10(?:\+|plus)",)),
+            (2, (r"hdr(?:10)?",)),
+            (1, (r"sdr",)),
         ),
     )
     codec = _highest_match(
@@ -97,10 +97,10 @@ def media_quality_rank(source: str, size: int = 0) -> tuple[int, ...]:
     canonical_name = 0 if re.search(r"(?:\(\d+\)|[ ._-](?:copy|副本)|-\d+)$", name) else 1
     return (
         resolution,
-        source_quality,
         dynamic_range,
-        codec,
         frame_rate,
+        source_quality,
+        codec,
         canonical_name,
         max(0, int(size or 0)),
     )

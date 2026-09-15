@@ -2,7 +2,7 @@ import pytest
 
 from strmflow.core.config import Settings
 from strmflow.services.media import MediaService
-from strmflow.utils.episodes import select_preferred_episodes
+from strmflow.utils.episodes import media_quality_rank, select_preferred_episodes
 
 
 class VirtualStrmOpenList:
@@ -47,6 +47,19 @@ def test_duplicate_episode_prefers_canonical_high_quality_file() -> None:
         "S01E06 1080p WEB-DL.strm",
         "S01E06 4K WEB-DL(1).strm",
     }
+
+
+def test_compact_quality_tags_prefer_4k_hdr_60fps() -> None:
+    files = [
+        "S01E04 4K60FPS-GyWEB.strm",
+        "S01E04 4KHDR60FPS-GyWEB.strm",
+        "S01E04 1080P HDR60FPS.strm",
+    ]
+    preferred, duplicates = select_preferred_episodes(files, path=lambda value: value)
+    assert preferred == ["S01E04 4KHDR60FPS-GyWEB.strm"]
+    assert len(duplicates) == 2
+    assert media_quality_rank("4KHDR60FPS.mp4") > media_quality_rank("4KHDR30FPS.mp4")
+    assert media_quality_rank("4KHDR30FPS.mp4") > media_quality_rank("4K60FPS.mp4")
 
 
 def test_episode_count_deduplicates_same_episode_suffixes() -> None:
