@@ -608,7 +608,10 @@ class Emby302Gateway:
                 decoded = unquote(urlsplit(source_path).path)
             except ValueError:
                 return None
-            match = re.match(r"^/d(/.*)$", decoded, re.IGNORECASE)
+            # OpenList commonly exposes STRM files through either /d/... or
+            # the public /p/... path. Both prefixes identify the same virtual
+            # file and should be resolved through the OpenList API.
+            match = re.match(r"^/(?:d|p)(/.*)$", decoded, re.IGNORECASE)
             return normalize_virtual_path(match.group(1)) if match else None
         if self._is_strm_media_source(source) and source_path.startswith("/"):
             return normalize_virtual_path(source_path)

@@ -22,6 +22,15 @@ def test_video_path_accepts_emby_strm_suffix() -> None:
     assert Emby302Gateway._parse_item_id("/emby/videos/3771/stream.strm") == "3771"
 
 
+def test_extract_openlist_path_accepts_public_p_prefix() -> None:
+    source = {
+        "Path": "https://openlist.test/p/temp_strm/TV/%E7%99%BE%E8%8A%B1%E6%9D%80/S01E01.strm",
+        "IsRemote": True,
+    }
+    gateway = Emby302Gateway.__new__(Emby302Gateway)
+    assert gateway._extract_openlist_path(source) == "/temp_strm/TV/百花杀/S01E01.strm"
+
+
 def test_response_header_unicode_is_latin1_safe() -> None:
     assert Emby302Gateway._header_value("content-disposition", "文件名=百花杀") == "???=???"
 
