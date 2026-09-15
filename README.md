@@ -268,6 +268,8 @@ POST /api/bdpan/share/import
 - 链接失效：百度返回 `errno=13004`（分享失效、取消或不存在）时发送，同一链接在恢复
   前只通知一次。
 
+通知使用企业微信普通 `text` 消息，并通过简洁的小图标区分媒体、更新数量、状态和时间。
+
 只接受企业微信官方 `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...` 地址。
 Webhook 密钥保存在 SQLite，API 和页面只返回末四位掩码；运行日志也会隐藏 `key`。
 设置页提供测试发送和清除 Webhook 操作。接口如下：

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import html
 import re
 from datetime import datetime
 from typing import Any
@@ -85,9 +84,7 @@ class WecomWebhookService:
             raise AppError(409, "请先保存企业微信机器人 Webhook 地址")
         await self._send(
             "test",
-            "### StrmFlow 通知测试\n"
-            '> 状态：<font color="info">Webhook 配置有效</font>\n'
-            f"> 时间：{self._local_time()}",
+            f"🔔 StrmFlow 通知测试\n✅ 状态：Webhook 配置有效\n🕒 时间：{self._local_time()}",
             raise_error=True,
         )
         return {"sent": True, "message": "测试通知已发送"}
@@ -102,11 +99,11 @@ class WecomWebhookService:
             return False
         name = self._safe_text(item.get("name") or item.get("title") or "未命名媒体")
         content = (
-            "### StrmFlow 剧集更新\n"
-            f"> 媒体：**{name}**\n"
-            f'> 本次新增：<font color="info">{max(0, int(new_count))} 集</font>\n'
-            f"> 当前已同步：{max(0, int(current_count))} 集\n"
-            f"> 时间：{self._local_time()}"
+            "🎬 StrmFlow 剧集更新\n"
+            f"📺 媒体：{name}\n"
+            f"🆕 本次新增：{max(0, int(new_count))} 集\n"
+            f"📚 当前已同步：{max(0, int(current_count))} 集\n"
+            f"🕒 时间：{self._local_time()}"
         )
         return await self._send("episode_update", content)
 
@@ -116,11 +113,11 @@ class WecomWebhookService:
         name = self._safe_text(item.get("name") or item.get("title") or "未命名媒体")
         reason = self._safe_text(str(error)[:200] or "分享链接已失效")
         content = (
-            "### StrmFlow 分享链接失效\n"
-            f"> 媒体：**{name}**\n"
-            f'> 状态：<font color="warning">需要更换分享链接</font>\n'
-            f"> 原因：{reason}\n"
-            f"> 时间：{self._local_time()}"
+            "⚠️ StrmFlow 分享链接失效\n"
+            f"📺 媒体：{name}\n"
+            "🔗 状态：需要更换分享链接\n"
+            f"📝 原因：{reason}\n"
+            f"🕒 时间：{self._local_time()}"
         )
         return await self._send("link_invalid", content)
 
@@ -128,7 +125,7 @@ class WecomWebhookService:
         try:
             response = await self.http.post(
                 str(self.config["webhookUrl"]),
-                json={"msgtype": "markdown", "markdown": {"content": content}},
+                json={"msgtype": "text", "text": {"content": content}},
                 timeout=10,
             )
             response.raise_for_status()
@@ -208,7 +205,7 @@ class WecomWebhookService:
 
     @staticmethod
     def _safe_text(value: object) -> str:
-        return html.escape(str(value or "").replace("\n", " ").replace("\r", " "))
+        return str(value or "").replace("\n", " ").replace("\r", " ")
 
     @staticmethod
     def _local_time() -> str:

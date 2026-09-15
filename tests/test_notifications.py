@@ -61,7 +61,8 @@ async def test_wecom_config_is_persisted_but_secret_is_masked() -> None:
     assert sent["sent"] is True
     assert len(requests) == 1
     assert requests[0].url == WEBHOOK
-    assert b'"msgtype":"markdown"' in requests[0].content
+    assert b'"msgtype":"text"' in requests[0].content
+    assert "🔔 StrmFlow 通知测试" in requests[0].content.decode()
 
 
 @pytest.mark.asyncio
