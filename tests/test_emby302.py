@@ -1,6 +1,8 @@
 import asyncio
+import json
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
@@ -244,3 +246,169 @@ async def test_prewarm_keeps_latest_six_episodes_and_persists() -> None:
     cached_paths = {key.removeprefix("path:") for key in (repository.link_cache or {})["entries"]}
     assert cached_paths == set(paths[2:])
     assert gateway.snapshot()["stats"]["prewarmedLinks"] == 6
+
+
+async def test_playback_info_preserves_canonical_stream_url_and_session_query() -> None:
+    async def upstream(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/emby/Items/item-1/PlaybackInfo"
+        return httpx.Response(
+            200,
+            json={
+                "PlaySessionId": "session-1",
+                "MediaSources": [
+                    {
+                        "Id": "source-1",
+                        "Path": "http://openlist.test/d/TV/Demo/E01.strm",
+                        "IsRemote": True,
+                        "DirectStreamUrl": (
+                            "/videos/item-1/stream.strm?UserId=user-1&api_key=client-token"
+                            "&MediaSourceId=source-1&PlaySessionId=session-1&Static=true"
+                        ),
+                    }
+                ],
+            },
+        )
+
+    settings = Settings(app_password="secret", openlist_token="token", emby_api_key="key")
+    repository = MemorySettingsRepository()
+    repository.value = {
+        "embyUrl": "http://emby.test/emby",
+        "openlistUrl": "http://openlist.test",
+    }
+    transport = httpx.MockTransport(upstream)
+    async with (
+        httpx.AsyncClient(transport=transport) as emby_http,
+        httpx.AsyncClient(transport=transport) as openlist_http,
+    ):
+        gateway = Emby302Gateway(
+            settings,
+            emby_http,
+            OpenListClient(settings, openlist_http),
+            repository,  # type: ignore[arg-type]
+            RuntimeLogStore(),
+        )
+        await gateway.initialize()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=gateway), base_url="http://gateway.test"
+        ) as client:
+            response = await client.post("/emby/Items/item-1/PlaybackInfo", json={})
+        await gateway.close()
+
+    assert response.status_code == 200
+    direct_stream_url = response.json()["MediaSources"][0]["DirectStreamUrl"]
+    parsed = urlsplit(direct_stream_url)
+    assert parsed.path == "/videos/item-1/stream.strm"
+    assert "/emby/emby/" not in direct_stream_url.casefold()
+    assert parse_qs(parsed.query) == {
+        "UserId": ["user-1"],
+        "api_key": ["client-token"],
+        "MediaSourceId": ["source-1"],
+        "PlaySessionId": ["session-1"],
+        "Static": ["true"],
+    }
+
+
+async def test_zero_progress_is_acknowledged_without_erasing_upstream_resume() -> None:
+    upstream_calls = 0
+
+    async def upstream(_: httpx.Request) -> httpx.Response:
+        nonlocal upstream_calls
+        upstream_calls += 1
+        return httpx.Response(204)
+
+    settings = Settings(app_password="secret", openlist_token="token", emby_api_key="key")
+    transport = httpx.MockTransport(upstream)
+    async with (
+        httpx.AsyncClient(transport=transport) as emby_http,
+        httpx.AsyncClient(transport=transport) as openlist_http,
+    ):
+        gateway = Emby302Gateway(
+            settings,
+            emby_http,
+            OpenListClient(settings, openlist_http),
+            MemorySettingsRepository(),  # type: ignore[arg-type]
+            RuntimeLogStore(),
+        )
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=gateway), base_url="http://gateway.test"
+        ) as client:
+            response = await client.post(
+                "/emby/Sessions/Playing/Progress",
+                json={
+                    "ItemId": "item-1",
+                    "PlaySessionId": "session-1",
+                    "PositionTicks": 0,
+                },
+            )
+        await gateway.close()
+
+    assert response.status_code == 204
+    assert upstream_calls == 0
+
+
+async def test_stopped_event_restores_last_positive_progress_for_strm_resume() -> None:
+    calls: list[tuple[str, dict[str, Any], str]] = []
+
+    async def upstream(request: httpx.Request) -> httpx.Response:
+        calls.append(
+            (
+                request.url.path,
+                json.loads(request.content),
+                request.headers.get("x-emby-token", ""),
+            )
+        )
+        return httpx.Response(204)
+
+    settings = Settings(app_password="secret", openlist_token="token", emby_api_key="key")
+    repository = MemorySettingsRepository()
+    repository.value = {
+        "embyUrl": "http://emby.test/emby",
+        "openlistUrl": "http://openlist.test",
+    }
+    transport = httpx.MockTransport(upstream)
+    async with (
+        httpx.AsyncClient(transport=transport) as emby_http,
+        httpx.AsyncClient(transport=transport) as openlist_http,
+    ):
+        gateway = Emby302Gateway(
+            settings,
+            emby_http,
+            OpenListClient(settings, openlist_http),
+            repository,  # type: ignore[arg-type]
+            RuntimeLogStore(),
+        )
+        await gateway.initialize()
+        progress_ticks = 125 * 10_000_000
+        common = {"ItemId": "item-1", "PlaySessionId": "session-1"}
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=gateway),
+            base_url="http://gateway.test",
+            headers={"X-Emby-Token": "client-token"},
+        ) as client:
+            progress = await client.post(
+                "/emby/emby/Sessions/Playing/Progress",
+                json={**common, "PositionTicks": progress_ticks},
+            )
+            stopped = await client.post(
+                "/emby/emby/Sessions/Playing/Stopped",
+                json={**common, "PositionTicks": 0},
+            )
+        if gateway._playstate_tasks:
+            await asyncio.gather(*tuple(gateway._playstate_tasks))
+        await gateway.close()
+
+    assert progress.status_code == 204
+    assert stopped.status_code == 204
+    assert [call[0] for call in calls] == [
+        "/emby/Sessions/Playing/Progress",
+        "/emby/Sessions/Playing/Stopped",
+        "/emby/Sessions/Playing/Progress",
+        "/emby/Sessions/Playing/Stopped",
+    ]
+    assert calls[0][1]["PositionTicks"] == progress_ticks
+    assert calls[1][1]["PositionTicks"] == 0
+    assert calls[2][1]["PositionTicks"] == progress_ticks
+    assert calls[3][1]["PositionTicks"] == progress_ticks
+    assert calls[2][1]["PlaySessionId"] != "session-1"
+    assert calls[2][1]["PlaySessionId"] == calls[3][1]["PlaySessionId"]
+    assert all(call[2] == "client-token" for call in calls)

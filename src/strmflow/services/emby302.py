@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 import re
+import secrets
 import socket
 from collections import OrderedDict, deque
 from collections.abc import AsyncIterator
@@ -47,12 +49,17 @@ BODYLESS_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
 VIDEO_PATH = re.compile(r"/(?:videos)/([^/]+)/(?:stream|original)(?:\.[^/]*)?$", re.IGNORECASE)
 ITEM_PATH = re.compile(r"/(?:videos|items)/([^/]+)", re.IGNORECASE)
 PLAYBACK_INFO_PATH = re.compile(r"/items/[^/]+/playbackinfo$", re.IGNORECASE)
+PLAYING_PROGRESS_PATH = re.compile(r"/sessions/playing/progress$", re.IGNORECASE)
+PLAYING_STOPPED_PATH = re.compile(r"/sessions/playing/stopped$", re.IGNORECASE)
 CACHE_POLICY_VERSION = 2
 LEGACY_CACHE_TTL = 180
 DEFAULT_CACHE_TTL = 6 * 60 * 60
 EXPIRY_SAFETY_SECONDS = 5 * 60
 PREWARM_LATEST_COUNT = 6
 CACHE_PERSIST_DEBOUNCE_SECONDS = 0.35
+TICKS_PER_SECOND = 10_000_000
+PLAYSTATE_CACHE_MAX = 2_000
+PLAYSTATE_CACHE_TTL = 6 * 60 * 60
 
 
 type LinkCacheEntry = dict[str, Any]
@@ -113,6 +120,8 @@ class Emby302Gateway:
         self._cache_dirty = False
         self._cache_persist_task: asyncio.Task[None] | None = None
         self._prewarm_tasks: set[asyncio.Task[None]] = set()
+        self._playstate_tasks: set[asyncio.Task[None]] = set()
+        self._playstate_positions: OrderedDict[str, tuple[int, float]] = OrderedDict()
         self._resolution_tasks: dict[str, asyncio.Task[LinkCacheEntry]] = {}
         self._restored_cache_entries = 0
         self._prewarmed_links = 0
@@ -185,6 +194,10 @@ class Emby302Gateway:
         if self._resolution_tasks:
             await asyncio.gather(*self._resolution_tasks.values(), return_exceptions=True)
         self._resolution_tasks.clear()
+        if self._playstate_tasks:
+            await asyncio.gather(*tuple(self._playstate_tasks), return_exceptions=True)
+        self._playstate_tasks.clear()
+        self._playstate_positions.clear()
         async with self._lock:
             await self._stop_server()
         await self._flush_cache()
@@ -354,6 +367,10 @@ class Emby302Gateway:
             return await self._handle_system_info(request), "patched-system-info"
         if PLAYBACK_INFO_PATH.search(lower_path):
             return await self._handle_playback_info(request), "patched-playback-info"
+        if request.method == "POST" and PLAYING_PROGRESS_PATH.search(lower_path):
+            return await self._handle_playing_progress(request)
+        if request.method == "POST" and PLAYING_STOPPED_PATH.search(lower_path):
+            return await self._handle_playing_stopped(request)
         if VIDEO_PATH.search(lower_path):
             return await self._handle_video_stream(request)
         return await self._proxy(request), "proxy"
@@ -640,7 +657,6 @@ class Emby302Gateway:
             return self._buffered_response(upstream)
 
         item_id = self._parse_item_id(request.url.path)
-        stream_path = self._direct_stream_path(request.url.path, item_id) if item_id else ""
         sources = body.get("MediaSources")
         if isinstance(sources, list):
             for source in sources:
@@ -654,20 +670,226 @@ class Emby302Gateway:
                 source.pop("TranscodingUrl", None)
                 source.pop("TranscodingSubProtocol", None)
                 source.pop("TranscodingContainer", None)
-                if stream_path and source.get("Id"):
-                    query = list(parse_qsl(request.url.query, keep_blank_values=True))
-                    query = [
-                        (key, value)
-                        for key, value in query
-                        if key not in {"MediaSourceId", "Static"}
-                    ]
-                    query.extend([("MediaSourceId", str(source["Id"])), ("Static", "true")])
-                    source["DirectStreamUrl"] = f"{stream_path}?{urlencode(query)}"
+                direct_stream_url = self._direct_stream_url(
+                    source.get("DirectStreamUrl"),
+                    request.url.query,
+                    item_id,
+                    str(source.get("Id") or ""),
+                )
+                if direct_stream_url:
+                    source["DirectStreamUrl"] = direct_stream_url
         return JSONResponse(
             body,
             status_code=upstream.status_code,
             headers=self._response_headers(upstream, strip_content=True),
         )
+
+    async def _handle_playing_progress(self, request: Request) -> tuple[Response, str]:
+        payload = await self._playstate_payload(request)
+        position = self._position_ticks(payload)
+        item_id = self._payload_text(payload, "ItemId")
+        session_key = self._playstate_key(payload)
+
+        # Some clients report a zero position immediately after a CDN redirect.
+        # Passing it upstream can erase a valid resume point for duration-less STRM
+        # items, so only the invalid startup report is acknowledged locally.
+        if position is not None and position <= TICKS_PER_SECOND:
+            self.runtime_logs.add(
+                category="gateway302",
+                level="info",
+                message="已忽略可能覆盖续播断点的零进度上报",
+                eventType="playback-progress-ignored",
+                itemId=item_id,
+                positionSeconds=round(position / TICKS_PER_SECOND, 1),
+            )
+            return Response(status_code=204), "ignored-zero-progress"
+
+        if position is not None and session_key:
+            self._remember_playstate(session_key, position)
+        upstream = await self._proxy_buffered(request)
+        if position is not None:
+            self.runtime_logs.add(
+                category="gateway302",
+                level="info",
+                message=f"播放进度已上报至 Emby：{self._format_position(position)}",
+                eventType="playback-progress",
+                itemId=item_id,
+                positionSeconds=round(position / TICKS_PER_SECOND, 1),
+                upstreamStatus=upstream.status_code,
+            )
+        return self._buffered_response(upstream), "playback-progress"
+
+    async def _handle_playing_stopped(self, request: Request) -> tuple[Response, str]:
+        payload = await self._playstate_payload(request)
+        reported_position = self._position_ticks(payload)
+        session_key = self._playstate_key(payload)
+        remembered_position = self._take_playstate(session_key) if session_key else None
+        position = reported_position
+        if (position is None or position <= TICKS_PER_SECOND) and remembered_position is not None:
+            position = remembered_position
+
+        # Preserve the client's original stop event, then write an isolated final
+        # checkpoint. Emby otherwise tends to reset duration-less STRM items to zero.
+        upstream = await self._proxy_buffered(request)
+        item_id = self._payload_text(payload, "ItemId")
+        if upstream.is_success and item_id and position is not None and position > TICKS_PER_SECOND:
+            headers = self._request_headers(request)
+            headers.pop("content-length", None)
+            headers["content-type"] = "application/json"
+            task = asyncio.create_task(
+                self._send_resume_checkpoint(
+                    request.url.path,
+                    request.url.query,
+                    headers,
+                    item_id,
+                    position,
+                ),
+                name=f"strmflow-emby302-resume-{item_id}",
+            )
+            self._playstate_tasks.add(task)
+            task.add_done_callback(self._playstate_tasks.discard)
+            self.runtime_logs.add(
+                category="gateway302",
+                level="info",
+                message=f"正在固化 Emby 续播断点：{self._format_position(position)}",
+                eventType="playback-resume-checkpoint",
+                itemId=item_id,
+                positionSeconds=round(position / TICKS_PER_SECOND, 1),
+                usedRememberedPosition=bool(
+                    remembered_position is not None
+                    and (reported_position is None or reported_position <= TICKS_PER_SECOND)
+                ),
+            )
+        else:
+            self.runtime_logs.add(
+                category="gateway302",
+                level="info",
+                message="播放已停止，本次没有可写入的有效续播断点",
+                eventType="playback-stopped",
+                itemId=item_id,
+                positionSeconds=(
+                    round(position / TICKS_PER_SECOND, 1) if position is not None else None
+                ),
+                upstreamStatus=upstream.status_code,
+            )
+        return self._buffered_response(upstream), "playback-stopped"
+
+    async def _send_resume_checkpoint(
+        self,
+        stopped_path: str,
+        query: str,
+        headers: dict[str, str],
+        item_id: str,
+        position: int,
+    ) -> None:
+        progress_path = PLAYING_STOPPED_PATH.sub("/Sessions/Playing/Progress", stopped_path)
+        stopped_path = PLAYING_STOPPED_PATH.sub("/Sessions/Playing/Stopped", stopped_path)
+        checkpoint = {
+            "ItemId": item_id,
+            "PlaySessionId": secrets.token_hex(16),
+            "PositionTicks": position,
+        }
+        try:
+            for path in (progress_path, stopped_path):
+                response = await self.emby_http.post(
+                    self._upstream_url(path, query),
+                    headers=headers,
+                    content=json.dumps(checkpoint, separators=(",", ":")).encode(),
+                    timeout=self.config.timeout_ms / 1_000,
+                    follow_redirects=False,
+                )
+                if response.status_code != 204:
+                    raise httpx.HTTPStatusError(
+                        f"Emby returned {response.status_code}",
+                        request=response.request,
+                        response=response,
+                    )
+            self.runtime_logs.add(
+                category="gateway302",
+                level="success",
+                message=f"Emby 续播断点已保存：{self._format_position(position)}",
+                eventType="playback-resume-saved",
+                itemId=item_id,
+                positionSeconds=round(position / TICKS_PER_SECOND, 1),
+            )
+        except (httpx.HTTPError, ValueError) as exc:
+            self.runtime_logs.add(
+                category="gateway302",
+                level="error",
+                message=f"Emby 续播断点保存失败：{str(exc)[:240]}",
+                eventType="playback-resume-error",
+                itemId=item_id,
+                positionSeconds=round(position / TICKS_PER_SECOND, 1),
+            )
+
+    async def _playstate_payload(self, request: Request) -> dict[str, Any]:
+        body = await self._read_body(request)
+        if not body:
+            return {}
+        try:
+            value = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return {}
+        return value if isinstance(value, dict) else {}
+
+    @staticmethod
+    def _payload_text(payload: dict[str, Any], name: str) -> str:
+        value = payload.get(name)
+        return "" if value is None else str(value).strip()
+
+    @staticmethod
+    def _position_ticks(payload: dict[str, Any]) -> int | None:
+        value = payload.get("PositionTicks")
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            position = int(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return max(0, position)
+
+    def _playstate_key(self, payload: dict[str, Any]) -> str:
+        item_id = self._payload_text(payload, "ItemId")
+        if not item_id:
+            return ""
+        session = next(
+            (
+                self._payload_text(payload, name)
+                for name in ("PlaySessionId", "SessionId", "DeviceId")
+                if self._payload_text(payload, name)
+            ),
+            "default",
+        )
+        return f"{item_id}:{session}"
+
+    def _remember_playstate(self, key: str, position: int) -> None:
+        self._cleanup_playstates()
+        self._playstate_positions[key] = (position, time())
+        self._playstate_positions.move_to_end(key)
+        while len(self._playstate_positions) > PLAYSTATE_CACHE_MAX:
+            self._playstate_positions.popitem(last=False)
+
+    def _take_playstate(self, key: str) -> int | None:
+        self._cleanup_playstates()
+        stored = self._playstate_positions.pop(key, None)
+        return stored[0] if stored else None
+
+    def _cleanup_playstates(self) -> None:
+        cutoff = time() - PLAYSTATE_CACHE_TTL
+        while self._playstate_positions:
+            first_key = next(iter(self._playstate_positions))
+            if self._playstate_positions[first_key][1] >= cutoff:
+                break
+            self._playstate_positions.popitem(last=False)
+
+    @staticmethod
+    def _format_position(position: int) -> str:
+        total_seconds = max(0, position // TICKS_PER_SECOND)
+        hours, remainder = divmod(total_seconds, 3_600)
+        minutes, seconds = divmod(remainder, 60)
+        if hours:
+            return f"{hours:d}:{minutes:02d}:{seconds:02d}"
+        return f"{minutes:02d}:{seconds:02d}"
 
     async def _get_emby_media_source(
         self, request_path: str, item_id: str, media_source_id: str | None
@@ -821,6 +1043,14 @@ class Emby302Gateway:
         base = urlsplit(self.config.emby_url)
         base_path = base.path.rstrip("/")
         normalized_path = "/" + path.lstrip("/")
+        # A few clients append a server URL ending in /emby to a response URL
+        # that already starts with /emby. Never pass that duplicated prefix on.
+        normalized_path = re.sub(
+            r"^(?:/emby){2,}(?=/|$)",
+            "/emby",
+            normalized_path,
+            flags=re.IGNORECASE,
+        )
         if base_path and not (
             normalized_path.casefold() == base_path.casefold()
             or normalized_path.casefold().startswith(base_path.casefold() + "/")
@@ -860,8 +1090,39 @@ class Emby302Gateway:
         match = re.match(r"^(.*)/(?:videos|items)/[^/]+", path, re.IGNORECASE)
         return match.group(1) if match else ""
 
-    def _direct_stream_path(self, path: str, item_id: str) -> str:
-        return f"{self._emby_prefix(path)}/Videos/{quote(item_id, safe='')}/stream"
+    @staticmethod
+    def _direct_stream_url(
+        upstream_value: object,
+        request_query: str,
+        item_id: str,
+        media_source_id: str,
+    ) -> str:
+        """Keep Emby's canonical stream path and every playback query parameter."""
+        raw = str(upstream_value or "").strip()
+        path = ""
+        query = ""
+        if raw:
+            try:
+                parsed = urlsplit(raw)
+                path = "/" + parsed.path.lstrip("/") if parsed.path else ""
+                query = parsed.query
+            except ValueError:
+                path = ""
+
+        if not path and item_id:
+            path = f"/videos/{quote(item_id, safe='')}/stream"
+            query = request_query
+        if not path:
+            return ""
+
+        params = list(parse_qsl(query, keep_blank_values=True))
+        names = {name.casefold() for name, _ in params}
+        if media_source_id and "mediasourceid" not in names:
+            params.append(("MediaSourceId", media_source_id))
+        if "static" not in names:
+            params.append(("Static", "true"))
+        encoded = urlencode(params)
+        return f"{path}?{encoded}" if encoded else path
 
     @staticmethod
     def _request_cache_key(item_id: str, media_source_id: str | None) -> str:
