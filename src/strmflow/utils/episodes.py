@@ -94,7 +94,7 @@ def media_quality_rank(source: str, size: int = 0) -> tuple[int, ...]:
     )
     frame_rate_match = re.search(r"(?<!\d)(120|60|50|30|25|24)\s*fps\b", name)
     frame_rate = int(frame_rate_match.group(1)) if frame_rate_match else 0
-    canonical_name = 0 if re.search(r"(?:\(\d+\)|[ ._-](?:copy|副本)|-\d+)$", name) else 1
+    canonical_name = 0 if re.search(r"(?:\(\d+\)|[ ._-](?:copy|副本)|-\s*\d+)$", name) else 1
     return (
         resolution,
         dynamic_range,

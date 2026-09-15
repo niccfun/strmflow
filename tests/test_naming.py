@@ -62,6 +62,16 @@ def test_compact_quality_tags_prefer_4k_hdr_60fps() -> None:
     assert media_quality_rank("4KHDR30FPS.mp4") > media_quality_rank("4K60FPS.mp4")
 
 
+def test_generated_numbered_duplicate_never_replaces_canonical_target() -> None:
+    files = [
+        "Season 01/示例剧 - S01E04 - 2.strm",
+        "Season 01/示例剧 - S01E04.strm",
+    ]
+    preferred, duplicates = select_preferred_episodes(files, path=lambda value: value)
+    assert preferred == ["Season 01/示例剧 - S01E04.strm"]
+    assert duplicates == ["Season 01/示例剧 - S01E04 - 2.strm"]
+
+
 def test_episode_count_deduplicates_same_episode_suffixes() -> None:
     service = MediaService(Settings(), None, None, None, None)  # type: ignore[arg-type]
     assert (
