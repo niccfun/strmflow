@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 import re
 import socket
@@ -57,6 +58,7 @@ WEBSOCKET_MANAGED_HEADERS = {
 BODYLESS_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
 VIDEO_PATH = re.compile(r"/(?:videos)/([^/]+)/(?:stream|original)(?:\.[^/]*)?$", re.IGNORECASE)
 ITEM_PATH = re.compile(r"/(?:videos|items)/([^/]+)", re.IGNORECASE)
+PLAYBACK_INFO_PATH = re.compile(r"/(?:items)/[^/]+/playbackinfo$", re.IGNORECASE)
 CACHE_POLICY_VERSION = 2
 LEGACY_CACHE_TTL = 180
 DEFAULT_CACHE_TTL = 6 * 60 * 60
@@ -561,7 +563,91 @@ class Emby302Gateway:
             return JSONResponse({"ok": True, "stats": self.snapshot()["stats"]}), "health"
         if request.method == "GET" and VIDEO_PATH.search(lower_path):
             return await self._handle_video_stream(request)
+        if request.method == "POST" and PLAYBACK_INFO_PATH.search(lower_path):
+            return await self._handle_playback_info(request)
         return await self._proxy(request), "proxy"
+
+    async def _handle_playback_info(self, request: Request) -> tuple[Response, str]:
+        """Apply demo-compatible direct-play hints while keeping control traffic transparent."""
+        upstream, body = await self._proxy_buffered(request)
+        if upstream.status_code < 200 or upstream.status_code >= 300:
+            return Response(
+                body,
+                status_code=upstream.status_code,
+                headers=self._response_headers(upstream),
+            ), "playback-info-proxy"
+        try:
+            payload = json.loads(body)
+        except (TypeError, ValueError):
+            return Response(
+                body,
+                status_code=upstream.status_code,
+                headers=self._response_headers(upstream),
+            ), "playback-info-proxy"
+        if not isinstance(payload, dict) or not isinstance(payload.get("MediaSources"), list):
+            return Response(
+                body,
+                status_code=upstream.status_code,
+                headers=self._response_headers(upstream),
+            ), "playback-info-proxy"
+
+        item_id = self._parse_item_id(request.url.path)
+        stream_path = (
+            f"{self._emby_prefix(request.url.path)}/Videos/{item_id}/stream" if item_id else ""
+        )
+        changed = False
+        for source in payload["MediaSources"]:
+            if not isinstance(source, dict) or not stream_path:
+                continue
+            if not self._is_strm_media_source(source):
+                continue
+            if not self._extract_openlist_path(source):
+                continue
+            source["SupportsDirectPlay"] = True
+            source["SupportsDirectStream"] = True
+            source["SupportsTranscoding"] = False
+            for key in (
+                "TranscodingUrl",
+                "TranscodingSubProtocol",
+                "TranscodingContainer",
+                "Container",
+            ):
+                source.pop(key, None)
+            params = parse_qs(request.url.query, keep_blank_values=True)
+            params.pop("api_key", None)
+            params["MediaSourceId"] = [str(source.get("Id") or "")]
+            params["Static"] = ["true"]
+            query = "&".join(
+                f"{quote(key, safe='')}={quote(value, safe='')}"
+                for key, values in params.items()
+                for value in values
+                if value != ""
+            )
+            source["DirectStreamUrl"] = f"{stream_path}?{query}" if query else stream_path
+            changed = True
+
+        if not changed:
+            return Response(
+                body,
+                status_code=upstream.status_code,
+                headers=self._response_headers(upstream),
+            ), "playback-info-proxy"
+        rewritten = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
+        headers = self._response_headers(upstream)
+        headers.pop("content-length", None)
+        headers.pop("etag", None)
+        headers["content-type"] = "application/json; charset=utf-8"
+        self.runtime_logs.add(
+            category="gateway302",
+            level="info",
+            message="PlaybackInfo 已切换为 302 直连播放",
+            itemId=item_id,
+            mediaSourceCount=len(payload["MediaSources"]),
+            gatewayAction="playback-info-direct-play",
+        )
+        return Response(
+            rewritten, status_code=upstream.status_code, headers=headers
+        ), "playback-info"
 
     async def _handle_video_stream(self, request: Request) -> tuple[Response, str]:
         item_id = self._parse_item_id(request.url.path)
@@ -867,6 +953,26 @@ class Emby302Gateway:
             headers=self._response_headers(upstream),
             background=BackgroundTask(upstream.aclose),
         )
+
+    async def _proxy_buffered(self, request: Request) -> tuple[httpx.Response, bytes]:
+        """Proxy a small JSON control request and return its complete response body."""
+        self._proxy_requests += 1
+        content = await self._read_body(request)
+        headers = self._request_headers(request)
+        headers["content-length"] = str(len(content))
+        try:
+            upstream = await self.emby_http.request(
+                request.method,
+                self._upstream_url(request.url.path, request.url.query),
+                headers=headers,
+                content=content,
+                timeout=self.config.timeout_ms / 1_000,
+            )
+        except httpx.TimeoutException as exc:
+            raise AppError(504, "Emby 上游请求超时") from exc
+        except httpx.HTTPError as exc:
+            raise AppError(502, "无法连接 Emby 上游服务") from exc
+        return upstream, upstream.content
 
     async def _read_body(self, request: Request) -> bytes:
         body = await request.body()

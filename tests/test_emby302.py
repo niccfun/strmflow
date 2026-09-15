@@ -299,6 +299,78 @@ async def test_playback_info_is_proxied_without_rewriting_request_or_response() 
     assert response.headers["x-test-upstream"] == "keep"
 
 
+async def test_playback_info_rewrites_openlist_strm_to_gateway_direct_play() -> None:
+    request_body = b'{"UserId":"user-1","IsPlayback":true}'
+
+    async def upstream(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/emby/Items/item-9/PlaybackInfo"
+        assert request.url.query == b"api_key=client-token&UserId=user-1"
+        assert request.content == request_body
+        return httpx.Response(
+            200,
+            json={
+                "PlaySessionId": "session-9",
+                "MediaSources": [
+                    {
+                        "Id": "source-9",
+                        "Path": "https://openlist.test/d/temp_strm/TV/Demo/Season%2001/E01.strm",
+                        "IsRemote": True,
+                        "SupportsDirectPlay": False,
+                        "SupportsDirectStream": False,
+                        "SupportsTranscoding": True,
+                        "TranscodingUrl": "/Videos/item-9/master.m3u8",
+                        "Container": "strm",
+                    }
+                ],
+            },
+            headers={"ETag": '"upstream"', "X-Test-Upstream": "keep"},
+        )
+
+    settings = Settings(app_password="secret", openlist_token="token", emby_api_key="key")
+    repository = MemorySettingsRepository()
+    repository.value = {
+        "embyUrl": "http://emby.test/emby",
+        "openlistUrl": "http://openlist.test",
+    }
+    transport = httpx.MockTransport(upstream)
+    async with (
+        httpx.AsyncClient(transport=transport) as emby_http,
+        httpx.AsyncClient(transport=transport) as openlist_http,
+    ):
+        gateway = Emby302Gateway(
+            settings,
+            emby_http,
+            OpenListClient(settings, openlist_http),
+            repository,  # type: ignore[arg-type]
+            RuntimeLogStore(),
+        )
+        await gateway.initialize()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=gateway), base_url="http://gateway.test"
+        ) as client:
+            response = await client.post(
+                "/emby/Items/item-9/PlaybackInfo?api_key=client-token&UserId=user-1",
+                content=request_body,
+                headers={"Content-Type": "application/json"},
+            )
+        await gateway.close()
+
+    assert response.status_code == 200
+    payload = response.json()
+    source = payload["MediaSources"][0]
+    assert source["SupportsDirectPlay"] is True
+    assert source["SupportsDirectStream"] is True
+    assert source["SupportsTranscoding"] is False
+    assert "TranscodingUrl" not in source
+    assert "Container" not in source
+    assert (
+        source["DirectStreamUrl"]
+        == "/emby/Videos/item-9/stream?UserId=user-1&MediaSourceId=source-9&Static=true"
+    )
+    assert response.headers["x-test-upstream"] == "keep"
+    assert "etag" not in response.headers
+
+
 async def test_playstate_control_requests_are_transparently_proxied() -> None:
     calls: list[tuple[str, str, str, bytes, str, str]] = []
 
