@@ -47,7 +47,14 @@ class RuntimeLogStore:
         the in-memory log page.  Skipping them here prevents every request from
         appearing twice in the container output.
         """
-        if entry.get("method") and entry.get("statusCode") is not None:
+        # The management API's access logger is provided by Uvicorn itself, but
+        # the embedded 302 gateway intentionally disables Uvicorn access logs.
+        # Mirror gateway requests so playback diagnostics are visible in Docker.
+        if (
+            entry.get("method")
+            and entry.get("statusCode") is not None
+            and entry.get("category") != "gateway302"
+        ):
             return
         ignored = {"id", "time", "category", "level", "message"}
         details = {key: value for key, value in entry.items() if key not in ignored}
