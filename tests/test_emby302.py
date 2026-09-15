@@ -8,6 +8,16 @@ from strmflow.services.emby302 import Emby302Gateway
 from strmflow.services.openlist import OpenListClient
 
 
+def test_redirect_url_percent_encodes_unicode_path_and_query() -> None:
+    value = Emby302Gateway._redirect_url(
+        "https://cdn.test/视频/百花杀 01.mkv?文件名=百花杀&token=abc"
+    )
+    assert (
+        value
+        == "https://cdn.test/%E8%A7%86%E9%A2%91/%E7%99%BE%E8%8A%B1%E6%9D%80%2001.mkv?%E6%96%87%E4%BB%B6%E5%90%8D=%E7%99%BE%E8%8A%B1%E6%9D%80&token=abc"
+    )
+
+
 class MemorySettingsRepository:
     value: dict[str, Any] | None = None
 

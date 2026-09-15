@@ -243,11 +243,28 @@ class Emby302Gateway:
         except AppError as exc:
             if exc.status_code >= 500:
                 self._last_error = exc.message
+                self.runtime_logs.add(
+                    category="gateway302",
+                    level="error",
+                    message=f"302 网关上游错误：{exc.message[:300]}",
+                    eventType="upstream-error",
+                    statusCode=exc.status_code,
+                    path=request.url.path,
+                )
             response = PlainTextResponse(exc.message, status_code=exc.status_code)
             action = "upstream-error"
         except Exception as exc:  # noqa: BLE001 - gateway converts failures to HTTP 500
             self._errors += 1
             self._last_error = str(exc)
+            self.runtime_logs.add(
+                category="gateway302",
+                level="error",
+                message=f"302 网关请求异常：{str(exc)[:300]}",
+                eventType="exception",
+                statusCode=500,
+                path=request.url.path,
+                errorType=type(exc).__name__,
+            )
             response = PlainTextResponse("Emby 302 Gateway Error", status_code=500)
             action = "error"
 
@@ -334,7 +351,16 @@ class Emby302Gateway:
                 "targetHost": urlsplit(raw_url).netloc,
             }
         )
-        return RedirectResponse(raw_url, status_code=302)
+        return RedirectResponse(self._redirect_url(raw_url), status_code=302)
+
+    @staticmethod
+    def _redirect_url(raw_url: str) -> str:
+        """Percent-encode Unicode returned by OpenList before putting it in Location."""
+        parsed = urlsplit(raw_url)
+        path = quote(parsed.path, safe="/%:@-._~!$&'()*+,;=")
+        query = quote(parsed.query, safe="=&/?%:+,;@-._~!$'()*[]")
+        fragment = quote(parsed.fragment, safe="/%?=&:+,;@-._~!$'()*[]")
+        return urlunsplit((parsed.scheme, parsed.netloc, path, query, fragment))
 
     async def _handle_base_html_player(self, request: Request) -> Response:
         upstream = await self._proxy_buffered(request)
