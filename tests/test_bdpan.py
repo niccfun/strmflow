@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import base64
+import json
+from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from strmflow.core.config import Settings
 from strmflow.core.runtime_logs import RuntimeLogStore
-from strmflow.services.bdpan import BdpanCli, BdpanCliError, BdpanRunResult
+from strmflow.services.bdpan import BdpanCli, BdpanRunResult
 from strmflow.services.bdpan_automation import BdpanAutomationService, ShareMediaFile
 
 
@@ -214,32 +219,33 @@ async def test_cli_status_omits_account_name_when_token_is_invalid(monkeypatch) 
 
 
 @pytest.mark.asyncio
-async def test_cli_quota_uses_json_command_and_normalizes_capacity(monkeypatch) -> None:
-    cli = BdpanCli(Settings())
-    monkeypatch.setattr(cli, "executable", lambda _binary: "/usr/local/bin/bdpan")
-    commands: list[list[str]] = []
+async def test_cli_quota_decrypts_config_token_and_calls_official_api(
+    monkeypatch, tmp_path: Path
+) -> None:
+    token = "test-access-token"
+    key = bytes(range(32))
+    nonce = bytes(range(12))
+    encrypted = nonce + AESGCM(key).encrypt(nonce, token.encode(), None)
+    encoded = base64.urlsafe_b64encode(encrypted).decode().rstrip("=")
+    config = tmp_path / "config.json"
+    config.write_text(
+        json.dumps({"auth": {"access_token": f"enc:v1:{encoded}"}}),
+        encoding="utf-8",
+    )
+    (tmp_path / ".token_key").write_text(key.hex() + "\n", encoding="ascii")
+    monkeypatch.setenv("BDPAN_CONFIG_PATH", str(config))
 
-    async def execute(
-        argv: list[str],
-        *,
-        timeout: float | None = None,
-        stdin: str | None = None,
-        require_json: bool = False,
-    ) -> BdpanRunResult:
-        del stdin
-        commands.append(argv)
-        assert timeout == 30
-        assert require_json is True
-        return BdpanRunResult(
-            0,
-            '{"data":{"quota":{"total":"1000","used":250}}}',
-            "",
-            {"data": {"quota": {"total": "1000", "used": 250}}},
-        )
+    async def api(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/quota"
+        assert request.url.params["access_token"] == token
+        assert request.url.params["checkfree"] == "1"
+        assert request.url.params["checkexpire"] == "1"
+        return httpx.Response(200, json={"errno": 0, "total": 1_000, "used": 250})
 
-    monkeypatch.setattr(cli, "execute", execute)
-
-    quota = await cli.quota("bdpan")
+    async with httpx.AsyncClient(
+        base_url="https://pan.baidu.com/", transport=httpx.MockTransport(api)
+    ) as client:
+        quota = await BdpanCli(Settings(), client).quota()
 
     assert quota == {
         "available": True,
@@ -248,30 +254,32 @@ async def test_cli_quota_uses_json_command_and_normalizes_capacity(monkeypatch) 
         "usedBytes": 250,
         "freeBytes": 750,
         "usedPercent": 25.0,
-        "source": "bdpan CLI",
+        "source": "bdpan 配置 · 百度开放 API",
         "error": "",
     }
-    assert commands[0][:2] == ["/usr/local/bin/bdpan", "quota"]
-    assert "--json" in commands[0]
-    assert "--no-check-update" in commands[0]
 
 
 @pytest.mark.asyncio
-async def test_cli_quota_reports_unsupported_command_without_other_credentials(monkeypatch) -> None:
-    cli = BdpanCli(Settings())
-    monkeypatch.setattr(cli, "executable", lambda _binary: "/usr/local/bin/bdpan")
+async def test_cli_quota_accepts_plain_config_token(monkeypatch, tmp_path: Path) -> None:
+    config = tmp_path / "config.json"
+    config.write_text(
+        json.dumps({"auth": {"access_token": "plain-access-token"}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("BDPAN_CONFIG_PATH", str(tmp_path))
 
-    async def execute(*_args: Any, **_kwargs: Any) -> BdpanRunResult:
-        raise BdpanCliError('unknown command "quota" for "bdpan"')
+    async def api(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["access_token"] == "plain-access-token"
+        return httpx.Response(200, json={"errno": 0, "total": 2_000, "used": 500})
 
-    monkeypatch.setattr(cli, "execute", execute)
+    async with httpx.AsyncClient(
+        base_url="https://pan.baidu.com/", transport=httpx.MockTransport(api)
+    ) as client:
+        quota = await BdpanCli(Settings(), client).quota()
 
-    quota = await cli.quota("bdpan")
-
-    assert quota["available"] is False
-    assert quota["supported"] is False
-    assert quota["source"] == "bdpan CLI"
-    assert quota["error"] == "当前 bdpan CLI 版本未提供容量查询命令"
+    assert quota["available"] is True
+    assert quota["totalBytes"] == 2_000
+    assert quota["usedBytes"] == 500
 
 
 @pytest.mark.asyncio

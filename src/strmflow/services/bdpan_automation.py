@@ -169,7 +169,7 @@ class BdpanAutomationService:
                 "usedBytes": 0,
                 "freeBytes": 0,
                 "usedPercent": 0,
-                "source": "bdpan CLI",
+                "source": "bdpan 配置 · 百度开放 API",
                 "error": str(exc)[:300],
             }
         quota["configuredBinary"] = selected

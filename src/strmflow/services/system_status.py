@@ -373,7 +373,7 @@ class SystemStatusService:
             "usedBytes": 0,
             "freeBytes": 0,
             "usedPercent": 0,
-            "source": "bdpan CLI",
+            "source": "bdpan 配置 · 百度开放 API",
             "error": error,
         }
 
@@ -388,7 +388,7 @@ class SystemStatusService:
             "usedBytes": max(0, cls._safe_int(payload.get("usedBytes"))),
             "freeBytes": max(0, cls._safe_int(payload.get("freeBytes"))),
             "usedPercent": max(0, min(100, cls._safe_float(payload.get("usedPercent")))),
-            "source": "bdpan CLI",
+            "source": str(payload.get("source") or "bdpan 配置 · 百度开放 API")[:100],
             "error": str(payload.get("error") or "")[:300],
         }
 

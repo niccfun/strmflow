@@ -138,10 +138,12 @@ Docker 容器的内网地址；`OPENLIST_WEB_URL`、`EMBY_WEB_URL` 是用户浏�
 - 自动追更调度、媒体与同步数量、转存任务、SQLite 和 302 网关状态；
 - OpenList/Emby 内外网地址，以及只读源与目标 STRM 根目录。
 
-容量信息只通过已配置并完成授权的 `bdpan` CLI 查询；StrmFlow 不读取 CLI 配置文件，
-也不复用 OpenList 挂载中的 OAuth Token。安装的 CLI 尚未提供容量查询子命令时，容量卡片
-会明确显示版本能力状态，不会回退到读取其他服务凭据。状态接口为
-`GET /api/status/overview`，附加 `?refresh=1` 可跳过短时缓存并立即刷新全部状态。
+由于 `bdpan` CLI 没有容量查询命令，StrmFlow 会读取 bdpan 配置中的
+`auth.access_token`：明文 Token 直接使用，`enc:v1:` 格式则使用同目录 `.token_key`
+以 AES-256-GCM 解密，然后请求百度官方 `/api/quota`。Token 只存在于该次后端请求，
+不会返回页面或写入日志。配置路径默认是 `~/.config/bdpan/config.json`，也兼容
+`BDPAN_CONFIG_PATH` 指定文件或目录。状态接口为 `GET /api/status/overview`，附加
+`?refresh=1` 可跳过短时缓存并立即刷新全部状态。
 
 ## Emby 302 播放网关
 

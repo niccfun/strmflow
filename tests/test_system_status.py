@@ -114,7 +114,7 @@ class FakeBdpan:
             "usedBytes": 250,
             "freeBytes": 750,
             "usedPercent": 25.0,
-            "source": "bdpan CLI",
+            "source": "bdpan 配置 · 百度开放 API",
             "error": "",
         }
 
@@ -192,7 +192,7 @@ async def test_status_snapshot_aggregates_services_and_redacts_storage_token() -
         "usedBytes": 250,
         "freeBytes": 750,
         "usedPercent": 25.0,
-        "source": "bdpan CLI",
+        "source": "bdpan 配置 · 百度开放 API",
         "error": "",
     }
     assert result["openList"]["internalUrl"] == "http://openlist:5244/base"

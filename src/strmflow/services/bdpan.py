@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import json
+import os
 import re
 import secrets
 import shutil
@@ -10,6 +13,10 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
+
+import httpx
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from strmflow.core.config import Settings
 from strmflow.core.errors import AppError
@@ -37,8 +44,9 @@ class BdpanCliError(RuntimeError):
 class BdpanCli:
     """Small, non-shell adapter for the official bdpan CLI."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, http: httpx.AsyncClient | None = None) -> None:
         self.settings = settings
+        self.http = http
 
     @staticmethod
     def executable(binary: str) -> str | None:
@@ -315,42 +323,89 @@ class BdpanCli:
         }
 
     async def quota(self, binary: str | None = None) -> dict[str, Any]:
-        """Read account capacity exclusively through the configured bdpan CLI.
-
-        The adapter does not inspect bdpan's credential file or borrow an OAuth
-        token from another service. Different CLI builds may return quota values
-        at the top level or wrap them in ``data``/``quota``; all three layouts
-        are accepted here.
-        """
-        selected = str(binary or self.settings.bdpan_binary)
-        executable = self.executable(selected)
-        if not executable:
-            return self._empty_quota(
-                f"未找到 bdpan 二进制：{selected}",
-                supported=False,
-            )
+        """Query the official quota API with bdpan's locally stored OAuth token."""
+        del binary
         try:
-            result = await self.execute(
-                self.command(
-                    ["quota"],
-                    binary=executable,
-                    json_output=True,
-                ),
-                timeout=30,
-                require_json=True,
-            )
+            token = self.access_token()
         except BdpanCliError as exc:
-            message = str(exc).strip()
-            unsupported = "unknown command" in message.casefold()
-            return self._empty_quota(
-                "当前 bdpan CLI 版本未提供容量查询命令" if unsupported else message,
-                supported=not unsupported,
+            return self._empty_quota(str(exc))
+
+        async def request(client: httpx.AsyncClient) -> httpx.Response:
+            return await client.get(
+                "api/quota",
+                params={"access_token": token, "checkfree": "1", "checkexpire": "1"},
+                timeout=15,
             )
 
-        quota = self._quota_values(result.payload)
+        try:
+            if self.http is not None:
+                response = await request(self.http)
+            else:
+                async with httpx.AsyncClient(base_url="https://pan.baidu.com/") as client:
+                    response = await request(client)
+            if not response.is_success:
+                return self._empty_quota(f"百度容量接口返回 HTTP {response.status_code}")
+            payload = response.json()
+        except (httpx.HTTPError, json.JSONDecodeError, ValueError):
+            return self._empty_quota("百度容量接口请求失败")
+
+        code, message = self._error_details(payload, "")
+        if code and code not in {"0", "200"}:
+            error = f"百度容量接口返回错误 {code}"
+            if message and len(message) <= 100:
+                error += f"：{message}"
+            return self._empty_quota(error)
+        quota = self._quota_values(payload)
         if quota is None:
-            return self._empty_quota("bdpan CLI 返回的容量数据格式不受支持")
+            return self._empty_quota("百度容量接口返回的数据格式不受支持")
         return quota
+
+    def access_token(self) -> str:
+        """Read and, when needed, decrypt bdpan's access token without logging it."""
+        config_path = self.config_path()
+        try:
+            if config_path.stat().st_size > 1_048_576:
+                raise BdpanCliError("bdpan 配置文件大小异常")
+            payload = json.loads(config_path.read_text(encoding="utf-8"))
+        except FileNotFoundError as exc:
+            raise BdpanCliError("未找到 bdpan 配置文件") from exc
+        except (OSError, json.JSONDecodeError) as exc:
+            raise BdpanCliError("bdpan 配置文件读取失败") from exc
+        auth = payload.get("auth") if isinstance(payload, dict) else None
+        token = str(auth.get("access_token") or "").strip() if isinstance(auth, dict) else ""
+        if not token:
+            raise BdpanCliError("bdpan 配置中没有可用的 access_token")
+        if token.startswith("enc:v1:"):
+            token = self._decrypt_token(token, config_path.parent / ".token_key")
+        if not token or len(token) > 4096 or any(character.isspace() for character in token):
+            raise BdpanCliError("bdpan access_token 格式不正确")
+        return token
+
+    @staticmethod
+    def config_path() -> Path:
+        configured = os.getenv("BDPAN_CONFIG_PATH", "").strip()
+        if configured:
+            path = Path(configured).expanduser()
+            return path / "config.json" if path.is_dir() else path
+        xdg = os.getenv("XDG_CONFIG_HOME", "").strip()
+        root = Path(xdg).expanduser() if xdg else Path.home() / ".config"
+        return root / "bdpan" / "config.json"
+
+    @staticmethod
+    def _decrypt_token(value: str, key_path: Path) -> str:
+        try:
+            encoded = value.split(":", 2)[2]
+            encrypted = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
+            key_value = key_path.read_text(encoding="ascii").strip()
+            key = bytes.fromhex(key_value)
+            if len(key) != 32 or len(encrypted) <= 28:
+                raise ValueError
+            plaintext = AESGCM(key).decrypt(encrypted[:12], encrypted[12:], None)
+            return plaintext.decode("utf-8").strip()
+        except FileNotFoundError as exc:
+            raise BdpanCliError("未找到 bdpan Token 解密密钥") from exc
+        except (OSError, UnicodeError, ValueError, binascii.Error, InvalidTag) as exc:
+            raise BdpanCliError("bdpan access_token 解密失败") from exc
 
     async def start_login(self, binary: str | None = None) -> str:
         argv = self.command(
@@ -438,7 +493,7 @@ class BdpanCli:
                 "usedBytes": used,
                 "freeBytes": max(0, total - used),
                 "usedPercent": round(min(used / total * 100, 100), 1),
-                "source": "bdpan CLI",
+                "source": "bdpan 配置 · 百度开放 API",
                 "error": "",
             }
         return None
@@ -464,7 +519,7 @@ class BdpanCli:
             "usedBytes": 0,
             "freeBytes": 0,
             "usedPercent": 0,
-            "source": "bdpan CLI",
+            "source": "bdpan 配置 · 百度开放 API",
             "error": error[:300],
         }
 

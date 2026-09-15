@@ -828,7 +828,7 @@
           <div class="status-detail-grid">
             <section class="panel status-detail-panel status-capacity-panel">
               <div class="status-panel-head">
-                <div><h3>百度网盘空间</h3><p>通过已配置的 bdpan CLI 读取当前授权账号容量，手动刷新可立即更新。</p></div>
+                <div><h3>百度网盘空间</h3><p>使用 bdpan 配置中的授权 Token 请求百度开放 API，手动刷新可立即更新。</p></div>
                 <span class="status-inline-badge" data-status-field="quota-badge">读取中</span>
               </div>
               <div class="capacity-reading"><strong data-status-field="quota-used">—</strong><span>/ <span data-status-field="quota-total">—</span></span></div>
@@ -2351,16 +2351,16 @@
       const quotaPercent = Math.max(0, Math.min(100, Number(quota.usedPercent || 0)));
       setSystemStatusBadge(
         'quota-badge',
-        quota.available ? '已更新' : quota.supported === false ? 'CLI 未提供' : '暂不可用',
+        quota.available ? '已更新' : quota.supported === false ? '配置不可用' : '暂不可用',
         quota.available ? 'online' : 'warning',
       );
       setSystemStatusField('quota-used', quota.available ? formatByteSize(quota.usedBytes) : '—');
       setSystemStatusField('quota-total', quota.available ? formatByteSize(quota.totalBytes) : '—');
       setSystemStatusField('quota-percent', quota.available ? quotaPercent.toFixed(1) + '%' : '—');
       setSystemStatusField('quota-free', quota.available ? formatByteSize(quota.freeBytes) : '—');
-      setSystemStatusField('quota-source-name', quota.source || 'bdpan CLI');
+      setSystemStatusField('quota-source-name', quota.source || '百度开放 API');
       setSystemStatusField('quota-source', quota.available
-        ? '当前账号：' + (baidu.username || '已授权账号') + ' · 容量由 ' + (quota.source || 'bdpan CLI') + ' 返回'
+        ? '当前账号：' + (baidu.username || '已授权账号') + ' · 容量由 ' + (quota.source || '百度开放 API') + ' 返回'
         : quota.error || '暂未获取网盘容量');
       const quotaBar = systemStatusField('quota-bar');
       quotaBar.style.width = (quota.available ? quotaPercent : 0) + '%';

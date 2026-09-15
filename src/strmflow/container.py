@@ -45,6 +45,7 @@ def build_container(
     database: Database,
     openlist_http: httpx.AsyncClient,
     emby_http: httpx.AsyncClient,
+    baidu_http: httpx.AsyncClient,
     runtime_logs: RuntimeLogStore,
 ) -> ServiceContainer:
     openlist = OpenListClient(settings, openlist_http)
@@ -52,7 +53,7 @@ def build_container(
     storage = StorageService(settings, openlist, path_config)
     media_repository = MediaRepository(database.sessions)
     transfer_repository = TransferJobRepository(database.sessions, settings.transfer_job_retention)
-    bdpan_cli = BdpanCli(settings)
+    bdpan_cli = BdpanCli(settings, baidu_http)
     transfers = TransferManager(
         settings, [BdpanTransferProvider(settings, bdpan_cli)], transfer_repository
     )
