@@ -42,7 +42,7 @@ HOP_BY_HOP_HEADERS = {
     "upgrade",
 }
 BODYLESS_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
-VIDEO_PATH = re.compile(r"/(?:videos)/([^/]+)/(?:stream|original)", re.IGNORECASE)
+VIDEO_PATH = re.compile(r"/(?:videos)/([^/]+)/(?:stream|original)(?:\.[^/]*)?$", re.IGNORECASE)
 ITEM_PATH = re.compile(r"/(?:videos|items)/([^/]+)", re.IGNORECASE)
 PLAYBACK_INFO_PATH = re.compile(r"/items/[^/]+/playbackinfo$", re.IGNORECASE)
 
@@ -357,10 +357,14 @@ class Emby302Gateway:
     def _redirect_url(raw_url: str) -> str:
         """Percent-encode Unicode returned by OpenList before putting it in Location."""
         parsed = urlsplit(raw_url)
+        try:
+            netloc = parsed.netloc.encode("ascii").decode("ascii")
+        except UnicodeEncodeError:
+            netloc = parsed.netloc.encode("idna").decode("ascii")
         path = quote(parsed.path, safe="/%:@-._~!$&'()*+,;=")
         query = quote(parsed.query, safe="=&/?%:+,;@-._~!$'()*[]")
         fragment = quote(parsed.fragment, safe="/%?=&:+,;@-._~!$'()*[]")
-        return urlunsplit((parsed.scheme, parsed.netloc, path, query, fragment))
+        return urlunsplit((parsed.scheme, netloc, path, query, fragment))
 
     async def _handle_base_html_player(self, request: Request) -> Response:
         upstream = await self._proxy_buffered(request)
@@ -543,7 +547,7 @@ class Emby302Gateway:
 
     def _request_headers(self, request: Request) -> dict[str, str]:
         headers = {
-            name: value
+            name: self._header_value(name, value)
             for name, value in request.headers.items()
             if name.casefold() not in HOP_BY_HOP_HEADERS | {"host", "content-length"}
         }
@@ -559,10 +563,22 @@ class Emby302Gateway:
         if strip_content:
             blocked.update({"content-length", "content-encoding", "content-type"})
         return {
-            name: value
+            name: self._header_value(name, value)
             for name, value in upstream.headers.items()
             if name.casefold() not in blocked
         }
+
+    @staticmethod
+    def _header_value(name: str, value: str) -> str:
+        """Keep proxied response headers encodable by ASGI's latin-1 wire format."""
+        try:
+            value.encode("latin-1")
+            return value
+        except UnicodeEncodeError:
+            # RFC 5987 headers can carry UTF-8, but many clients and ASGI servers
+            # still require latin-1 here. Preserve the header while replacing only
+            # the invalid octets instead of failing the entire playback request.
+            return value.encode("latin-1", "replace").decode("latin-1")
 
     def _buffered_response(self, upstream: httpx.Response) -> Response:
         return Response(

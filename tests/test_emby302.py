@@ -18,6 +18,14 @@ def test_redirect_url_percent_encodes_unicode_path_and_query() -> None:
     )
 
 
+def test_video_path_accepts_emby_strm_suffix() -> None:
+    assert Emby302Gateway._parse_item_id("/emby/videos/3771/stream.strm") == "3771"
+
+
+def test_response_header_unicode_is_latin1_safe() -> None:
+    assert Emby302Gateway._header_value("content-disposition", "文件名=百花杀") == "???=???"
+
+
 class MemorySettingsRepository:
     value: dict[str, Any] | None = None
 
