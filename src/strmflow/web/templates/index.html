@@ -3243,14 +3243,17 @@
         const seasonDetail = previewSeasons.seasons.length > 1
           ? '，自动识别 ' + previewSeasons.seasons.length + ' 个季度（' + previewSeasons.full + '）'
           : '';
+        const duplicateDetail = Number(preview.skippedDuplicateCount || 0) > 0
+          ? '，已择优跳过 ' + preview.skippedDuplicateCount + ' 个重复版本'
+          : '';
         const newFileSet = new Set(newFiles.map((file) => String(file || '').replace(/\\/g, '/')));
         const recoveryCount = rows.filter((row) => !newFileSet.has(String(row.sourceRel || '').replace(/\\/g, '/'))).length;
         updateSyncStage(
           'preview',
           rows.length > 0 ? '确认同步文件名' : '没有待复制文件',
           rows.length > 0
-            ? '已发现 ' + (preview.episodeCount || 0) + episodeTotal + ' 集' + seasonDetail + '，请确认下方文件名后开始同步。'
-            : '已发现 ' + (preview.episodeCount || 0) + episodeTotal + ' 集' + seasonDetail + '，本次没有需要复制或恢复的文件。',
+            ? '已发现 ' + (preview.episodeCount || 0) + episodeTotal + ' 集' + seasonDetail + duplicateDetail + '，请确认下方文件名后开始同步。'
+            : '已发现 ' + (preview.episodeCount || 0) + episodeTotal + ' 集' + seasonDetail + duplicateDetail + '，本次没有需要复制或恢复的文件。',
         );
         elements.renameHint.textContent = '目标目录：' + preview.targetDir + (rows.length > 0 ? '；可在下方修改目标相对路径。' : '');
         elements.syncPreviewNew.textContent = String(newFiles.length) + ' 个';
