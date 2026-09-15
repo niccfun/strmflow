@@ -359,6 +359,26 @@ class Emby302Gateway:
                 openListPath=openlist_path,
                 targetHost=urlsplit(target_url).netloc,
             )
+        # Resolve OpenList's /d or /p media address through /api/fs/link. A
+        # BaiduNetdisk storage returns its d.pcs.baidu.com CDN URL here, so the
+        # actual video bytes bypass both StrmFlow and OpenList.
+        provider_path = self._extract_openlist_path({"Path": raw_url, "IsRemote": True})
+        if provider_path:
+            direct_url = await self.openlist.direct_link(
+                provider_path,
+                base_url=self.config.openlist_url,
+                timeout=self.config.timeout_ms / 1_000,
+            )
+            if direct_url and direct_url != raw_url:
+                self.runtime_logs.add(
+                    category="gateway302",
+                    level="info",
+                    message="已将 OpenList 地址解析为网盘 CDN 直链",
+                    itemId=item_id,
+                    openListPath=provider_path,
+                    targetHost=urlsplit(direct_url).netloc,
+                )
+                raw_url = direct_url
         self._set_cache(cache_key, raw_url)
         return self._redirect(raw_url, item_id, openlist_path, False), "redirect"
 

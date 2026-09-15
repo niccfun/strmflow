@@ -153,6 +153,26 @@ class OpenListClient:
             raise UpstreamError("读取配置文件失败") from exc
         return response.text
 
+    async def direct_link(
+        self,
+        path: str,
+        *,
+        base_url: str = "",
+        timeout: float | None = None,
+    ) -> str:
+        """Ask OpenList for the provider's direct URL without downloading the file."""
+        data = await self.request(
+            "POST",
+            "/api/fs/link",
+            {"path": normalize_virtual_path(path)},
+            base_url=base_url,
+            timeout=timeout,
+        )
+        url = data.get("url") or data.get("URL") if isinstance(data, dict) else None
+        if not url:
+            raise AppError(404, "文件直链不存在")
+        return str(url)
+
     async def write_text(self, path: str, text: str) -> None:
         normalized = normalize_virtual_path(path)
         try:
