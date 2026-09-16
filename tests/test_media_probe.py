@@ -186,7 +186,9 @@ async def test_media_probe_repository_persists_only_queue_state(tmp_path) -> Non
     await database.close()
 
 
-async def test_media_probe_only_completes_after_emby_persists_info(tmp_path, monkeypatch) -> None:
+async def test_media_probe_accepts_valid_playback_info_while_item_cache_catches_up(
+    tmp_path, monkeypatch
+) -> None:
     class FakeOpenList:
         async def get_file_info(self, _path: str) -> dict[str, int]:
             return {"size": 128}
@@ -214,7 +216,8 @@ async def test_media_probe_only_completes_after_emby_persists_info(tmp_path, mon
 
         async def extract_media_info(self, *_args, **_kwargs) -> dict:
             self.extract_calls += 1
-            # PlaybackInfo can return transient data without updating the item.
+            # PlaybackInfo returns native media data before the item query cache
+            # necessarily exposes Emby's asynchronous persistence.
             return {
                 "MediaSources": [
                     {
@@ -253,8 +256,74 @@ async def test_media_probe_only_completes_after_emby_persists_info(tmp_path, mon
     await service._run_one(target)
 
     row = (await repository.list_all())[0]
-    assert row["status"] == "failed"
-    assert row["lastError"] == "Emby 已响应，但尚未生成有效媒体信息"
+    assert row["status"] == "complete"
+    assert row["lastError"] == ""
     assert emby.extract_calls == 1
     assert emby.find_calls == 2
+    await database.close()
+
+
+async def test_media_probe_retries_when_playback_info_has_no_media_data(
+    tmp_path, monkeypatch
+) -> None:
+    class FakeOpenList:
+        async def get_file_info(self, _path: str) -> dict[str, int]:
+            return {"size": 128}
+
+    class FakeEmby:
+        async def find_item_by_path(self, path: str) -> dict:
+            return {
+                "Id": "item-1",
+                "Path": path,
+                "MediaSources": [
+                    {
+                        "Id": "source-1",
+                        "Path": path,
+                        "Container": "strm",
+                        "RunTimeTicks": 0,
+                        "MediaStreams": [],
+                    }
+                ],
+            }
+
+        async def extract_media_info(self, *_args, **_kwargs) -> dict:
+            return {
+                "MediaSources": [
+                    {
+                        "Id": "source-1",
+                        "Container": "strm",
+                        "RunTimeTicks": 0,
+                        "MediaStreams": [],
+                    }
+                ]
+            }
+
+        def has_media_info(self, payload: dict, media_source_id: str = "") -> bool:
+            return EmbyClient.has_media_info(payload, media_source_id)
+
+        def media_info_summary(self, payload: dict, media_source_id: str = "") -> dict:
+            return EmbyClient.media_info_summary(payload, media_source_id)
+
+    database = Database(Settings(database_url=f"sqlite+aiosqlite:///{tmp_path}/app.db"))
+    await database.initialize()
+    repository = MediaProbeRepository(database.sessions)
+    service = MediaProbeService(
+        Settings(),
+        repository,
+        RuntimeSettingsRepository(database.sessions),
+        FakeOpenList(),  # type: ignore[arg-type]
+        FakeEmby(),  # type: ignore[arg-type]
+        None,  # type: ignore[arg-type]
+        RuntimeLogStore(),
+    )
+    target = "/library/Demo/Season 01/Demo - S01E01.strm"
+    service._active.add(target)
+    await repository.enqueue(target)
+    monkeypatch.setattr(media_probe_module, "PROBE_RETRY_DELAYS", ())
+
+    await service._run_one(target)
+
+    row = (await repository.list_all())[0]
+    assert row["status"] == "failed"
+    assert "PlaybackInfo 未返回有效媒体信息" in row["lastError"]
     await database.close()

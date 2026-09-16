@@ -426,20 +426,26 @@ class MediaProbeService:
             already_present = self.emby.has_media_info(item, media_source_id)
             if already_present:
                 summary = self.emby.media_info_summary(item, media_source_id)
+                persistence_confirmed = True
             else:
-                await self.emby.extract_media_info(
+                probe_payload = await self.emby.extract_media_info(
                     item_id,
                     media_source_id=media_source_id,
                     timeout=self.settings.media_probe_timeout,
                 )
-                # PlaybackInfo may contain transient probe data even when Emby
-                # ultimately did not persist it.  Read the item back and only
-                # complete the queue record after the native library metadata is
-                # actually available; a delayed write will be picked up by retry.
+                probe_summary = self.emby.media_info_summary(probe_payload, media_source_id)
+                # PlaybackInfo returns the freshly probed data before Emby's item
+                # query cache necessarily exposes the asynchronous database write.
+                # Prefer a read-back confirmation, but treat a valid native
+                # PlaybackInfo result as success instead of logging a false failure.
                 refreshed = await self.emby.find_item_by_path(target_path)
-                summary = self.emby.media_info_summary(refreshed or {}, media_source_id)
+                persisted_summary = self.emby.media_info_summary(refreshed or {}, media_source_id)
+                persistence_confirmed = bool(persisted_summary["available"])
+                summary = persisted_summary if persistence_confirmed else probe_summary
             if not summary["available"]:
-                raise RuntimeError("Emby 已响应，但尚未生成有效媒体信息")
+                raise RuntimeError(
+                    "Emby PlaybackInfo 未返回有效媒体信息；请检查 Emby 是否能访问 STRM 中的媒体地址"
+                )
             await self.repository.complete(target_path, item_id=item_id)
             self._active.discard(target_path)
             self.runtime_logs.add(
@@ -448,7 +454,14 @@ class MediaProbeService:
                 message=(
                     f"Emby 媒体信息已存在：{PurePosixPath(target_path).name}"
                     if already_present
-                    else f"Emby 媒体信息提取完成：{PurePosixPath(target_path).name}"
+                    else (
+                        f"Emby 媒体信息提取完成：{PurePosixPath(target_path).name}"
+                        if persistence_confirmed
+                        else (
+                            "Emby 媒体信息提取完成，条目缓存刷新中："
+                            f"{PurePosixPath(target_path).name}"
+                        )
+                    )
                 ),
                 targetPath=target_path,
                 embyItemId=item_id,
@@ -458,6 +471,10 @@ class MediaProbeService:
                 durationSeconds=summary.get("durationSeconds"),
                 sizeBytes=summary.get("sizeBytes"),
                 persistedBy="emby",
+                persistenceConfirmed=persistence_confirmed,
+                mediaInfoSource=(
+                    "item" if already_present or persistence_confirmed else "playback-info"
+                ),
             )
         except asyncio.CancelledError:
             raise

@@ -25,7 +25,7 @@ ghcr.io/niccfun/strmflow:latest
 镜像同时支持 `linux/amd64` 和 `linux/arm64`。每个 GitHub Release 会发布以下标签：
 
 - `latest`
-- 完整版本，例如 `0.3.0`
+- 完整版本，例如 `0.3.1`
 - 次版本，例如 `0.3`
 - 主版本，例如 `0`
 
@@ -78,8 +78,8 @@ docker compose logs -f strmflow
 固定部署某个版本：
 
 ```bash
-STRMFLOW_VERSION=0.3.0 docker compose pull
-STRMFLOW_VERSION=0.3.0 docker compose up -d
+STRMFLOW_VERSION=0.3.1 docker compose pull
+STRMFLOW_VERSION=0.3.1 docker compose up -d
 ```
 
 如果 GHCR 包仍为私有，先登录再拉取：
@@ -130,7 +130,7 @@ docker compose up -d
 固定或回滚版本：
 
 ```bash
-STRMFLOW_VERSION=0.3.0 docker compose up -d
+STRMFLOW_VERSION=0.3.1 docker compose up -d
 ```
 
 数据库迁移会在启动时自动执行。生产升级前建议备份 `data/`：
@@ -214,7 +214,7 @@ Emby 客户端
 
 ## 媒体信息维护
 
-同步新集后，后台工作器调用 Emby 的 `PlaybackInfo` 探测媒体，随后重新读取 Emby 条目，只有确认信息已被 Emby 持久化后才完成任务。失败按 30 秒、2 分钟和 5 分钟重试。
+同步新集后，后台工作器调用 Emby 的 `PlaybackInfo` 探测媒体，并重新读取 Emby 条目确认结果。Emby 的条目查询缓存可能晚于 `PlaybackInfo` 返回；只要原生响应已经包含有效媒体信息，任务即视为成功并等待 Emby 异步落库，避免把正常的短暂延迟误报为失败。真正未返回媒体信息的任务按 30 秒、2 分钟和 5 分钟重试。
 
 系统设置支持：
 
