@@ -36,9 +36,11 @@ from strmflow.utils.paths import join_virtual_path, relative_virtual_path, valid
 
 if TYPE_CHECKING:
     from strmflow.services.emby302 import Emby302Gateway
+    from strmflow.services.media_probe import MediaProbeService
     from strmflow.services.notifications import WecomWebhookService
+    from strmflow.services.storage import StorageService
 
-VIDEO_EXTENSIONS = {
+SOURCE_VIDEO_EXTENSIONS = {
     ".3gp",
     ".avi",
     ".flv",
@@ -50,7 +52,6 @@ VIDEO_EXTENSIONS = {
     ".mpeg",
     ".mpg",
     ".rmvb",
-    ".strm",
     ".ts",
     ".webm",
     ".wmv",
@@ -89,6 +90,8 @@ class BdpanAutomationService:
         runtime_logs: RuntimeLogStore,
         notifications: WecomWebhookService | None = None,
         emby302: Emby302Gateway | None = None,
+        media_probe: MediaProbeService | None = None,
+        storage: StorageService | None = None,
     ) -> None:
         self.settings = settings
         self.cli = cli
@@ -100,6 +103,8 @@ class BdpanAutomationService:
         self.runtime_logs = runtime_logs
         self.notifications = notifications
         self.emby302 = emby302
+        self.media_probe = media_probe
+        self.storage = storage
         self.config = self._default_config()
         self.states: dict[str, dict[str, Any]] = {}
         self._scheduler: asyncio.Task[None] | None = None
@@ -286,7 +291,7 @@ class BdpanAutomationService:
             except BdpanCliError as exc:
                 raise AppError(502, str(exc)) from exc
         if not files:
-            raise AppError(409, "分享中未发现可保存的视频或 STRM 媒体文件")
+            raise AppError(409, "分享中未发现可保存的原始视频文件")
 
         candidates = self._share_candidates(files)
         preview_id = secrets.token_urlsafe(24)
@@ -369,7 +374,7 @@ class BdpanAutomationService:
         cli_status = await self._cli_status()
         if not cli_status["available"] or not cli_status["loggedIn"]:
             raise AppError(409, "百度网盘授权状态已变化，请重新检查分享链接")
-        files = list(candidate["files"])
+        files = [file for file in candidate["files"] if self._is_source_video(file.name)]
         if not files or any(not file.fsid for file in files):
             raise AppError(409, "分享媒体缺少可转存的文件标识，请重新检查")
 
@@ -800,6 +805,7 @@ class BdpanAutomationService:
         queue: list[tuple[str, tuple[str, ...], int]] = [("", (), 0)]
         visited: set[str] = set()
         files: list[ShareMediaFile] = []
+        skipped_strm_count = 0
         request_count = 0
         while queue:
             source_dir, parent_parts, depth = queue.pop(0)
@@ -836,7 +842,11 @@ class BdpanAutomationService:
                         if child_path:
                             queue.append((child_path, parts, depth + 1))
                         continue
-                    if PurePosixPath(name).suffix.casefold() not in VIDEO_EXTENSIONS:
+                    suffix = PurePosixPath(name).suffix.casefold()
+                    if suffix == ".strm":
+                        skipped_strm_count += 1
+                        continue
+                    if suffix not in SOURCE_VIDEO_EXTENSIONS:
                         continue
                     fsid = str(raw.get("fsid") or raw.get("fs_id") or "")
                     files.append(
@@ -861,8 +871,15 @@ class BdpanAutomationService:
             mediaFileCount=len(result),
             visitedDirectoryCount=len(visited),
             requestCount=request_count,
+            skippedStrmReferenceCount=skipped_strm_count,
             durationMs=round((perf_counter() - started_at) * 1_000, 2),
         )
+        if skipped_strm_count:
+            self._log(
+                "warning",
+                f"已忽略 {skipped_strm_count} 个 STRM 引用文件，网盘源目录只转存原始视频",
+                skippedStrmReferenceCount=skipped_strm_count,
+            )
         return result
 
     def _group_transfers(
@@ -902,6 +919,12 @@ class BdpanAutomationService:
                     attempt=attempt,
                     sourcePath=item["sourcePath"],
                 )
+                removed_source_manifests = await self._cleanup_shadowed_source_manifests(item)
+                if removed_source_manifests:
+                    # Existing target manifests may still point at the old,
+                    # unclassified source location. Force a one-time rewrite
+                    # after the real videos replace those source references.
+                    await self.media.update_item(item_id, {"manifestVersion": 0})
                 await self.openlist.request(
                     "POST",
                     "/api/admin/scan/start",
@@ -955,16 +978,33 @@ class BdpanAutomationService:
                         f"Emby 媒体库刷新已触发：{item['name']}",
                         itemId=item_id,
                     )
+                if self.media_probe:
+                    self.media_probe.schedule(result.get("warmupPaths") or [])
                 # A successful directory scan alone does not prove that every file in
                 # an asynchronous bdpan task has landed. Compare the submitted episode
-                # identities and quality with publish()'s saved source inventory before
-                # marking the operation complete.
+                # identities and quality with the underlying source videos before
+                # marking the operation complete. The virtual Strm view is not proof:
+                # a stale source .strm can expose the same episode name.
                 state["pendingSyncAt"] = None
                 state["pendingSyncAttempts"] = 0
                 expected_files = [str(value) for value in state.get("pendingFiles") or []]
+                verification_files = [str(value) for value in current_item.get("syncedFiles") or []]
+                verification_path = str(current_item.get("sourcePath") or "")
+                if self.storage:
+                    underlying_path = await self.storage.resolve_underlying_source_path(
+                        verification_path
+                    )
+                    collect_files = getattr(self.media, "collect_files", None)
+                    if underlying_path and callable(collect_files):
+                        verification_path = underlying_path
+                        verification_files = [
+                            str(value)
+                            for value in await collect_files(underlying_path)
+                            if self._is_source_video(str(value))
+                        ]
                 missing_after_sync = self._pending_missing_files(
                     expected_files,
-                    [str(value) for value in current_item.get("syncedFiles") or []],
+                    verification_files,
                     default_season=int(current_item.get("season") or 1),
                     media_type=str(current_item.get("mediaType") or "tv"),
                 )
@@ -982,6 +1022,7 @@ class BdpanAutomationService:
                         f"百度网盘转存落盘不完整：{item['name']}，仍缺 {len(missing_after_sync)} 集",
                         itemId=item_id,
                         missingFiles=missing_after_sync[:20],
+                        verificationPath=verification_path,
                         nextCheckAt=state["nextCheckAt"],
                     )
                     self._wake.set()
@@ -1285,6 +1326,8 @@ class BdpanAutomationService:
     def _share_candidates(cls, files: list[ShareMediaFile]) -> list[dict[str, Any]]:
         grouped: dict[str, list[ShareMediaFile]] = {}
         for file in files:
+            if not cls._is_source_video(file.name):
+                continue
             prefix = ""
             if len(file.relative_parts) > 1 and not SEASON_DIRECTORY.match(file.relative_parts[0]):
                 prefix = file.relative_parts[0]
@@ -1325,6 +1368,7 @@ class BdpanAutomationService:
     def _preferred_share_files(
         files: list[ShareMediaFile], item: dict[str, Any]
     ) -> tuple[list[ShareMediaFile], list[ShareMediaFile]]:
+        files = [file for file in files if BdpanAutomationService._is_source_video(file.name)]
         if item.get("mediaType") != "tv":
             return files, []
         return select_preferred_episodes(
@@ -1346,8 +1390,30 @@ class BdpanAutomationService:
         collect_files = getattr(self.media, "collect_files", None)
         if not callable(collect_files):
             return [], [], False
+        inventory_path = str(item["sourcePath"])
         try:
-            saved_files = await collect_files(item["sourcePath"])
+            saved_files = await collect_files(inventory_path)
+            if self.storage:
+                underlying_path = await self.storage.resolve_underlying_source_path(inventory_path)
+                if underlying_path:
+                    underlying_files = await collect_files(underlying_path)
+                    source_strm_count = sum(
+                        str(value).casefold().endswith(".strm") for value in underlying_files
+                    )
+                    saved_files = [
+                        str(value)
+                        for value in underlying_files
+                        if self._is_source_video(str(value))
+                    ]
+                    inventory_path = underlying_path
+                    if source_strm_count:
+                        self._log(
+                            "warning",
+                            f"检测到网盘源目录混入 {source_strm_count} 个 STRM 引用文件",
+                            itemId=item.get("id") or "",
+                            sourcePath=underlying_path,
+                            sourceStrmCount=source_strm_count,
+                        )
         except (AppError, TypeError) as exc:
             self._log(
                 "warning",
@@ -1366,10 +1432,67 @@ class BdpanAutomationService:
                 f"本地剧集完整性检查：{item['name']}，缺失 {len(missing)} 集、可升级 {len(upgrades)} 集",
                 itemId=item.get("id") or "",
                 savedFileCount=len(saved_files),
+                inventoryPath=inventory_path,
                 missingFiles=self._file_names(missing),
                 upgradeFiles=self._file_names(upgrades),
             )
         return missing, upgrades, True
+
+    async def _cleanup_shadowed_source_manifests(self, item: dict[str, Any]) -> int:
+        """Remove stale source STRMs only after an equal/better real video has landed."""
+        if not self.storage:
+            return 0
+        underlying_path = await self.storage.resolve_underlying_source_path(item["sourcePath"])
+        if not underlying_path:
+            return 0
+        collect_files = getattr(self.media, "collect_files", None)
+        if not callable(collect_files):
+            return 0
+        files = [str(value) for value in await collect_files(underlying_path)]
+        default_season = int(item.get("season") or 1)
+        videos: dict[tuple[int, int], list[str]] = {}
+        for path in files:
+            if not self._is_source_video(path):
+                continue
+            season, episode = source_season_episode(path)
+            if episode is not None:
+                videos.setdefault((season or default_season, episode), []).append(path)
+
+        redundant: list[str] = []
+        for path in files:
+            if not path.casefold().endswith(".strm"):
+                continue
+            season, episode = source_season_episode(path)
+            if episode is None:
+                continue
+            real_videos = videos.get((season or default_season, episode), [])
+            if (
+                real_videos
+                and max(media_quality_rank(value)[:-1] for value in real_videos)
+                >= (media_quality_rank(path)[:-1])
+            ):
+                redundant.append(path)
+        if not redundant:
+            return 0
+
+        groups: dict[str, list[str]] = {}
+        for relative in redundant:
+            directory, separator, name = relative.rpartition("/")
+            groups.setdefault(directory if separator else "", []).append(name or relative)
+        for directory, names in groups.items():
+            await self.openlist.remove(join_virtual_path(underlying_path, directory), names)
+        self._log(
+            "success",
+            f"已清理网盘源目录中 {len(redundant)} 个被原始视频替代的 STRM 引用文件",
+            itemId=item.get("id") or "",
+            sourcePath=underlying_path,
+            removedFiles=redundant[:20],
+        )
+        return len(redundant)
+
+    @staticmethod
+    def _is_source_video(path: str) -> bool:
+        return PurePosixPath(str(path)).suffix.casefold() in SOURCE_VIDEO_EXTENSIONS
 
     @staticmethod
     def _episode_repairs(

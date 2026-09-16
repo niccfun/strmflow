@@ -169,6 +169,11 @@ class WecomWebhookConfigUpdate(ApiModel):
     link_invalid_enabled: bool = False
 
 
+class MediaProbeConfigUpdate(ApiModel):
+    daily_enabled: bool = False
+    scan_time: str = Field(default="03:00", pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+
+
 class TransferJob(ApiModel):
     id: str
     provider: str

@@ -15,7 +15,12 @@ from strmflow.schemas.api import MediaItemInput, PublishRequest
 from strmflow.services.openlist import OpenListClient
 from strmflow.services.path_config import PathConfigService
 from strmflow.services.storage import StorageService
-from strmflow.utils.episodes import select_preferred_episodes, source_season_episode
+from strmflow.utils.episodes import (
+    media_quality_label,
+    media_quality_rank,
+    select_preferred_episodes,
+    source_season_episode,
+)
 from strmflow.utils.paths import (
     join_virtual_path,
     normalize_virtual_path,
@@ -23,7 +28,10 @@ from strmflow.utils.paths import (
     validate_virtual_path,
 )
 
-STRM_MANIFEST_VERSION = 1
+# Version 2 rewrites manifests created while an Emby target overlapped the
+# physical media source. Those files can still contain the old unclassified URL
+# even after the real videos have been restored.
+STRM_MANIFEST_VERSION = 2
 
 
 class MediaService:
@@ -210,6 +218,7 @@ class MediaService:
         files, duplicate_files = self._preferred_media_files(discovered_files, context)
         targets = set(await self.collect_files(target, tolerant=True, skip_empty_strm=True))
         plan = self._build_plan(files, context, body.rename_plan)
+        plan, quality_upgrades = self._apply_version_targets(plan, context, targets)
         seasons = self._effective_seasons(files, context)
         missing = [entry for entry in plan if entry["targetRel"] not in targets]
         synced = set(context.get("syncedFiles") or [])
@@ -221,6 +230,7 @@ class MediaService:
             pendingFileCount=len(missing),
             seasonCount=len(seasons),
             skippedDuplicateCount=len(duplicate_files),
+            qualityUpgradeCount=len(quality_upgrades),
         )
         return {
             **{key: context.get(key) for key in ("id", "name") if context.get(key)},
@@ -235,6 +245,8 @@ class MediaService:
             "newFiles": [name for name in files if name not in synced],
             "missingTargetFiles": [entry["sourceRel"] for entry in missing],
             "pendingFiles": len(missing),
+            "qualityUpgrades": quality_upgrades,
+            "qualityUpgradeCount": len(quality_upgrades),
             "skippedDuplicateFiles": duplicate_files,
             "skippedDuplicateCount": len(duplicate_files),
             "plan": [
@@ -244,6 +256,7 @@ class MediaService:
 
     async def publish(self, body: PublishRequest) -> dict[str, Any]:
         context, source, target = await self._resolve_publish(body)
+        await self.storage.assert_publish_target_isolated(source, target)
         self._log(
             "info",
             f"开始同步媒体：{context.get('name') or source}",
@@ -255,8 +268,9 @@ class MediaService:
         if not discovered_files:
             raise AppError(409, f"本地 STRM 目录为空，请先扫描生成：{source}")
         files, duplicate_files = self._preferred_media_files(discovered_files, context)
+        all_target_files = await self.collect_files(target, tolerant=True)
         target_file_list = await self.collect_files(target, tolerant=True, skip_empty_strm=True)
-        target_file_list, target_duplicates = self._preferred_media_files(target_file_list, context)
+        target_duplicates = self._legacy_target_duplicates(all_target_files, context)
         if target_duplicates:
             await self._remove_relative_files(target, target_duplicates)
             self._log(
@@ -265,8 +279,9 @@ class MediaService:
                 removedCount=len(target_duplicates),
                 removedFiles=target_duplicates[:20],
             )
-        target_files = set(target_file_list)
+        target_files = set(target_file_list) - set(target_duplicates)
         plan = self._build_plan(files, context, body.rename_plan)
+        plan, quality_upgrades = self._apply_version_targets(plan, context, target_files)
         seasons = self._effective_seasons(files, context)
         missing = [entry for entry in plan if entry["targetRel"] not in target_files]
         normalize_manifests = int(context.get("manifestVersion") or 0) < STRM_MANIFEST_VERSION
@@ -281,20 +296,14 @@ class MediaService:
             else []
         )
         synced = set(context.get("syncedFiles") or [])
-        replacement_manifests = [
-            entry
-            for entry in plan
-            if entry["targetRel"] in target_files
-            and entry["sourceRel"] not in synced
-            and entry["targetRel"].casefold().endswith(".strm")
-        ]
         sync_plan = list(
             {
                 (entry["sourceRel"], entry["targetRel"]): entry
-                for entry in [*missing, *legacy_manifests, *replacement_manifests]
+                for entry in [*missing, *legacy_manifests]
             }.values()
         )
         new_files = [name for name in files if name not in synced]
+        new_episode_count = self._new_episode_count(files, list(synced), context)
         missing_target_files = [entry["sourceRel"] for entry in missing]
         warmup_sources = (
             set(new_files)
@@ -313,7 +322,7 @@ class MediaService:
             sourceFileCount=len(files),
             existingTargetCount=len(target_files),
             pendingFileCount=len(missing),
-            replacementCount=len(replacement_manifests),
+            qualityUpgradeCount=len(quality_upgrades),
             manifestUpgradeCount=len(legacy_manifests),
             seasons=seasons,
             skippedDuplicateCount=len(duplicate_files),
@@ -331,7 +340,7 @@ class MediaService:
             await self.update_item(
                 context["id"],
                 {
-                    "syncedFiles": files,
+                    "syncedFiles": self._merge_synced_inventory(files, context),
                     "lastSyncedAt": datetime.now(UTC).isoformat(),
                     "status": status,
                     "manifestVersion": STRM_MANIFEST_VERSION,
@@ -345,7 +354,7 @@ class MediaService:
             newFileCount=len(new_files),
             episodeCount=episode_count,
             renamedCount=len(renamed),
-            replacementCount=len(replacement_manifests),
+            qualityUpgradeCount=len(quality_upgrades),
             manifestUpgradeCount=len(legacy_manifests),
             status=status,
             autoCompleted=auto_completed,
@@ -358,6 +367,7 @@ class MediaService:
             "targetDir": target,
             "copied": copied,
             "newFiles": new_files,
+            "newEpisodeCount": new_episode_count,
             "missingTargetFiles": missing_target_files,
             "warmupPaths": warmup_paths,
             "totalFiles": len(files),
@@ -369,7 +379,9 @@ class MediaService:
             "refreshed": False,
             "renamedFiles": renamed,
             "normalizedStrmFiles": len(legacy_manifests),
-            "replacedStrmFiles": len(replacement_manifests),
+            "qualityUpgrades": quality_upgrades,
+            "qualityUpgradeCount": len(quality_upgrades),
+            "replacedStrmFiles": 0,
             "skippedDuplicateFiles": duplicate_files,
             "skippedDuplicateCount": len(duplicate_files),
             "removedTargetDuplicateFiles": target_duplicates,
@@ -449,18 +461,34 @@ class MediaService:
                 copied_path = join_virtual_path(target_directory, source_name)
                 await self.openlist.copy(source_directory, target_directory, [source_name])
                 if not await self._wait_for_materialized_strm(copied_path):
-                    # OpenList's `/api/fs/copy` is the canonical operation used
-                    # by demo. If a particular Strm driver leaves a zero-byte
-                    # placeholder, retain the provider URL as a compatibility
-                    # fallback; the normal path never performs an extra read.
-                    info = await self.openlist.get_file_info(copied_path)
-                    raw_url = str(info.get("raw_url") or "").strip()
-                    if not raw_url:
-                        raise AppError(502, f"OpenList 未能生成有效 STRM 文件：{copied_path}")
-                    await self.openlist.write_text(copied_path, raw_url)
+                    source_path = join_virtual_path(source_directory, source_name)
+                    try:
+                        manifest = await self.openlist.read_text(source_path)
+                    except AppError as exc:
+                        await self.openlist.remove(target_directory, [source_name])
+                        raise AppError(
+                            502,
+                            f"源 STRM 暂时无法生成，请稍后重新扫描同步：{source_path}",
+                        ) from exc
+                    media_url = next(
+                        (
+                            line.strip()
+                            for line in manifest.lstrip("\ufeff").splitlines()
+                            if line.strip().startswith(("http://", "https://"))
+                        ),
+                        "",
+                    )
+                    if not media_url:
+                        await self.openlist.remove(target_directory, [source_name])
+                        raise AppError(502, f"源 STRM 内容无效：{source_path}")
+                    await self.openlist.write_text(copied_path, media_url + "\n")
+                    if not await self._wait_for_materialized_strm(copied_path):
+                        await self.openlist.remove(target_directory, [source_name])
+                        raise AppError(502, f"OpenList 未能写入有效 STRM：{copied_path}")
                     self._log(
                         "warning",
-                        "OpenList 返回空 STRM，已写入兼容清单",
+                        "OpenList 复制返回空 STRM，已从源清单恢复内容",
+                        sourcePath=source_path,
                         targetPath=copied_path,
                     )
                 if source_name != target_name:
@@ -567,6 +595,181 @@ class MediaService:
             used.add(candidate)
             plan.append({"sourceRel": source, "targetRel": candidate})
         return plan
+
+    def _apply_version_targets(
+        self,
+        plan: list[dict[str, str]],
+        context: dict[str, Any],
+        target_files: set[str],
+    ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+        """Keep the first selected encode canonical and publish only later upgrades as versions."""
+        if context.get("mediaType") != "tv":
+            return plan, []
+        previous_files = list(map(str, context.get("syncedFiles") or []))
+        version_context = {
+            **context,
+            "autoMultiSeason": len(
+                self._explicit_seasons([*previous_files, *(entry["sourceRel"] for entry in plan)])
+            )
+            > 1,
+        }
+        previous = self._best_episode_sources(previous_files, version_context)
+        result: list[dict[str, str]] = []
+        upgrades: list[dict[str, str]] = []
+        for entry in plan:
+            source = entry["sourceRel"]
+            requested_target = entry["targetRel"]
+            if not source.casefold().endswith(".strm"):
+                result.append(entry)
+                continue
+            canonical = self._normalized_target_name(source, version_context)
+            identity = self._target_episode_identity(canonical, version_context)
+            prior = previous.get(identity) if identity else None
+            # A deleted canonical file is restored under its stable name. This also
+            # covers existing libraries imported before quality history was recorded.
+            if not prior or canonical not in target_files:
+                result.append(entry)
+                continue
+            version_target = self._version_target_name(canonical, source)
+            if source == prior:
+                result.append(
+                    {**entry, "targetRel": version_target}
+                    if version_target in target_files
+                    else entry
+                )
+                continue
+            if media_quality_rank(source) <= media_quality_rank(prior):
+                # Never replace a published episode with an equal or lower quality
+                # duplicate. The existing canonical/version file remains untouched.
+                result.append(entry)
+                continue
+            target = requested_target if requested_target != canonical else version_target
+            version_entry = {**entry, "targetRel": target}
+            result.append(version_entry)
+            if target not in target_files:
+                upgrades.append(
+                    {
+                        "sourceRel": source,
+                        "targetRel": target,
+                        "from": media_quality_label(prior),
+                        "to": media_quality_label(source),
+                    }
+                )
+        return result, upgrades
+
+    @classmethod
+    def _best_episode_sources(
+        cls, files: list[str], context: dict[str, Any]
+    ) -> dict[tuple[int, int], str]:
+        best: dict[tuple[int, int], str] = {}
+        for source in files:
+            if not str(source).casefold().endswith(".strm"):
+                continue
+            canonical = cls._normalized_target_name(str(source), context)
+            identity = cls._target_episode_identity(canonical, context)
+            if identity is None:
+                continue
+            current = best.get(identity)
+            if current is None or media_quality_rank(str(source)) > media_quality_rank(current):
+                best[identity] = str(source)
+        return best
+
+    @classmethod
+    def _merge_synced_inventory(cls, files: list[str], context: dict[str, Any]) -> list[str]:
+        """Retain the best known source per episode as the quality-upgrade baseline."""
+        if context.get("mediaType") != "tv":
+            return files
+        merged = list(dict.fromkeys([*map(str, context.get("syncedFiles") or []), *files]))
+        preferred, duplicates = cls._preferred_media_files(merged, context)
+        duplicate_set = set(duplicates)
+        # Non-episode assets describe the current source tree, not historical state.
+        current_non_episodes = {
+            value
+            for value in files
+            if not value.casefold().endswith(".strm") or source_season_episode(value)[1] is None
+        }
+        return sorted(
+            dict.fromkeys(
+                value
+                for value in preferred
+                if value not in duplicate_set
+                and (
+                    value.casefold().endswith(".strm")
+                    and source_season_episode(value)[1] is not None
+                    or value in current_non_episodes
+                )
+            ),
+            key=str.casefold,
+        )
+
+    @classmethod
+    def _new_episode_count(
+        cls, files: list[str], previous: list[str], context: dict[str, Any]
+    ) -> int:
+        identity_context = {
+            **context,
+            "autoMultiSeason": len(cls._explicit_seasons([*files, *previous])) > 1,
+        }
+        previous_ids = {
+            identity
+            for source in previous
+            if source.casefold().endswith(".strm")
+            if (
+                identity := cls._target_episode_identity(
+                    cls._normalized_target_name(source, identity_context), identity_context
+                )
+            )
+        }
+        current_ids = {
+            identity
+            for source in files
+            if source.casefold().endswith(".strm")
+            if (
+                identity := cls._target_episode_identity(
+                    cls._normalized_target_name(source, identity_context), identity_context
+                )
+            )
+        }
+        return len(current_ids - previous_ids)
+
+    @staticmethod
+    def _target_episode_identity(target: str, context: dict[str, Any]) -> tuple[int, int] | None:
+        season, episode = source_season_episode(target)
+        if episode is None:
+            return None
+        return season or int(context.get("season") or 1), episode
+
+    @staticmethod
+    def _version_target_name(canonical: str, source: str) -> str:
+        if not canonical.casefold().endswith(".strm"):
+            return canonical
+        return f"{canonical[:-5]} - {media_quality_label(source)}.strm"
+
+    @classmethod
+    def _legacy_target_duplicates(cls, files: list[str], context: dict[str, Any]) -> list[str]:
+        normalized_by_id: dict[tuple[int, int], str] = {}
+        for name in files:
+            identity = cls._target_episode_identity(name, context)
+            if identity is None:
+                continue
+            season, episode = identity
+            series = context.get("name") or context.get("title") or "Media"
+            canonical = f"Season {season:02d}/{series} - S{season:02d}E{episode:02d}.strm"
+            if canonical in files:
+                normalized_by_id[identity] = canonical
+        duplicates: list[str] = []
+        for name in files:
+            identity = cls._target_episode_identity(name, context)
+            canonical = normalized_by_id.get(identity) if identity else None
+            if not canonical or name == canonical:
+                continue
+            version_prefix = canonical[:-5] + " - "
+            if not (name.startswith(version_prefix) and name.casefold().endswith(".strm")):
+                duplicates.append(name)
+                continue
+            if re.search(r"\s-\s\d+\.strm$", name, re.IGNORECASE):
+                duplicates.append(name)
+        return duplicates
 
     @classmethod
     def _normalized_target_name(cls, source: str, context: dict[str, Any]) -> str:

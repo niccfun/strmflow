@@ -60,3 +60,17 @@ class AppMetadataRow(Base):
 
     key: Mapped[str] = mapped_column(String(100), primary_key=True)
     value: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class MediaProbeRow(Base):
+    __tablename__ = "media_probes"
+
+    target_path: Mapped[str] = mapped_column(String(1000), primary_key=True)
+    item_id: Mapped[str] = mapped_column(String(100), nullable=False, default="", index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    probed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

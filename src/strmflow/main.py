@@ -88,6 +88,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     targetRoot=app.state.services.path_config.emby_strm_root or "未配置",
                 )
                 runtime_logs.add(category="system", message="正在初始化 302 网关与通知服务")
+                await app.state.services.media_probe.initialize()
                 await app.state.services.emby302.initialize()
                 await app.state.services.emby302.start_configured()
                 await app.state.services.notifications.initialize()
@@ -104,6 +105,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     runtime_logs.add(category="system", message="StrmFlow 正在停止后台任务")
                     await app.state.services.bdpan.close()
                     await app.state.services.emby302.close()
+                    await app.state.services.media_probe.close()
                     await app.state.services.transfers.close()
                     runtime_logs.add(
                         category="system", level="success", message="StrmFlow 后台任务已停止"
@@ -258,6 +260,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except AppError:
             return RedirectResponse("/login", status_code=302)
         html = (settings.templates_dir / "index.html").read_text(encoding="utf-8")
+        html = html.replace("__STRMFLOW_VERSION__", __version__)
         return HTMLResponse(html, headers=SECURITY_HEADERS)
 
     app.include_router(router)

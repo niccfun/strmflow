@@ -8,6 +8,7 @@ from strmflow.core.config import Settings
 from strmflow.core.runtime_logs import RuntimeLogStore
 from strmflow.infrastructure.database import Database
 from strmflow.repositories import (
+    MediaProbeRepository,
     MediaRepository,
     RuntimeSettingsRepository,
     TransferJobRepository,
@@ -18,6 +19,7 @@ from strmflow.services.emby import EmbyClient
 from strmflow.services.emby302 import Emby302Gateway
 from strmflow.services.legacy_import import LegacyJsonImporter
 from strmflow.services.media import MediaService
+from strmflow.services.media_probe import MediaProbeService
 from strmflow.services.notifications import WecomWebhookService
 from strmflow.services.openlist import OpenListClient
 from strmflow.services.path_config import PathConfigService
@@ -37,6 +39,7 @@ class ServiceContainer:
     legacy_importer: LegacyJsonImporter
     path_config: PathConfigService
     emby302: Emby302Gateway
+    media_probe: MediaProbeService
     bdpan: BdpanAutomationService
     notifications: WecomWebhookService
     system_status: SystemStatusService
@@ -52,7 +55,8 @@ def build_container(
     runtime_logs: RuntimeLogStore,
 ) -> ServiceContainer:
     openlist = OpenListClient(settings, openlist_http)
-    path_config = PathConfigService(settings, RuntimeSettingsRepository(database.sessions))
+    runtime_repository = RuntimeSettingsRepository(database.sessions)
+    path_config = PathConfigService(settings, runtime_repository)
     storage = StorageService(settings, openlist, path_config)
     media_repository = MediaRepository(database.sessions)
     transfer_repository = TransferJobRepository(database.sessions, settings.transfer_job_retention)
@@ -72,20 +76,27 @@ def build_container(
         runtime_logs,
     )
     emby = EmbyClient(settings, emby_http)
+    media_probe = MediaProbeService(
+        settings,
+        MediaProbeRepository(database.sessions),
+        runtime_repository,
+        openlist,
+        emby,
+        path_config,
+        runtime_logs,
+    )
     emby302 = Emby302Gateway(
         settings,
         emby_http,
         openlist,
-        RuntimeSettingsRepository(database.sessions),
+        runtime_repository,
         runtime_logs,
     )
-    notifications = WecomWebhookService(
-        RuntimeSettingsRepository(database.sessions), notification_http, runtime_logs
-    )
+    notifications = WecomWebhookService(runtime_repository, notification_http, runtime_logs)
     bdpan = BdpanAutomationService(
         settings,
         bdpan_cli,
-        RuntimeSettingsRepository(database.sessions),
+        runtime_repository,
         media,
         openlist,
         emby,
@@ -93,6 +104,8 @@ def build_container(
         runtime_logs,
         notifications,
         emby302,
+        media_probe,
+        storage=storage,
     )
     system_status = SystemStatusService(
         settings,
@@ -115,6 +128,7 @@ def build_container(
         legacy_importer=LegacyJsonImporter(settings, database.sessions, media_repository, openlist),
         path_config=path_config,
         emby302=emby302,
+        media_probe=media_probe,
         bdpan=bdpan,
         notifications=notifications,
         system_status=system_status,

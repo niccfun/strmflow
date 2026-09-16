@@ -107,6 +107,9 @@ class FakeOpenList:
         self.requests.append((method, path, body))
         return {"is_done": True} if path.endswith("/progress") else {}
 
+    async def remove(self, directory: str, names: list[str]) -> None:
+        self.requests.append(("REMOVE", directory, {"names": names}))
+
 
 class FakeEmby:
     def __init__(self) -> None:
@@ -134,6 +137,25 @@ class FakeNotifications:
 
 class FakePathConfig:
     list_root = "/temp_strm"
+
+
+class FakeSourceStorage:
+    async def resolve_underlying_source_path(self, path: str) -> str | None:
+        assert path == "/temp_strm/TV/国产剧/交锋 (2026)"
+        return "/bdpan/apps/bdpan/media/TV/国产剧/交锋 (2026)"
+
+
+class FakeUnderlyingMedia(FakeMedia):
+    def __init__(self, underlying_files: list[str]) -> None:
+        super().__init__()
+        self.item["sourcePath"] = "/temp_strm/TV/国产剧/交锋 (2026)"
+        self.underlying_files = underlying_files
+
+    async def collect_files(self, root: str, *, tolerant: bool = False) -> list[str]:
+        assert tolerant is False
+        if root.startswith("/bdpan/"):
+            return list(self.underlying_files)
+        return ["交锋.S01E01.strm", "交锋.S01E02.strm"]
 
 
 class FakeBdpanCli(BdpanCli):
@@ -471,15 +493,93 @@ def test_share_candidates_separate_multiple_top_level_media() -> None:
 def test_share_candidates_deduplicate_same_episode_and_keep_quality_variant() -> None:
     candidates = BdpanAutomationService._share_candidates(
         [
-            media_file("1001", "百花杀 (2026)/S01E06 1080p.strm"),
-            media_file("1002", "百花杀 (2026)/S01E06 4K.strm"),
-            media_file("1003", "百花杀 (2026)/S01E06 4K(1).strm"),
-            media_file("1004", "百花杀 (2026)/S01E07 4K.strm"),
+            media_file("1001", "百花杀 (2026)/S01E06 1080p.mp4"),
+            media_file("1002", "百花杀 (2026)/S01E06 4K.mp4"),
+            media_file("1003", "百花杀 (2026)/S01E06 4K(1).mp4"),
+            media_file("1004", "百花杀 (2026)/S01E07 4K.mp4"),
         ]
     )
     assert candidates[0]["fileCount"] == 2
     assert candidates[0]["duplicateCount"] == 2
-    assert candidates[0]["sampleFiles"] == ["S01E06 4K.strm", "S01E07 4K.strm"]
+    assert candidates[0]["sampleFiles"] == ["S01E06 4K.mp4", "S01E07 4K.mp4"]
+
+
+def test_share_candidates_never_transfer_strm_reference_files() -> None:
+    candidates = BdpanAutomationService._share_candidates(
+        [
+            media_file("1001", "交锋 (2026)/S01E01 4K.strm"),
+            media_file("1002", "交锋 (2026)/S01E01 4K.mp4"),
+        ]
+    )
+
+    assert candidates[0]["fileCount"] == 1
+    assert candidates[0]["sampleFiles"] == ["S01E01 4K.mp4"]
+
+
+@pytest.mark.asyncio
+async def test_source_inventory_uses_underlying_videos_not_generated_strm_view() -> None:
+    settings = Settings(bdpan_binary="bdpan")
+    media = FakeUnderlyingMedia(["S01E01 4KHDR60FPS.strm", "S01E02 4KHDR60FPS.mp4"])
+    service = BdpanAutomationService(
+        settings,
+        FakeBdpanCli(settings),
+        FakeRuntimeRepository(),  # type: ignore[arg-type]
+        media,  # type: ignore[arg-type]
+        FakeOpenList(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        FakePathConfig(),  # type: ignore[arg-type]
+        RuntimeLogStore(),
+        storage=FakeSourceStorage(),  # type: ignore[arg-type]
+    )
+
+    missing, upgrades, checked = await service._saved_episode_repairs(
+        media.item,
+        [
+            media_file("1001", "S01E01 4KHDR60FPS.mp4"),
+            media_file("1002", "S01E02 4KHDR60FPS.mp4"),
+        ],
+        {},
+    )
+
+    assert checked is True
+    assert [file.name for file in missing] == ["S01E01 4KHDR60FPS.mp4"]
+    assert upgrades == []
+
+
+@pytest.mark.asyncio
+async def test_cleanup_removes_only_strm_shadowed_by_equal_or_better_video() -> None:
+    settings = Settings(bdpan_binary="bdpan")
+    media = FakeUnderlyingMedia(
+        [
+            "S01E01 4KHDR60FPS.strm",
+            "S01E01 4KHDR60FPS.mp4",
+            "S01E02 4KHDR.strm",
+            "S01E02 1080p.mp4",
+        ]
+    )
+    openlist = FakeOpenList()
+    service = BdpanAutomationService(
+        settings,
+        FakeBdpanCli(settings),
+        FakeRuntimeRepository(),  # type: ignore[arg-type]
+        media,  # type: ignore[arg-type]
+        openlist,  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        FakePathConfig(),  # type: ignore[arg-type]
+        RuntimeLogStore(),
+        storage=FakeSourceStorage(),  # type: ignore[arg-type]
+    )
+
+    removed = await service._cleanup_shadowed_source_manifests(media.item)
+
+    assert removed == 1
+    assert openlist.requests == [
+        (
+            "REMOVE",
+            "/bdpan/apps/bdpan/media/TV/国产剧/交锋 (2026)",
+            {"names": ["S01E01 4KHDR60FPS.strm"]},
+        )
+    ]
 
 
 def test_episode_repairs_restore_missing_and_upgrade_inferior_saved_variants() -> None:

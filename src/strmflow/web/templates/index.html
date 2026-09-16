@@ -154,7 +154,6 @@
     .toolbar { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
     .app-view { animation: view-in .18s ease; }
     @keyframes view-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-    .steps { display: none; }
     .tab-count { min-width: 19px; display: inline-grid; place-items: center; padding: 0 5px; border-radius: 999px; background: var(--border); color: var(--muted); font-size: 11px; }
     .filter-tab.active .tab-count { background: var(--primary-soft); color: var(--primary-soft-text); }
 
@@ -667,7 +666,6 @@
       .settings-path-layout { grid-template-columns: 1fr; }
       .path-flow-arrow { transform: rotate(90deg); }
       .source-picker-row { grid-template-columns: 1fr; }
-      .arrow { display: none; }
       .filter-tabs { width: 100%; }
       .filter-tab { flex: 1; }
       .summary { align-items: flex-start; flex-direction: column; }
@@ -1031,6 +1029,7 @@
               <div class="field">
                 <label for="emby302TimeoutInput">上游超时（毫秒）</label>
                 <input id="emby302TimeoutInput" type="number" value="30000" min="1000" max="600000" inputmode="numeric">
+                <p class="gateway-field-help">普通请求使用该值；首次 PlaybackInfo 探测至少保留 120 秒。</p>
               </div>
               <div class="field">
                 <label for="emby302BodyLimitInput">请求体缓冲上限（字节）</label>
@@ -1138,6 +1137,53 @@
           <div class="page-form-actions">
             <button id="settingsResetButton" type="button">恢复已保存设置</button>
             <button id="settingsSaveButton" class="primary" type="button">保存设置</button>
+          </div>
+        </section>
+
+        <section class="panel settings-content" aria-labelledby="mediaProbeSettingsTitle">
+          <div class="bdpan-title-row settings-section-title">
+            <div class="bdpan-title-copy">
+              <h3 id="mediaProbeSettingsTitle">媒体信息维护 <span class="bdpan-official-badge">Emby 原生提取</span></h3>
+              <p>每天在指定时间扫描目标 STRM 根目录，只将缺少时长、容器或媒体流信息的项目加入后台队列。</p>
+            </div>
+            <span id="mediaProbeHeaderStatus" class="gateway-status offline">正在读取</span>
+          </div>
+
+          <div class="bdpan-status-grid" aria-label="媒体信息维护状态">
+            <article class="bdpan-status-card"><span>下次扫描</span><strong id="mediaProbeNextScan">—</strong></article>
+            <article class="bdpan-status-card"><span>上次扫描</span><strong id="mediaProbeLastScan">—</strong></article>
+            <article class="bdpan-status-card"><span>上次发现缺失</span><strong id="mediaProbeMissingCount">0 个</strong></article>
+            <article class="bdpan-status-card"><span>等待 / 提取中</span><strong id="mediaProbeQueueCount">0 个</strong></article>
+          </div>
+
+          <label class="gateway-enable-card" for="mediaProbeDailyEnabledInput">
+            <span>
+              <strong>启用每日缺失媒体信息扫描</strong>
+              <small id="mediaProbeTimezoneHint">按 Asia/Hong_Kong 时区执行；已有完整媒体信息的项目会直接跳过。</small>
+            </span>
+            <input id="mediaProbeDailyEnabledInput" type="checkbox">
+            <span class="toggle-switch" aria-hidden="true"></span>
+          </label>
+
+          <div class="notification-settings-grid">
+            <div class="notification-webhook-card">
+              <div class="field">
+                <label for="mediaProbeScanTimeInput">每日扫描时间</label>
+                <input id="mediaProbeScanTimeInput" type="time" value="03:00" step="60">
+                <p class="settings-help">扫描过程只读取 Emby 媒体库；发现缺失项后串行提取，避免同时请求多个网盘视频。</p>
+              </div>
+            </div>
+            <div class="notification-toggle-grid">
+              <div class="notification-option">
+                <span><strong>最近扫描结果</strong><small id="mediaProbeLastResult">尚未执行完整扫描</small></span>
+              </div>
+            </div>
+          </div>
+          <div id="mediaProbeError" class="editor-error" role="alert"></div>
+          <div class="page-form-actions">
+            <button id="mediaProbeScanButton" type="button">立即扫描缺失项</button>
+            <button id="mediaProbeResetButton" type="button">恢复已保存配置</button>
+            <button id="mediaProbeSaveButton" class="primary" type="button">保存扫描设置</button>
           </div>
         </section>
 
@@ -1284,7 +1330,7 @@
           <div class="about-hero">
             <img class="about-logo" src="/static/strmflow.svg" alt="StrmFlow 图标">
             <h3 class="about-name">StrmFlow</h3>
-            <span class="version-pill">v0.2.0</span>
+            <span class="version-pill">v__STRMFLOW_VERSION__</span>
             <p class="about-description">面向 OpenList 与 Emby 的轻量 STRM 媒体自动化管理工具，专注于发现、整理和追更同步。</p>
           </div>
           <div class="about-grid">
@@ -1319,7 +1365,7 @@
             <input id="shareLinkInput" type="text" placeholder="粘贴链接及提取码，例如：https://pan.baidu.com/s/... 提取码 abcd" autocomplete="off">
             <button id="shareInspectButton" class="share-check-button" type="button">检查有效媒体</button>
           </div>
-          <p class="settings-help">只读取分享目录并筛选视频或 STRM 文件；检查结果保留 15 分钟。</p>
+          <p class="settings-help">只读取分享目录并筛选原始视频文件；STRM 引用文件不会转存到网盘源目录。</p>
         </div>
         <div id="shareInspectionResult" class="share-inspection-result" hidden>
           <div class="share-result-copy">
@@ -1513,6 +1559,9 @@
       editorSnapshot: '',
       settingsSnapshot: '',
       settingsInitialized: false,
+      mediaProbeData: null,
+      mediaProbeSnapshot: '',
+      mediaProbeLoading: false,
       statusTimer: null,
       logs: savedLogs,
       serverLogs: [],
@@ -1603,6 +1652,19 @@
       settingsListRoot: document.querySelector('#settingsListRootInput'),
       settingsEmbyRoot: document.querySelector('#settingsEmbyRootInput'),
       settingsError: document.querySelector('#settingsError'),
+      mediaProbeHeaderStatus: document.querySelector('#mediaProbeHeaderStatus'),
+      mediaProbeNextScan: document.querySelector('#mediaProbeNextScan'),
+      mediaProbeLastScan: document.querySelector('#mediaProbeLastScan'),
+      mediaProbeMissingCount: document.querySelector('#mediaProbeMissingCount'),
+      mediaProbeQueueCount: document.querySelector('#mediaProbeQueueCount'),
+      mediaProbeTimezoneHint: document.querySelector('#mediaProbeTimezoneHint'),
+      mediaProbeDailyEnabled: document.querySelector('#mediaProbeDailyEnabledInput'),
+      mediaProbeScanTime: document.querySelector('#mediaProbeScanTimeInput'),
+      mediaProbeLastResult: document.querySelector('#mediaProbeLastResult'),
+      mediaProbeError: document.querySelector('#mediaProbeError'),
+      mediaProbeScan: document.querySelector('#mediaProbeScanButton'),
+      mediaProbeReset: document.querySelector('#mediaProbeResetButton'),
+      mediaProbeSave: document.querySelector('#mediaProbeSaveButton'),
       bdpanHeaderStatus: document.querySelector('#bdpanHeaderStatus'),
       bdpanCliStatus: document.querySelector('#bdpanCliStatus'),
       bdpanLoginStatus: document.querySelector('#bdpanLoginStatus'),
@@ -2116,6 +2178,112 @@
         setStatus(error.message, 'error');
       } finally {
         elements.emby302CacheClear.disabled = state.busy;
+      }
+    }
+
+    function mediaProbeValues() {
+      return {
+        dailyEnabled: elements.mediaProbeDailyEnabled.checked,
+        scanTime: elements.mediaProbeScanTime.value || '03:00',
+      };
+    }
+
+    function renderMediaProbe(data) {
+      if (!data) return;
+      const config = data.config || {};
+      const runtime = data.runtime || {};
+      const counts = runtime.queueCounts || {};
+      const activeCount = Number(counts.queued || 0) + Number(counts.retry || 0)
+        + Number(counts.running || 0);
+      elements.mediaProbeHeaderStatus.className = 'gateway-status '
+        + (runtime.lastError ? 'error' : runtime.scanning ? 'online' : config.dailyEnabled ? 'online' : 'offline');
+      elements.mediaProbeHeaderStatus.textContent = runtime.lastError
+        ? '扫描异常' : runtime.scanning ? '扫描中' : config.dailyEnabled ? '每日扫描已启用' : '定时扫描未启用';
+      elements.mediaProbeNextScan.textContent = config.dailyEnabled
+        ? formatNextCheck(runtime.nextScanAt) : '未启用';
+      elements.mediaProbeLastScan.textContent = runtime.lastScanAt
+        ? formatNextCheck(runtime.lastScanAt) : '尚未扫描';
+      elements.mediaProbeMissingCount.textContent = Number(runtime.lastMissingCount || 0) + ' 个';
+      elements.mediaProbeQueueCount.textContent = activeCount + ' 个';
+      elements.mediaProbeTimezoneHint.textContent = '按 ' + (config.timezone || 'Asia/Hong_Kong')
+        + ' 时区执行；已有完整媒体信息的项目会直接跳过。';
+      elements.mediaProbeLastResult.textContent = runtime.lastError
+        ? runtime.lastError
+        : runtime.lastScanAt
+          ? '扫描 ' + Number(runtime.lastScannedCount || 0) + ' 个，发现缺失 '
+            + Number(runtime.lastMissingCount || 0) + ' 个，入队 '
+            + Number(runtime.lastQueuedCount || 0) + ' 个。'
+          : '尚未执行完整扫描';
+      elements.mediaProbeScan.disabled = state.busy || Boolean(runtime.scanning);
+    }
+
+    function fillMediaProbeForm(data) {
+      const config = data?.config || {};
+      elements.mediaProbeDailyEnabled.checked = Boolean(config.dailyEnabled);
+      elements.mediaProbeScanTime.value = config.scanTime || '03:00';
+      state.mediaProbeSnapshot = JSON.stringify(mediaProbeValues());
+      renderMediaProbe(data);
+    }
+
+    async function loadMediaProbe(populateForm = false) {
+      if (state.mediaProbeLoading) return;
+      state.mediaProbeLoading = true;
+      try {
+        const data = await api('/api/media-probe');
+        state.mediaProbeData = data;
+        if (populateForm || !state.mediaProbeSnapshot) fillMediaProbeForm(data);
+        else renderMediaProbe(data);
+      } catch (error) {
+        elements.mediaProbeError.textContent = error.message;
+        elements.mediaProbeError.classList.add('show');
+      } finally {
+        state.mediaProbeLoading = false;
+      }
+    }
+
+    function restoreMediaProbe() {
+      if (!state.mediaProbeData) return;
+      fillMediaProbeForm(state.mediaProbeData);
+      elements.mediaProbeError.textContent = '';
+      elements.mediaProbeError.classList.remove('show');
+      setStatus('已恢复当前保存的媒体信息扫描设置。', 'success');
+    }
+
+    async function saveMediaProbe() {
+      if (state.busy) return;
+      setBusy(true);
+      try {
+        const data = await api('/api/media-probe', {
+          method: 'PUT',
+          body: JSON.stringify(mediaProbeValues()),
+        });
+        state.mediaProbeData = data;
+        fillMediaProbeForm(data);
+        elements.mediaProbeError.textContent = '';
+        elements.mediaProbeError.classList.remove('show');
+        setStatus(data.config?.dailyEnabled
+          ? '每日媒体信息扫描已启用。' : '媒体信息扫描设置已保存。', 'success');
+      } catch (error) {
+        elements.mediaProbeError.textContent = error.message;
+        elements.mediaProbeError.classList.add('show');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function scanMissingMediaInfo() {
+      if (state.busy || state.mediaProbeData?.runtime?.scanning) return;
+      elements.mediaProbeScan.disabled = true;
+      try {
+        await api('/api/media-probe/scan', { method: 'POST', body: '{}' });
+        setStatus('缺失媒体信息扫描已在后台启动。', 'running');
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await loadMediaProbe(false);
+      } catch (error) {
+        setStatus(error.message, 'error');
+      } finally {
+        elements.mediaProbeScan.disabled = state.busy
+          || Boolean(state.mediaProbeData?.runtime?.scanning);
       }
     }
 
@@ -2947,6 +3115,8 @@
         elements.bdpanMaxItems,
         elements.bdpanDisclaimer,
         elements.bdpanAuthorizationCode,
+        elements.mediaProbeDailyEnabled,
+        elements.mediaProbeScanTime,
         elements.wecomWebhook,
         elements.wecomEpisodeUpdate,
         elements.wecomLinkInvalid,
@@ -2957,6 +3127,7 @@
         validateBdpan(false);
       }
       if (!value && state.wecomData) validateWecom(false);
+      if (!value && state.mediaProbeData) renderMediaProbe(state.mediaProbeData);
     }
 
     function formatDate(value) {
@@ -3253,14 +3424,17 @@
         const duplicateDetail = Number(preview.skippedDuplicateCount || 0) > 0
           ? '，已择优跳过 ' + preview.skippedDuplicateCount + ' 个重复版本'
           : '';
+        const upgradeDetail = Number(preview.qualityUpgradeCount || 0) > 0
+          ? '，新增 ' + preview.qualityUpgradeCount + ' 个高质量版本'
+          : '';
         const newFileSet = new Set(newFiles.map((file) => String(file || '').replace(/\\/g, '/')));
         const recoveryCount = rows.filter((row) => !newFileSet.has(String(row.sourceRel || '').replace(/\\/g, '/'))).length;
         updateSyncStage(
           'preview',
           rows.length > 0 ? '确认同步文件名' : '没有待复制文件',
           rows.length > 0
-            ? '已发现 ' + (preview.episodeCount || 0) + episodeTotal + ' 集' + seasonDetail + duplicateDetail + '，请确认下方文件名后开始同步。'
-            : '已发现 ' + (preview.episodeCount || 0) + episodeTotal + ' 集' + seasonDetail + duplicateDetail + '，本次没有需要复制或恢复的文件。',
+            ? '已发现 ' + (preview.episodeCount || 0) + episodeTotal + ' 集' + seasonDetail + duplicateDetail + upgradeDetail + '，请确认下方文件名后开始同步。'
+            : '已发现 ' + (preview.episodeCount || 0) + episodeTotal + ' 集' + seasonDetail + duplicateDetail + upgradeDetail + '，本次没有需要复制或恢复的文件。',
         );
         elements.renameHint.textContent = '目标目录：' + preview.targetDir + (rows.length > 0 ? '；可在下方修改目标相对路径。' : '');
         elements.syncPreviewNew.textContent = String(newFiles.length) + ' 个';
@@ -3420,10 +3594,6 @@
         return sourcePath.slice(root.length + 1).split('/').filter(Boolean)[0] || '';
       }
       return sourceFolderType(folder) === 'movie' ? 'Movies' : 'TV';
-    }
-
-    function sourceFolderCategory(folder) {
-      return folder?.category || guessCategory(folder) || '未分类';
     }
 
     function replaceSelectOptions(
@@ -4210,6 +4380,7 @@
       if (!state.settingsInitialized && !resetSettingsForm()) return;
       showView('settings');
       await Promise.all([
+        loadMediaProbe(!state.mediaProbeData),
         loadBdpan(!state.bdpanData, false),
         loadWecom(!state.wecomData),
       ]);
@@ -4341,6 +4512,7 @@
         const details = [];
         details.push(result.newFiles?.length ? '发现 ' + result.newFiles.length + ' 个新文件' : '未发现新文件');
         if (result.renamedFiles?.length) details.push('重命名 ' + result.renamedFiles.length + ' 个文件');
+        if (Number(result.qualityUpgradeCount || 0) > 0) details.push('新增 ' + result.qualityUpgradeCount + ' 个高质量版本');
         if (Number(result.seasonCount || 0) > 1) details.push('已自动整理 ' + result.seasonCount + ' 个季度');
         if (result.missingTargetFiles?.length && !result.newFiles?.length) details.push('已恢复目标目录缺失文件');
         details.push(shouldRefresh ? 'Emby 媒体库已刷新' : '媒体库无需刷新');
@@ -4592,6 +4764,9 @@
     elements.settings.addEventListener('click', openSettings);
     elements.settingsSave.addEventListener('click', saveSettings);
     elements.settingsReset.addEventListener('click', restoreSettings);
+    elements.mediaProbeSave.addEventListener('click', saveMediaProbe);
+    elements.mediaProbeReset.addEventListener('click', restoreMediaProbe);
+    elements.mediaProbeScan.addEventListener('click', scanMissingMediaInfo);
     elements.bdpanRefresh.addEventListener('click', () => loadBdpan(false, true));
     elements.bdpanCheck.addEventListener('click', () => checkBdpanNow());
     elements.bdpanLoginStart.addEventListener('click', startBdpanLogin);
@@ -4639,7 +4814,9 @@
       const bdpanDirty = Boolean(state.bdpanSnapshot)
         && state.bdpanSnapshot !== JSON.stringify(bdpanValues());
       const wecomDirty = wecomIsDirty();
-      if (!editorIsDirty() && !settingsDirty && !emby302Dirty && !bdpanDirty && !wecomDirty) return;
+      const mediaProbeDirty = Boolean(state.mediaProbeSnapshot)
+        && state.mediaProbeSnapshot !== JSON.stringify(mediaProbeValues());
+      if (!editorIsDirty() && !settingsDirty && !emby302Dirty && !bdpanDirty && !wecomDirty && !mediaProbeDirty) return;
       event.preventDefault();
       event.returnValue = '';
     });

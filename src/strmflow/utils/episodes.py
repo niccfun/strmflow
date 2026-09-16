@@ -106,6 +106,60 @@ def media_quality_rank(source: str, size: int = 0) -> tuple[int, ...]:
     )
 
 
+def media_quality_label(source: str) -> str:
+    """Build a concise Emby version label from common release-name tags."""
+    name = unquote(PurePosixPath(source).stem)
+    folded = name.casefold()
+    labels: list[str] = []
+
+    resolution_rules = (
+        (r"(?<![a-z0-9])(?:8k|4320p?)(?=$|[^a-z0-9]|hdr|dovi|dv|\d+fps)", "8K"),
+        (r"(?<![a-z0-9])(?:4k|uhd|2160p?)(?=$|[^a-z0-9]|hdr|dovi|dv|\d+fps)", "4K"),
+        (r"(?<![a-z0-9])(?:2k|1440p?)(?=$|[^a-z0-9]|hdr|dovi|dv|\d+fps)", "1440P"),
+        (r"\b1080[pi]?\b", "1080P"),
+        (r"\b720p?\b", "720P"),
+    )
+    _append_first(labels, folded, resolution_rules)
+    _append_first(
+        labels,
+        folded,
+        (
+            (r"(?:dolby[ ._-]?vision|dovi|(?<![a-z])dv)(?=$|[^a-z])", "Dolby Vision"),
+            (r"hdr10(?:\+|plus)", "HDR10+"),
+            (r"hdr10", "HDR10"),
+            (r"hdr", "HDR"),
+        ),
+    )
+    frame_rate = re.search(r"(?<!\d)(120|60|50|30|25|24)\s*fps\b", folded)
+    if frame_rate:
+        labels.append(f"{frame_rate.group(1)}FPS")
+    _append_first(
+        labels,
+        folded,
+        (
+            (r"\bremux\b", "REMUX"),
+            (r"\b(?:blu[ ._-]?ray|bdrip|bdremux)\b", "BluRay"),
+            (r"\b(?:web[ ._-]?dl|webdl)\b", "WEB-DL"),
+            (r"\b(?:web[ ._-]?rip)\b", "WEBRip"),
+        ),
+    )
+    _append_first(
+        labels,
+        folded,
+        (
+            (r"\bav1\b", "AV1"),
+            (r"\b(?:h[ ._-]?265|x265|hevc)\b", "HEVC"),
+            (r"\b(?:h[ ._-]?264|x264|avc)\b", "H264"),
+        ),
+    )
+    return " ".join(dict.fromkeys(labels)) or "高质量版"
+
+
+def is_numbered_episode_duplicate(source: str) -> bool:
+    """Match only legacy collision suffixes, not Emby's named media versions."""
+    return bool(re.search(r"(?i)\s-\s\d+\.strm$", unquote(source)))
+
+
 def select_preferred_episodes[T](
     entries: Sequence[T],
     *,
@@ -153,3 +207,10 @@ def _highest_match(name: str, rules: tuple[tuple[int, tuple[str, ...]], ...]) ->
         ),
         0,
     )
+
+
+def _append_first(labels: list[str], name: str, rules: tuple[tuple[str, str], ...]) -> None:
+    for pattern, label in rules:
+        if re.search(pattern, name):
+            labels.append(label)
+            return

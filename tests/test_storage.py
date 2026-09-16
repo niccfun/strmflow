@@ -43,6 +43,21 @@ class EmptyContentOpenList(DiscoveryOpenList):
         return None
 
 
+class SourceMappingOpenList(DiscoveryOpenList):
+    async def request(self, method: str, path: str) -> dict[str, object]:
+        assert method == "GET"
+        return {
+            "content": [
+                {
+                    "id": 1,
+                    "driver": "Strm",
+                    "mount_path": "/temp_strm",
+                    "addition": {"paths": "/bdpan/apps/bdpan/media"},
+                }
+            ]
+        }
+
+
 def test_resolve_direct_strm_path() -> None:
     service = StorageService(Settings(), DummyOpenList())  # type: ignore[arg-type]
     storage = Storage(None, "Strm", "/temp_strm")
@@ -62,6 +77,32 @@ def test_resolve_saved_local_strm_path() -> None:
     config = StorageConfig(strm_storages=[storage])
     result = service.resolve_paths(config, "/temp_strm/tv/示例", "/temp_strm")
     assert result["mediaPath"] == "/local-strm/source/tv/示例"
+
+
+@pytest.mark.anyio
+async def test_resolve_underlying_source_path_from_strm_mount() -> None:
+    service = StorageService(
+        Settings(),
+        SourceMappingOpenList(),  # type: ignore[arg-type]
+    )
+
+    result = await service.resolve_underlying_source_path("/temp_strm/TV/国产剧/交锋 (2026)")
+
+    assert result == "/bdpan/apps/bdpan/media/TV/国产剧/交锋 (2026)"
+
+
+@pytest.mark.anyio
+async def test_publish_target_cannot_overlap_underlying_media_source() -> None:
+    service = StorageService(
+        Settings(),
+        SourceMappingOpenList(),  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(AppError, match="网盘原始媒体目录重叠"):
+        await service.assert_publish_target_isolated(
+            "/temp_strm/TV/国产剧/交锋 (2026)",
+            "/bdpan/apps/bdpan/media/TV/国产剧/交锋 (2026)",
+        )
 
 
 def test_enrich_discovered_tv_folder_with_category_and_year() -> None:

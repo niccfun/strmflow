@@ -250,6 +250,43 @@ class StorageService:
             }
         raise AppError(500, f"无法根据 Strm 存储配置推导路径：{listed_path}")
 
+    async def resolve_underlying_source_path(self, listed_path: str) -> str | None:
+        """Map a virtual Strm path back to its single configured source tree.
+
+        A generated ``.strm`` entry and a real ``.strm`` file have the same
+        appearance through a Strm mount.  Callers that validate the source
+        inventory must therefore inspect the underlying storage instead of the
+        generated view.
+        """
+        listed = normalize_virtual_path(listed_path)
+        config = await self.get_config()
+        for storage in config.strm_storages:
+            relative = relative_virtual_path(storage.mount_path, listed)
+            if relative is None or len(storage.source_roots) != 1:
+                continue
+            return join_virtual_path(storage.source_roots[0], relative)
+        return None
+
+    async def assert_publish_target_isolated(self, listed_source: str, target: str) -> None:
+        """Reject a STRM output tree that overlaps its virtual or physical input."""
+        source = normalize_virtual_path(listed_source)
+        destination = normalize_virtual_path(target)
+        if self._paths_overlap(source, destination):
+            raise AppError(409, "目标 STRM 目录不能与只读源 STRM 目录重叠")
+        underlying = await self.resolve_underlying_source_path(source)
+        if underlying and self._paths_overlap(underlying, destination):
+            raise AppError(
+                409,
+                f"目标 STRM 目录与网盘原始媒体目录重叠：{underlying}",
+            )
+
+    @staticmethod
+    def _paths_overlap(left: str, right: str) -> bool:
+        return (
+            relative_virtual_path(left, right) is not None
+            or relative_virtual_path(right, left) is not None
+        )
+
     async def _list_children(
         self, config: StorageConfig | None, root: str, refresh: bool
     ) -> list[dict[str, Any]]:

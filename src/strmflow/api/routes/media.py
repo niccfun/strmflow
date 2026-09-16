@@ -149,9 +149,8 @@ async def publish(body: PublishRequest, request: Request) -> dict[str, Any]:
         current,
         result.get("warmupPaths") or [],
     )
-    new_episodes = sum(
-        str(name).casefold().endswith(".strm") for name in result.get("newFiles") or []
-    )
+    result["probeQueued"] = container.media_probe.schedule(result.get("warmupPaths") or [])
+    new_episodes = int(result.get("newEpisodeCount") or 0)
     if previous and previous.get("lastSyncedAt") and new_episodes > 0:
         await container.notifications.notify_episode_update(
             previous,

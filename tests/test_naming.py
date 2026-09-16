@@ -2,7 +2,11 @@ import pytest
 
 from strmflow.core.config import Settings
 from strmflow.services.media import MediaService
-from strmflow.utils.episodes import media_quality_rank, select_preferred_episodes
+from strmflow.utils.episodes import (
+    media_quality_label,
+    media_quality_rank,
+    select_preferred_episodes,
+)
 
 
 class VirtualStrmOpenList:
@@ -60,6 +64,63 @@ def test_compact_quality_tags_prefer_4k_hdr_60fps() -> None:
     assert len(duplicates) == 2
     assert media_quality_rank("4KHDR60FPS.mp4") > media_quality_rank("4KHDR30FPS.mp4")
     assert media_quality_rank("4KHDR30FPS.mp4") > media_quality_rank("4K60FPS.mp4")
+    assert media_quality_label("S01E04.4KHDR60FPS.WEB-DL.HEVC.strm") == ("4K HDR 60FPS WEB-DL HEVC")
+
+
+def test_initial_publish_is_canonical_and_later_upgrade_becomes_emby_version() -> None:
+    service = MediaService(Settings(), None, None, None, None)  # type: ignore[arg-type]
+    context = {
+        "mediaType": "tv",
+        "name": "示例剧 (2026)",
+        "season": 1,
+        "syncedFiles": ["S01E01.1080P.WEB-DL.strm"],
+    }
+    canonical = "Season 01/示例剧 (2026) - S01E01.strm"
+    plan = service._build_plan(["S01E01.4KHDR60FPS.WEB-DL.HEVC.strm"], context, None)
+    upgraded, upgrades = service._apply_version_targets(plan, context, {canonical})
+
+    assert upgraded[0]["targetRel"] == (
+        "Season 01/示例剧 (2026) - S01E01 - 4K HDR 60FPS WEB-DL HEVC.strm"
+    )
+    assert upgrades == [
+        {
+            "sourceRel": "S01E01.4KHDR60FPS.WEB-DL.HEVC.strm",
+            "targetRel": upgraded[0]["targetRel"],
+            "from": "1080P WEB-DL",
+            "to": "4K HDR 60FPS WEB-DL HEVC",
+        }
+    ]
+    confirmed, confirmed_upgrades = service._apply_version_targets(upgraded, context, {canonical})
+    assert confirmed == upgraded
+    assert confirmed_upgrades == upgrades
+
+
+def test_named_emby_versions_are_retained_but_legacy_numbered_collisions_are_removed() -> None:
+    service = MediaService(Settings(), None, None, None, None)  # type: ignore[arg-type]
+    files = [
+        "Season 01/示例剧 - S01E01.strm",
+        "Season 01/示例剧 - S01E01 - 4K HDR.strm",
+        "Season 01/示例剧 - S01E01 - 2.strm",
+        "Season 01/S01E01 4KHDR-GROUP.strm",
+    ]
+    assert service._legacy_target_duplicates(files, {"season": 1, "name": "示例剧"}) == [
+        files[2],
+        files[3],
+    ]
+
+
+def test_synced_inventory_keeps_highest_known_quality_without_duplicate_paths() -> None:
+    service = MediaService(Settings(), None, None, None, None)  # type: ignore[arg-type]
+    current = ["S01E01.4K.HDR.strm", "S01E02.1080P.strm"]
+    merged = service._merge_synced_inventory(
+        current,
+        {
+            "mediaType": "tv",
+            "season": 1,
+            "syncedFiles": ["S01E01.1080P.strm", "S01E02.1080P.strm"],
+        },
+    )
+    assert merged == ["S01E01.4K.HDR.strm", "S01E02.1080P.strm"]
 
 
 def test_generated_numbered_duplicate_never_replaces_canonical_target() -> None:

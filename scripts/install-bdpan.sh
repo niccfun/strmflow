@@ -8,7 +8,17 @@ SCRIPT_URL="https://raw.githubusercontent.com/baidu-netdisk/bdpan-storage/${SKIL
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "${WORK_DIR}"' EXIT
 
-curl --fail --silent --show-error --location "${SCRIPT_URL}" --output "${WORK_DIR}/install.sh"
+curl \
+  --fail \
+  --silent \
+  --show-error \
+  --location \
+  --retry 5 \
+  --retry-all-errors \
+  --connect-timeout 20 \
+  --max-time 180 \
+  "${SCRIPT_URL}" \
+  --output "${WORK_DIR}/install.sh"
 printf '%s  %s\n' "${SCRIPT_SHA256}" "${WORK_DIR}/install.sh" | sha256sum --check --status
 
 cd "${WORK_DIR}"

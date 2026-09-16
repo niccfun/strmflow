@@ -24,6 +24,13 @@ def test_video_path_accepts_emby_strm_suffix() -> None:
     assert Emby302Gateway._parse_item_id("/emby/videos/3771/stream.strm") == "3771"
 
 
+def test_playback_info_uses_longer_timeout_than_regular_gateway_requests() -> None:
+    gateway = Emby302Gateway.__new__(Emby302Gateway)
+    gateway.config = type("Config", (), {"timeout_ms": 30_000})()
+    assert gateway._buffered_timeout("/emby/Items/3762/PlaybackInfo") == 120
+    assert gateway._buffered_timeout("/emby/Items/3762") == 30
+
+
 def test_extract_openlist_path_accepts_public_p_prefix() -> None:
     source = {
         "Path": "https://openlist.test/p/temp_strm/TV/%E7%99%BE%E8%8A%B1%E6%9D%80/S01E01.strm",
@@ -362,7 +369,7 @@ async def test_playback_info_rewrites_openlist_strm_to_gateway_direct_play() -> 
     assert source["SupportsDirectStream"] is True
     assert source["SupportsTranscoding"] is False
     assert "TranscodingUrl" not in source
-    assert "Container" not in source
+    assert source["Container"] == "strm"
     assert (
         source["DirectStreamUrl"]
         == "/emby/Videos/item-9/stream?UserId=user-1&MediaSourceId=source-9&Static=true"

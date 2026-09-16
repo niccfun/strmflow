@@ -148,7 +148,7 @@ def test_index_has_unique_element_ids() -> None:
     assert "function configureAddMode(mode)" in template
     assert "function inspectShare()" in template
     assert "转存已提交，文件落盘后将自动扫描同步" in template
-    assert "v0.2.0" in template
+    assert "v__STRMFLOW_VERSION__" in template
     assert 'id="sourceFolderInput"' in template
     assert 'id="sourceTypeInput"' in template
     assert 'id="refreshSourcesButton"' in template

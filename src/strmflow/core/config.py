@@ -15,7 +15,6 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "StrmFlow"
     app_user: str = "admin"
     app_password: str = ""
     session_secret: str = ""
@@ -30,7 +29,6 @@ class Settings(BaseSettings):
     openlist_path_password: str = ""
     openlist_timeout: float = 30.0
     list_root: str = ""
-    auto_list_depth: int = Field(default=6, ge=1, le=10)
     scan_limit: float = Field(default=2, gt=0)
 
     emby_strm_root: str = "/local_media/emby-strm"
@@ -47,6 +45,11 @@ class Settings(BaseSettings):
     emby_302_cache_max: int = Field(default=1_000, ge=1, le=100_000)
     emby_302_body_buffer_max: int = Field(default=1_048_576, ge=1_024, le=107_374_182_400)
     emby_302_timeout_ms: int = Field(default=30_000, ge=1_000, le=600_000)
+
+    media_probe_enabled: bool = True
+    media_probe_delay_seconds: int = Field(default=10, ge=0, le=300)
+    media_probe_timeout: int = Field(default=90, ge=10, le=600)
+    app_timezone: str = "Asia/Hong_Kong"
 
     database_url: str = "sqlite+aiosqlite:///./data/strmflow.db"
     legacy_json_import: bool = True

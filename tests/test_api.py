@@ -4,6 +4,7 @@ from base64 import b64encode
 import httpx
 from fastapi.testclient import TestClient
 
+from strmflow import __version__
 from strmflow.core.config import Settings
 from strmflow.main import create_app
 
@@ -41,6 +42,8 @@ def test_login_cookie_and_health(tmp_path) -> None:
         assert page.status_code == 200
         assert "<title>StrmFlow</title>" in page.text
         assert "<h1>StrmFlow</h1>" in page.text
+        assert f'<span class="version-pill">v{__version__}</span>' in page.text
+        assert "__STRMFLOW_VERSION__" not in page.text
         assert 'id="settingsButton"' in page.text
         assert 'id="editorError"' in page.text
         icon = client.get("/static/strmflow.svg")
@@ -65,6 +68,12 @@ def test_login_cookie_and_health(tmp_path) -> None:
             "embyStrmRoot": "/emby/strm",
             "updatedItems": 0,
         }
+        overlapping_paths = client.put(
+            "/api/settings/paths",
+            json={"listRoot": "/strm/tv", "embyStrmRoot": "/strm/tv/output"},
+        )
+        assert overlapping_paths.status_code == 409
+        assert "目录重叠" in overlapping_paths.json()["error"]
         media = {
             "sourcePath": "/strm/tv/国产剧/示例剧 (2026)",
             "title": "示例剧",
@@ -110,6 +119,19 @@ def test_login_cookie_and_health(tmp_path) -> None:
             "timeoutMs": 20_000,
         }
         assert client.post("/api/emby302/cache/clear").status_code == 200
+
+        probe = client.get("/api/media-probe")
+        assert probe.status_code == 200
+        assert probe.json()["data"]["config"]["dailyEnabled"] is False
+        probe_update = client.put(
+            "/api/media-probe",
+            json={"dailyEnabled": True, "scanTime": "04:35"},
+        )
+        assert probe_update.status_code == 200
+        probe_data = probe_update.json()["data"]
+        assert probe_data["config"]["scanTime"] == "04:35"
+        assert probe_data["config"]["timezone"] == "Asia/Hong_Kong"
+        assert probe_data["runtime"]["nextScanAt"]
 
         logs = client.get("/api/logs?limit=500")
         assert logs.status_code == 200

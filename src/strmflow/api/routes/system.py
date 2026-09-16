@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, Query, Request
 
 from strmflow.api.deps import require_auth, services
 from strmflow.api.routes.common import ok
-from strmflow.schemas.api import PathConfigUpdate
+from strmflow.core.errors import UpstreamError
+from strmflow.schemas.api import MediaProbeConfigUpdate, PathConfigUpdate
 
 router = APIRouter(tags=["system"], dependencies=[Depends(require_auth)])
 
@@ -68,6 +69,12 @@ async def clear_runtime_logs(request: Request) -> dict[str, Any]:
 async def update_paths(body: PathConfigUpdate, request: Request) -> dict[str, Any]:
     container = services(request)
     previous_root = container.path_config.emby_strm_root
+    try:
+        await container.storage.assert_publish_target_isolated(body.list_root, body.emby_strm_root)
+    except UpstreamError:
+        # Direct overlap was already checked. Let users repair path settings
+        # while OpenList is temporarily unavailable; publish validates again.
+        pass
     value = await container.path_config.update(body.model_dump(by_alias=True))
     updated_items = 0
     if value["embyStrmRoot"] != previous_root:
@@ -81,3 +88,18 @@ async def update_paths(body: PathConfigUpdate, request: Request) -> dict[str, An
         updatedItemCount=updated_items,
     )
     return ok({**value, "updatedItems": updated_items})
+
+
+@router.get("/media-probe")
+async def media_probe_status(request: Request) -> dict[str, Any]:
+    return ok(await services(request).media_probe.status())
+
+
+@router.put("/media-probe")
+async def update_media_probe(body: MediaProbeConfigUpdate, request: Request) -> dict[str, Any]:
+    return ok(await services(request).media_probe.update_config(body))
+
+
+@router.post("/media-probe/scan", status_code=202)
+async def scan_missing_media_info(request: Request) -> dict[str, Any]:
+    return ok(await services(request).media_probe.trigger_scan())

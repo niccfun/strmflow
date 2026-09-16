@@ -65,6 +65,7 @@ DEFAULT_CACHE_TTL = 6 * 60 * 60
 EXPIRY_SAFETY_SECONDS = 5 * 60
 PREWARM_LATEST_COUNT = 6
 CACHE_PERSIST_DEBOUNCE_SECONDS = 0.35
+PLAYBACK_INFO_MIN_TIMEOUT_SECONDS = 120.0
 
 
 type LinkCacheEntry = dict[str, Any]
@@ -610,7 +611,6 @@ class Emby302Gateway:
                 "TranscodingUrl",
                 "TranscodingSubProtocol",
                 "TranscodingContainer",
-                "Container",
             ):
                 source.pop(key, None)
             params = parse_qs(request.url.query, keep_blank_values=True)
@@ -644,6 +644,7 @@ class Emby302Gateway:
             itemId=item_id,
             mediaSourceCount=len(payload["MediaSources"]),
             gatewayAction="playback-info-direct-play",
+            mediaInfoSource="emby",
         )
         return Response(
             rewritten, status_code=upstream.status_code, headers=headers
@@ -960,19 +961,31 @@ class Emby302Gateway:
         content = await self._read_body(request)
         headers = self._request_headers(request)
         headers["content-length"] = str(len(content))
+        timeout = self._buffered_timeout(request.url.path)
         try:
             upstream = await self.emby_http.request(
                 request.method,
                 self._upstream_url(request.url.path, request.url.query),
                 headers=headers,
                 content=content,
-                timeout=self.config.timeout_ms / 1_000,
+                timeout=timeout,
             )
         except httpx.TimeoutException as exc:
-            raise AppError(504, "Emby 上游请求超时") from exc
+            message = (
+                f"Emby PlaybackInfo 上游请求超过 {int(timeout)} 秒"
+                if PLAYBACK_INFO_PATH.search(request.url.path.casefold())
+                else "Emby 上游请求超时"
+            )
+            raise AppError(504, message) from exc
         except httpx.HTTPError as exc:
             raise AppError(502, "无法连接 Emby 上游服务") from exc
         return upstream, upstream.content
+
+    def _buffered_timeout(self, path: str) -> float:
+        configured = self.config.timeout_ms / 1_000
+        if PLAYBACK_INFO_PATH.search(path.casefold()):
+            return max(configured, PLAYBACK_INFO_MIN_TIMEOUT_SECONDS)
+        return configured
 
     async def _read_body(self, request: Request) -> bytes:
         body = await request.body()
