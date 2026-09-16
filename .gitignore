@@ -1,4 +1,6 @@
 .env
+.env.*
+!.env.example
 .venv/
 __pycache__/
 *.py[cod]
@@ -9,8 +11,6 @@ htmlcov/
 dist/
 *.egg-info/
 *.log
-data/*.db
-data/*.db-shm
-data/*.db-wal
-data/bdpan/
+data/*
+!data/.gitkeep
 demo/
