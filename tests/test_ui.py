@@ -135,6 +135,10 @@ def test_index_has_unique_element_ids() -> None:
     assert 'id="bdpanSaveRootInput" type="text" value="video"' in template
     assert 'id="bdpanIntervalInput"' in template
     assert 'id="bdpanTrackingModeInput"' in template
+    assert 'id="bdpanModeCards"' in template
+    assert 'data-tracking-mode="polling"' in template
+    assert 'data-tracking-mode="hybrid"' in template
+    assert 'id="bdpanMasterMode"' in template
     assert 'id="bdpanLoginStartButton"' in template
     assert 'id="bdpanLogoutButton"' in template
     assert 'id="bdpanAuthorizationCallout"' in template
@@ -154,6 +158,13 @@ def test_index_has_unique_element_ids() -> None:
     assert "TELEGRAM_API_ID" in template
     assert "TELEGRAM_API_HASH" in template
     assert 'id="telegramSourcesInput"' in template
+    assert 'id="telegramSourceTags"' in template
+    assert 'id="telegramSourceAddForm"' in template
+    assert 'id="telegramConnectionMetric"' in template
+    assert 'id="telegramLastReceivedMetric"' in template
+    assert 'id="trackingActivityFeed"' in template
+    assert "function renderTrackingActivity()" in template
+    assert "function renderTelegramSourceTags()" in template
     assert 'id="telegramLoginStartButton"' in template
     assert "'/api/telegram'" in template
     assert "'/api/telegram/login/start'" in template

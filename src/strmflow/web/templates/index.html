@@ -448,6 +448,174 @@
     .bdpan-watch-error { color: var(--danger-text) !important; }
     .bdpan-watch > button { width: 88px; min-width: 88px; justify-content: center; }
     .bdpan-watch-empty { padding: 22px; border: 1px dashed var(--border-strong); border-radius: var(--radius-md); color: var(--muted); text-align: center; }
+    .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+
+    /* Automatic tracking dashboard */
+    .bdpan-dashboard { max-width: 1360px; margin: 0 auto; }
+    .bdpan-page-header { min-height: 92px; margin-bottom: 26px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+    .bdpan-page-heading { display: grid; gap: 1px; }
+    .bdpan-header-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .bdpan-header-actions button { min-width: 104px; min-height: 40px; }
+    .bdpan-check-action { border-color: color-mix(in srgb, var(--primary) 28%, var(--border)); color: var(--primary-soft-text); background: var(--primary-soft); font-weight: 700; }
+    .bdpan-check-action:hover:not(:disabled) { border-color: color-mix(in srgb, var(--primary) 42%, var(--border)); background: color-mix(in srgb, var(--primary-soft) 80%, var(--panel)); }
+    .bdpan-workspace { display: grid; gap: 20px; }
+    .bdpan-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+    .bdpan-section-heading.compact { align-items: end; }
+    .bdpan-section-heading > div { min-width: 0; }
+    .bdpan-section-heading h3 { margin: 1px 0 0; font-size: 17px; letter-spacing: -.015em; }
+    .bdpan-section-heading p { margin-top: 4px; color: var(--muted); font-size: 11px; }
+    .bdpan-section-kicker { display: block; color: var(--primary-soft-text); font-size: 9px; font-weight: 850; letter-spacing: .13em; }
+    .bdpan-section-meta { color: var(--muted); font-size: 11px; }
+    .bdpan-overview-section { display: grid; gap: 11px; }
+    .bdpan-status-grid { gap: 12px; }
+    .bdpan-status-card { position: relative; min-height: 102px; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 13px; padding: 17px; overflow: hidden; background: var(--panel); box-shadow: var(--shadow-sm); transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+    .bdpan-status-card:hover { transform: translateY(-1px); border-color: var(--border-strong); box-shadow: 0 8px 24px rgb(15 23 42 / 6%); }
+    .bdpan-status-card::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--border-strong); }
+    .bdpan-status-card.tone-success::after { background: var(--success); }
+    .bdpan-status-card.tone-primary::after, .bdpan-status-card.tone-telegram::after { background: var(--primary); }
+    .bdpan-stat-icon { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 11px; background: var(--panel-soft); color: var(--muted); font-size: 10px; font-weight: 850; }
+    .tone-success .bdpan-stat-icon { border-color: var(--success-border); background: var(--success-soft); color: var(--success-text); }
+    .tone-primary .bdpan-stat-icon, .tone-telegram .bdpan-stat-icon { border-color: color-mix(in srgb, var(--primary) 24%, var(--border)); background: var(--primary-soft); color: var(--primary-soft-text); }
+    .bdpan-stat-copy { min-width: 0; display: grid; gap: 2px; }
+    .bdpan-stat-copy > span { color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .04em; }
+    .bdpan-stat-copy strong { overflow: hidden; font-size: 17px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+    .bdpan-stat-copy small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .telegram-overview-card.is-online .bdpan-stat-icon { position: relative; }
+    .telegram-overview-card.is-online .bdpan-stat-icon::after { content: ""; position: absolute; right: -2px; bottom: -2px; width: 8px; height: 8px; border: 2px solid var(--panel); border-radius: 50%; background: var(--success); animation: telegram-pulse 1.8s ease-in-out infinite; }
+    @keyframes telegram-pulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--success) 0%, transparent); opacity: .55; } 0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 18%, transparent); } }
+
+    .bdpan-control-panel { display: grid; gap: 20px; padding: 0; overflow: hidden; box-shadow: var(--shadow-sm); }
+    .bdpan-master-switch { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 21px 22px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--primary-soft) 44%, var(--panel)); cursor: pointer; }
+    .bdpan-master-switch:hover { background: color-mix(in srgb, var(--primary-soft) 62%, var(--panel)); }
+    .bdpan-master-icon { width: 46px; height: 46px; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border)); border-radius: 13px; background: var(--panel); color: var(--primary-soft-text); font-size: 20px; }
+    .bdpan-master-copy { min-width: 0; display: grid; gap: 3px; }
+    .bdpan-master-copy > strong { font-size: 17px; }
+    .bdpan-master-copy > small { color: var(--muted); font-size: 11px; }
+    .bdpan-current-mode { width: fit-content; margin-top: 4px; padding: 3px 8px; border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border)); border-radius: 999px; background: var(--panel); color: var(--primary-soft-text); font-size: 10px; font-weight: 700; }
+    .bdpan-master-toggle-copy { display: grid; justify-items: end; gap: 1px; color: var(--muted); }
+    .bdpan-master-toggle-copy b { color: var(--text); font-size: 12px; }
+    .bdpan-master-toggle-copy small { font-size: 9px; }
+    .bdpan-master-switch > input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    .toggle-switch.large { width: 52px; height: 30px; }
+    .toggle-switch.large::after { width: 22px; height: 22px; top: 4px; left: 4px; }
+    .bdpan-master-switch input:checked + .toggle-switch.large { background: var(--primary); }
+    .bdpan-master-switch input:checked + .toggle-switch.large::after { transform: translateX(22px); }
+    .bdpan-master-switch input:focus-visible + .toggle-switch.large { box-shadow: var(--ring); }
+    .bdpan-mode-section { display: grid; gap: 12px; padding: 0 22px; transition: opacity .2s ease; }
+    .bdpan-mode-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .bdpan-mode-card { position: relative; min-height: 100px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 13px; padding: 16px; border-color: var(--border); background: var(--panel-soft); box-shadow: none; text-align: left; }
+    .bdpan-mode-card:hover:not(:disabled) { transform: translateY(-1px); border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); background: var(--panel); }
+    .bdpan-mode-card.active { border-color: color-mix(in srgb, var(--primary) 55%, var(--border)); background: var(--primary-soft); box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent); }
+    .bdpan-mode-card > span:nth-child(2) { min-width: 0; display: grid; gap: 4px; }
+    .bdpan-mode-card strong { font-size: 13px; }
+    .bdpan-mode-card small { color: var(--muted); font-size: 10px; font-weight: 500; line-height: 1.5; }
+    .bdpan-mode-icon { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--muted); }
+    .bdpan-mode-card.active .bdpan-mode-icon { border-color: color-mix(in srgb, var(--primary) 28%, var(--border)); color: var(--primary-soft-text); }
+    .bdpan-mode-check { width: 20px; height: 20px; display: grid; place-items: center; border: 1px solid var(--border-strong); border-radius: 50%; color: transparent; font-size: 11px; }
+    .bdpan-mode-card.active .bdpan-mode-check { border-color: var(--primary); background: var(--primary); color: #fff; }
+    .bdpan-recommended-badge { width: fit-content; padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 12%, var(--panel)); color: var(--primary-soft-text); font-size: 8px; font-weight: 800; letter-spacing: .04em; }
+    .bdpan-advanced { margin: 0 22px; background: var(--panel-soft); transition: opacity .2s ease; }
+    .bdpan-advanced summary span { display: grid; gap: 2px; }
+    .bdpan-advanced summary small { color: var(--muted); font-size: 10px; font-weight: 500; }
+    .bdpan-control-panel > .bdpan-callout, .bdpan-control-panel > .bdpan-login-panel { margin: 0 22px; }
+    .bdpan-control-panel > .bdpan-inline-alert { margin: 0 22px; }
+    .bdpan-config-actions { padding: 0 22px 22px; }
+    .bdpan-inline-alert.show { padding: 11px 13px; border: 1px solid var(--danger-border); border-radius: 10px; background: var(--danger-soft); }
+    .bdpan-workspace.is-disabled .bdpan-mode-section, .bdpan-workspace.is-disabled .bdpan-advanced, .bdpan-workspace.is-disabled .bdpan-watch-panel { opacity: .62; }
+
+    .telegram-command-center { display: grid; gap: 18px; padding: 0; overflow: hidden; box-shadow: var(--shadow-sm); }
+    .telegram-hero { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px 22px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--primary-soft) 32%, var(--panel)); }
+    .telegram-identity { min-width: 0; display: flex; align-items: center; gap: 13px; }
+    .telegram-logo { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border)); border-radius: 14px; background: var(--panel); color: var(--primary-soft-text); font-size: 11px; font-weight: 900; }
+    .telegram-identity h3 { margin: 1px 0 0; font-size: 17px; }
+    .telegram-identity p { margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .telegram-hero-actions { display: flex; align-items: center; gap: 12px; }
+    .telegram-mini-switch { display: flex; align-items: center; gap: 8px; padding: 7px 9px 7px 11px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel); color: var(--muted); font-size: 10px; font-weight: 700; cursor: pointer; }
+    .telegram-mini-switch input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    .telegram-mini-switch input:checked + .toggle-switch { background: var(--primary); }
+    .telegram-mini-switch input:checked + .toggle-switch::after { transform: translateX(18px); }
+    .telegram-mini-switch input:focus-visible + .toggle-switch { box-shadow: var(--ring); }
+    .telegram-runtime-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 0 22px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-soft); }
+    .telegram-runtime-grid > div { min-width: 0; display: grid; gap: 3px; padding: 13px 15px; }
+    .telegram-runtime-grid > div + div { border-left: 1px solid var(--border); }
+    .telegram-runtime-grid span { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+    .telegram-runtime-grid strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .telegram-runtime-hint { margin: -8px 22px 0; color: var(--muted); font-size: 11px; }
+    .telegram-config-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(340px, .85fr); gap: 14px; padding: 0 22px; }
+    .telegram-sources-card { min-width: 0; display: grid; align-content: start; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-soft); }
+    .telegram-subsection-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .telegram-subsection-heading h4 { margin: 1px 0 0; font-size: 14px; }
+    .telegram-subsection-heading > span { color: var(--muted); font-size: 10px; }
+    .telegram-source-tags { min-height: 42px; display: flex; align-content: flex-start; flex-wrap: wrap; gap: 7px; }
+    .telegram-source-tag { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 5px 6px 5px 9px; border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border)); border-radius: 999px; background: var(--panel); color: var(--primary-soft-text); font-size: 11px; font-weight: 650; }
+    .telegram-source-tag span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .telegram-source-tag button { width: 20px; height: 20px; min-width: 20px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); box-shadow: none; }
+    .telegram-source-tag button:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger-text); }
+    .telegram-source-empty { width: 100%; display: grid; place-items: center; min-height: 42px; border: 1px dashed var(--border); border-radius: 9px; color: var(--muted); font-size: 10px; }
+    .telegram-source-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+    .telegram-source-add button { min-width: 92px; }
+    .telegram-account-card { min-width: 0; background: var(--panel-soft); }
+    .telegram-security-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; padding-top: 14px; }
+    .telegram-security-item { min-width: 0; display: grid; gap: 2px; padding: 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+    .telegram-security-item span, .telegram-security-item small { color: var(--muted); font-size: 9px; }
+    .telegram-security-item strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    .telegram-phone-field { margin-top: 12px; }
+    .telegram-login-panel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; align-items: end; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .telegram-login-panel button { min-height: var(--control-height); }
+    .telegram-command-center > .bdpan-inline-alert { margin: 0 22px; }
+    .telegram-actions { display: flex; align-items: center; gap: 8px; padding: 0 22px 20px; }
+    .telegram-action-spacer { flex: 1 1 auto; }
+    .telegram-actions button { min-height: 38px; }
+
+    .tracking-activity-panel, .bdpan-watch-panel { display: grid; gap: 15px; padding: 20px 22px; box-shadow: var(--shadow-sm); }
+    .tracking-activity-feed { display: grid; }
+    .tracking-activity-item { position: relative; display: grid; grid-template-columns: 64px 12px minmax(0, 1fr); gap: 10px; min-height: 54px; }
+    .tracking-activity-time { padding-top: 2px; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+    .tracking-activity-rail { position: relative; display: flex; justify-content: center; }
+    .tracking-activity-rail::before { content: ""; position: absolute; top: 12px; bottom: -8px; width: 1px; background: var(--border); }
+    .tracking-activity-item:last-child .tracking-activity-rail::before { display: none; }
+    .tracking-activity-dot { position: relative; z-index: 1; width: 9px; height: 9px; margin-top: 5px; border: 2px solid var(--panel); border-radius: 50%; background: var(--muted); box-shadow: 0 0 0 1px var(--border); }
+    .tracking-activity-item.success .tracking-activity-dot { background: var(--success); }
+    .tracking-activity-item.warning .tracking-activity-dot { background: var(--warning); }
+    .tracking-activity-item.error .tracking-activity-dot { background: var(--danger); }
+    .tracking-activity-item.telegram .tracking-activity-dot { background: var(--primary); }
+    .tracking-activity-copy { min-width: 0; display: grid; align-content: start; gap: 2px; padding-bottom: 13px; }
+    .tracking-activity-copy strong { font-size: 12px; }
+    .tracking-activity-copy span { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .tracking-activity-empty { padding: 20px; border: 1px dashed var(--border); border-radius: 11px; color: var(--muted); font-size: 11px; text-align: center; }
+
+    .bdpan-queue-runtime { padding: 5px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel-soft); color: var(--muted); font-size: 10px; }
+    .bdpan-watch-list { gap: 11px; }
+    .bdpan-watch { grid-template-columns: minmax(220px, 1.15fr) minmax(190px, .9fr) minmax(220px, 1fr) auto; gap: 16px; padding: 16px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-sm); transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; }
+    .bdpan-watch:hover { transform: translateY(-1px); border-color: var(--border-strong); box-shadow: 0 8px 22px rgb(15 23 42 / 6%); }
+    .bdpan-watch-main { gap: 6px; }
+    .bdpan-watch-title-row { min-width: 0; display: flex; align-items: center; gap: 8px; }
+    .bdpan-watch-title-row strong { font-size: 14px; }
+    .bdpan-watch-source-badges { display: flex; gap: 5px; flex-wrap: wrap; }
+    .bdpan-source-badge { padding: 2px 7px; border-radius: 999px; background: var(--panel-soft); color: var(--muted); font-size: 9px; font-weight: 700; }
+    .bdpan-source-badge.telegram { background: var(--primary-soft); color: var(--primary-soft-text); }
+    .bdpan-watch-path-group { min-width: 0; display: grid; gap: 5px; }
+    .bdpan-watch-path-label { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+    .bdpan-watch-path { padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-soft); }
+    .bdpan-watch-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+    .bdpan-watch-metric { min-width: 0; display: grid; gap: 1px; padding: 7px 8px; border-radius: 8px; background: var(--panel-soft); }
+    .bdpan-watch-metric span { color: var(--muted); font-size: 8px; font-weight: 750; text-transform: uppercase; }
+    .bdpan-watch-metric strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    .bdpan-watch-result { gap: 5px; }
+    .bdpan-watch-status-row { display: flex; align-items: center; gap: 7px; }
+    .bdpan-watch-status { display: inline-flex; align-items: center; gap: 5px; width: fit-content; padding: 3px 8px; border-radius: 999px; background: var(--panel-soft); color: var(--muted); font-size: 9px; font-weight: 800; }
+    .bdpan-watch-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .bdpan-watch-status.success { background: var(--success-soft); color: var(--success-text); }
+    .bdpan-watch-status.warning { background: var(--warning-soft); color: var(--warning-text); }
+    .bdpan-watch-status.error { background: var(--danger-soft); color: var(--danger-text); }
+    .bdpan-watch-status.running { background: var(--primary-soft); color: var(--primary-soft-text); }
+    .bdpan-watch-status.running::before { animation: realtime-pulse 1.25s ease-in-out infinite; }
+    .bdpan-watch-result > span:not(.bdpan-watch-status) { font-size: 11px; }
+    .bdpan-watch-action { display: grid; justify-items: end; gap: 6px; }
+    .bdpan-watch-action button { width: 88px; min-width: 88px; }
+    .bdpan-watch-action small { color: var(--muted); font-size: 9px; white-space: nowrap; }
+    .bdpan-check-spinner { width: 12px; height: 12px; border: 2px solid color-mix(in srgb, currentColor 24%, transparent); border-top-color: currentColor; border-radius: 50%; animation: bdpan-spin .7s linear infinite; }
+    @keyframes bdpan-spin { to { transform: rotate(360deg); } }
     .notification-settings-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, .65fr); gap: 14px; }
     .notification-webhook-card { min-width: 0; display: grid; gap: 8px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
     .notification-webhook-status { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
@@ -867,6 +1035,59 @@
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+    @media (max-width: 1100px) {
+      .telegram-config-layout { grid-template-columns: 1fr; }
+      .bdpan-watch { grid-template-columns: minmax(200px, 1fr) minmax(180px, .8fr); }
+      .bdpan-watch-result { grid-column: 1; }
+      .bdpan-watch-action { grid-column: 2; grid-row: 2; align-self: end; }
+    }
+    @media (max-width: 880px) {
+      .bdpan-page-header { min-height: 0; }
+      .bdpan-header-actions { width: 100%; justify-content: flex-start; }
+      .bdpan-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .bdpan-master-switch { grid-template-columns: auto minmax(0, 1fr) auto; padding: 18px; }
+      .bdpan-master-toggle-copy { display: none; }
+      .bdpan-mode-section { padding-inline: 18px; }
+      .bdpan-mode-cards { grid-template-columns: 1fr; }
+      .bdpan-advanced, .bdpan-control-panel > .bdpan-callout, .bdpan-control-panel > .bdpan-login-panel, .bdpan-control-panel > .bdpan-inline-alert { margin-inline: 18px; }
+      .bdpan-config-actions { padding-inline: 18px; }
+      .telegram-hero { align-items: flex-start; flex-direction: column; padding: 18px; }
+      .telegram-hero-actions { width: 100%; justify-content: space-between; }
+      .telegram-runtime-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-inline: 18px; }
+      .telegram-runtime-grid > div:nth-child(3) { border-left: 0; border-top: 1px solid var(--border); }
+      .telegram-runtime-grid > div:nth-child(4) { border-top: 1px solid var(--border); }
+      .telegram-runtime-hint { margin-inline: 18px; }
+      .telegram-config-layout { padding-inline: 18px; }
+      .telegram-command-center > .bdpan-inline-alert { margin-inline: 18px; }
+      .telegram-actions { padding-inline: 18px; }
+      .telegram-login-panel { grid-template-columns: 1fr; }
+      .tracking-activity-panel, .bdpan-watch-panel { padding: 18px; }
+      .bdpan-watch { grid-template-columns: 1fr; }
+      .bdpan-watch-result, .bdpan-watch-action { grid-column: 1; grid-row: auto; }
+      .bdpan-watch-action { justify-items: stretch; }
+      .bdpan-watch-action button { width: 100%; }
+    }
+    @media (max-width: 560px) {
+      .bdpan-status-grid { grid-template-columns: 1fr; }
+      .bdpan-status-card { min-height: 88px; }
+      .bdpan-master-switch { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+      .bdpan-master-icon { display: none; }
+      .bdpan-master-copy > small { line-height: 1.45; }
+      .bdpan-mode-card { min-height: 92px; padding: 13px; }
+      .bdpan-section-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
+      .bdpan-section-heading.compact { align-items: flex-start; }
+      .telegram-identity { align-items: flex-start; }
+      .telegram-runtime-grid, .telegram-security-grid { grid-template-columns: 1fr; }
+      .telegram-runtime-grid > div + div { border-left: 0; border-top: 1px solid var(--border); }
+      .telegram-source-add { grid-template-columns: 1fr; }
+      .telegram-actions { align-items: stretch; flex-direction: column; }
+      .telegram-action-spacer { display: none; }
+      .telegram-actions button { width: 100%; }
+      .tracking-activity-item { grid-template-columns: 48px 10px minmax(0, 1fr); gap: 7px; }
+      .bdpan-watch-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .bdpan-config-actions { display: grid; grid-template-columns: 1fr; }
+      .bdpan-config-actions button { width: 100%; min-width: 0; }
     }
   </style>
 
@@ -1400,155 +1621,238 @@
         </div>
       </section>
 
-      <section id="bdpanView" class="app-view" aria-labelledby="bdpanViewTitle" hidden>
-        <header class="page-header">
-          <div class="page-heading">
-            <p class="eyebrow">BAIDU NETDISK</p>
+      <section id="bdpanView" class="app-view bdpan-dashboard" aria-labelledby="bdpanViewTitle" hidden>
+        <header class="page-header bdpan-page-header">
+          <div class="page-heading bdpan-page-heading">
+            <p class="eyebrow">AUTOMATION</p>
             <div class="page-title-row">
               <h2 id="bdpanViewTitle" class="page-title">自动追更</h2>
               <span class="bdpan-official-badge">官方 bdpan CLI</span>
-              <span id="bdpanHeaderStatus" class="gateway-status offline">正在读取</span>
             </div>
-            <p class="muted hero-copy">检查百度网盘分享更新，择优转存新集并自动同步至 Emby。</p>
+            <p class="muted hero-copy">百度网盘 + Telegram 实时追更</p>
+            <div class="bdpan-header-badges" aria-label="自动追更运行状态">
+              <span id="bdpanHeaderStatus" class="gateway-status offline">正在读取</span>
+              <span id="bdpanTelegramHeaderStatus" class="gateway-status offline">Telegram 正在读取</span>
+            </div>
           </div>
-          <div class="toolbar feature-toolbar">
+          <div class="toolbar feature-toolbar bdpan-header-actions">
             <button id="bdpanRefreshButton" type="button">刷新状态</button>
-            <button id="bdpanCheckButton" type="button">立即检查</button>
+            <button id="bdpanCheckButton" class="bdpan-check-action" type="button">立即检查</button>
             <button id="bdpanLogoutButton" class="danger-button" type="button" hidden>退出网盘账号</button>
           </div>
         </header>
-        <div class="feature-page">
-        <section class="panel settings-content" aria-labelledby="bdpanViewTitle">
-          <div class="bdpan-status-grid" aria-label="百度网盘自动追更状态">
-            <article class="bdpan-status-card"><span>CLI</span><strong id="bdpanCliStatus">检查中…</strong></article>
-            <article class="bdpan-status-card"><span>网盘授权</span><strong id="bdpanLoginStatus">检查中…</strong></article>
-            <article class="bdpan-status-card"><span>追更媒体</span><strong id="bdpanWatchedStatus">0 个</strong></article>
-            <article class="bdpan-status-card"><span>下次检查</span><strong id="bdpanNextCheckStatus">—</strong></article>
-          </div>
 
-          <label class="gateway-enable-card" for="bdpanEnabledInput">
-            <span>
-              <strong>启用百度网盘自动追更</strong>
-              <small>仅处理“更新中”且已填写百度分享链接的媒体；首次检查只建立基线，不会转存历史文件。</small>
-            </span>
-            <input id="bdpanEnabledInput" type="checkbox">
-            <span class="toggle-switch" aria-hidden="true"></span>
-          </label>
-
-          <div class="bdpan-settings-grid">
-            <div class="field bdpan-root-field">
-              <label for="bdpanSaveRootInput">网盘转存根目录</label>
-              <input id="bdpanSaveRootInput" type="text" value="video" placeholder="video" autocomplete="off">
-              <p class="gateway-field-help">默认为“我的应用数据/bdpan/media”；镜像内固定使用已安装的 bdpan CLI。</p>
+        <div id="bdpanWorkspace" class="bdpan-workspace">
+          <section class="bdpan-overview-section" aria-labelledby="bdpanOverviewTitle">
+            <div class="bdpan-section-heading compact">
+              <div>
+                <span class="bdpan-section-kicker">OVERVIEW</span>
+                <h3 id="bdpanOverviewTitle">运行概览</h3>
+              </div>
+              <span id="bdpanOverviewUpdatedAt" class="bdpan-section-meta">状态读取中</span>
             </div>
-            <div class="field bdpan-metric-field">
-              <label for="bdpanTrackingModeInput">追更模式</label>
-              <select id="bdpanTrackingModeInput">
+            <div class="bdpan-status-grid" aria-label="百度网盘自动追更状态">
+              <article class="bdpan-status-card tone-neutral">
+                <span class="bdpan-stat-icon" aria-hidden="true">CLI</span>
+                <div class="bdpan-stat-copy"><span>命令行工具</span><strong id="bdpanCliStatus">检查中…</strong><small id="bdpanCliHint">等待版本信息</small></div>
+              </article>
+              <article class="bdpan-status-card tone-success">
+                <span class="bdpan-stat-icon" aria-hidden="true">B</span>
+                <div class="bdpan-stat-copy"><span>网盘授权</span><strong id="bdpanLoginStatus">检查中…</strong><small id="bdpanAccountHint">等待账号状态</small></div>
+              </article>
+              <article class="bdpan-status-card tone-primary">
+                <span class="bdpan-stat-icon" aria-hidden="true">↻</span>
+                <div class="bdpan-stat-copy"><span>追更媒体</span><strong id="bdpanWatchedStatus">0 个</strong><small id="bdpanNextCheckStatus">—</small></div>
+              </article>
+              <article class="bdpan-status-card telegram-overview-card tone-telegram">
+                <span class="bdpan-stat-icon telegram" aria-hidden="true">TG</span>
+                <div class="bdpan-stat-copy"><span>Telegram</span><strong id="bdpanTelegramOverviewStatus">读取中…</strong><small id="bdpanTelegramOverviewHint">等待连接状态</small></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel bdpan-control-panel" aria-labelledby="bdpanControlTitle">
+            <label class="bdpan-master-switch" for="bdpanEnabledInput">
+              <span class="bdpan-master-icon" aria-hidden="true">↻</span>
+              <span class="bdpan-master-copy">
+                <span class="bdpan-section-kicker">MASTER CONTROL</span>
+                <strong id="bdpanControlTitle">百度网盘自动追更</strong>
+                <small>检测更新后自动执行增量转存、OpenList 扫描与媒体库同步；首次检查只建立基线。</small>
+                <span id="bdpanMasterMode" class="bdpan-current-mode">当前模式：仅读取配置</span>
+              </span>
+              <span class="bdpan-master-toggle-copy"><b id="bdpanEnabledLabel">未启用</b><small>功能总开关</small></span>
+              <input id="bdpanEnabledInput" type="checkbox">
+              <span class="toggle-switch large" aria-hidden="true"></span>
+            </label>
+
+            <div class="bdpan-mode-section">
+              <div class="bdpan-section-heading compact">
+                <div><span class="bdpan-section-kicker">TRACKING MODE</span><h3>选择追更策略</h3></div>
+                <span class="bdpan-section-meta">Telegram 负责实时性，百度检查负责兜底</span>
+              </div>
+              <div id="bdpanModeCards" class="bdpan-mode-cards" role="group" aria-label="追更模式">
+                <button class="bdpan-mode-card" type="button" data-tracking-mode="polling">
+                  <span class="bdpan-mode-icon" aria-hidden="true">◷</span>
+                  <span><strong>仅百度定时检查</strong><small>按配置周期检查分享目录，适合不使用 Telegram 的部署。</small></span>
+                  <span class="bdpan-mode-check" aria-hidden="true">✓</span>
+                </button>
+                <button class="bdpan-mode-card recommended" type="button" data-tracking-mode="hybrid">
+                  <span class="bdpan-mode-icon" aria-hidden="true">⚡</span>
+                  <span><span class="bdpan-recommended-badge">推荐</span><strong>Telegram 实时 + 百度兜底</strong><small>消息到达后立即检查，定时任务补偿漏报和网络波动。</small></span>
+                  <span class="bdpan-mode-check" aria-hidden="true">✓</span>
+                </button>
+              </div>
+              <label class="sr-only" for="bdpanTrackingModeInput">追更模式</label>
+              <select id="bdpanTrackingModeInput" class="sr-only" tabindex="-1" aria-hidden="true">
                 <option value="polling">仅百度定时检查</option>
                 <option value="hybrid">Telegram 实时 + 百度兜底</option>
               </select>
             </div>
-            <div class="field bdpan-metric-field">
-              <label for="bdpanIntervalInput">百度兜底检查（分钟）</label>
-              <input id="bdpanIntervalInput" type="number" value="10" min="5" max="1440" inputmode="numeric">
-              <p class="gateway-field-help">Telegram 负责实时发现；该间隔用于消息遗漏时的兜底检查。</p>
-            </div>
-            <div class="field bdpan-metric-field">
-              <label for="bdpanSettleInput">转存等待（秒）</label>
-              <input id="bdpanSettleInput" type="number" value="90" min="30" max="1800" inputmode="numeric">
-            </div>
-            <div class="field bdpan-metric-field">
-              <label for="bdpanMaxItemsInput">单次最多新增</label>
-              <input id="bdpanMaxItemsInput" type="number" value="20" min="1" max="100" inputmode="numeric">
-            </div>
-          </div>
 
-          <div id="bdpanAuthorizationCallout" class="bdpan-callout" hidden>
-            <div class="bdpan-callout-copy">
-              <strong>低频、串行、带抖动的检查策略</strong>
-              <span>最短 5 分钟；目录请求串行执行并留出间隔，失败后指数退避，避免重复提交相同文件。</span>
-              <label class="bdpan-consent" for="bdpanDisclaimerInput">
-                <input id="bdpanDisclaimerInput" type="checkbox">
-                <span>授权前已备份网盘重要数据，并确认当前是可信环境；授权配置不会显示在页面或写入日志。</span>
-              </label>
-            </div>
-            <div class="bdpan-auth-actions">
-              <button id="bdpanLoginStartButton" class="baidu-button" type="button">获取授权链接</button>
-            </div>
-          </div>
+            <details class="bdpan-advanced settings-advanced">
+              <summary><span><strong>百度网盘高级设置</strong><small>转存目录、检查频率与任务限额</small></span></summary>
+              <div class="settings-advanced-content">
+                <div class="bdpan-settings-grid">
+                  <div class="field bdpan-root-field">
+                    <label for="bdpanSaveRootInput">网盘转存根目录</label>
+                    <input id="bdpanSaveRootInput" type="text" value="video" placeholder="video" autocomplete="off">
+                    <p class="gateway-field-help">相对于“我的应用数据/bdpan/”；镜像内固定使用已安装的 bdpan CLI。</p>
+                  </div>
+                  <div class="field bdpan-metric-field">
+                    <label for="bdpanIntervalInput">百度兜底检查（分钟）</label>
+                    <input id="bdpanIntervalInput" type="number" value="10" min="5" max="1440" inputmode="numeric">
+                    <p class="gateway-field-help">Telegram 负责实时发现；此间隔用于消息遗漏时的兜底检查。</p>
+                  </div>
+                  <div class="field bdpan-metric-field">
+                    <label for="bdpanSettleInput">转存等待（秒）</label>
+                    <input id="bdpanSettleInput" type="number" value="90" min="30" max="1800" inputmode="numeric">
+                    <p class="gateway-field-help">等待网盘文件落盘后再触发目录扫描。</p>
+                  </div>
+                  <div class="field bdpan-metric-field">
+                    <label for="bdpanMaxItemsInput">单次最多新增</label>
+                    <input id="bdpanMaxItemsInput" type="number" value="20" min="1" max="100" inputmode="numeric">
+                    <p class="gateway-field-help">限制一次任务提交的文件数量。</p>
+                  </div>
+                </div>
+              </div>
+            </details>
 
-          <div id="bdpanLoginPanel" class="bdpan-login-panel" hidden>
-            <a id="bdpanAuthorizationLink" class="button-like bdpan-auth-link" href="#" target="_blank" rel="noopener noreferrer">在百度网盘打开授权页面 ↗</a>
-            <div class="field">
-              <label for="bdpanAuthorizationCodeInput">网页返回的 32 位授权码</label>
-              <input id="bdpanAuthorizationCodeInput" type="password" minlength="32" maxlength="32" placeholder="授权码仅通过标准输入传给 bdpan" autocomplete="off">
+            <div id="bdpanAuthorizationCallout" class="bdpan-callout" hidden>
+              <div class="bdpan-callout-copy">
+                <strong>连接百度网盘以启用自动追更</strong>
+                <span>采用低频、串行、带抖动的检查策略；失败后指数退避，避免重复提交。</span>
+                <label class="bdpan-consent" for="bdpanDisclaimerInput">
+                  <input id="bdpanDisclaimerInput" type="checkbox">
+                  <span>授权前已备份网盘重要数据，并确认当前是可信环境；授权配置不会显示在页面或写入日志。</span>
+                </label>
+              </div>
+              <div class="bdpan-auth-actions"><button id="bdpanLoginStartButton" class="baidu-button" type="button">获取授权链接</button></div>
             </div>
-            <button id="bdpanLoginCompleteButton" class="primary" type="button">完成授权</button>
-          </div>
 
-          <section class="settings-block telegram-tracker-panel" aria-labelledby="telegramTrackerTitle">
-            <div class="settings-block-heading-row">
-              <div class="settings-block-heading">
-                <strong id="telegramTrackerTitle">Telegram 实时追更</strong>
-                <span>使用 MTProto 用户账号监听已加入的频道或群组，匹配媒体标题后更新百度链接。</span>
+            <div id="bdpanLoginPanel" class="bdpan-login-panel" hidden>
+              <a id="bdpanAuthorizationLink" class="button-like bdpan-auth-link" href="#" target="_blank" rel="noopener noreferrer">在百度网盘打开授权页面 ↗</a>
+              <div class="field">
+                <label for="bdpanAuthorizationCodeInput">网页返回的 32 位授权码</label>
+                <input id="bdpanAuthorizationCodeInput" type="password" minlength="32" maxlength="32" placeholder="授权码仅通过标准输入传给 bdpan" autocomplete="off">
               </div>
-              <span id="telegramStatus" class="gateway-status offline">未配置</span>
+              <button id="bdpanLoginCompleteButton" class="primary" type="button">完成授权</button>
             </div>
-            <p id="telegramRuntimeHint" class="settings-help">尚未连接 Telegram。</p>
-            <label class="gateway-enable-card" for="telegramEnabledInput">
-              <span><strong>启用 Telegram 消息采集</strong><small>仅在“Telegram 实时 + 百度兜底”模式下消费消息。</small></span>
-              <input id="telegramEnabledInput" type="checkbox">
-              <span class="toggle-switch" aria-hidden="true"></span>
-            </label>
-            <div class="settings-field-grid">
-              <div class="field">
-                <label>Telegram API 凭据</label>
-                <strong id="telegramApiCredentialStatus">正在检查环境变量…</strong>
-                <p class="settings-help">仅从 <code>TELEGRAM_API_ID</code> 和 <code>TELEGRAM_API_HASH</code> 读取，修改 <code>.env</code> 后需重启服务。</p>
+
+            <div id="bdpanError" class="editor-error bdpan-inline-alert" role="alert"></div>
+            <div class="page-form-actions bdpan-config-actions">
+              <button id="bdpanResetButton" type="button">恢复已保存配置</button>
+              <button id="bdpanSaveButton" class="primary" type="button">保存并应用</button>
+            </div>
+          </section>
+
+          <section class="panel telegram-command-center" aria-labelledby="telegramTrackerTitle">
+            <div class="telegram-hero">
+              <div class="telegram-identity">
+                <span class="telegram-logo" aria-hidden="true">TG</span>
+                <div>
+                  <span class="bdpan-section-kicker">REALTIME SIGNAL</span>
+                  <h3 id="telegramTrackerTitle">Telegram 实时追更</h3>
+                  <p>监听已加入的频道或群组，匹配媒体后立即触发百度分享检查。</p>
+                </div>
               </div>
-              <div class="field">
-                <label for="telegramPhoneInput">登录手机号</label>
-                <input id="telegramPhoneInput" type="tel" placeholder="+8613800000000" autocomplete="tel">
-              </div>
-              <div class="field">
-                <label for="telegramSourcesInput">监听来源</label>
-                <textarea id="telegramSourcesInput" rows="3" placeholder="@WFYSFX03&#10;@WFYSFX01"></textarea>
-                <p class="settings-help">每行一个频道用户名、t.me 地址或数字 Chat ID；账号需要先加入对应来源。</p>
+              <div class="telegram-hero-actions">
+                <span id="telegramStatus" class="gateway-status offline">未配置</span>
+                <label class="telegram-mini-switch" for="telegramEnabledInput">
+                  <span>消息采集</span>
+                  <input id="telegramEnabledInput" type="checkbox">
+                  <span class="toggle-switch" aria-hidden="true"></span>
+                </label>
               </div>
             </div>
-            <div id="telegramLoginPanel" class="bdpan-login-panel" hidden>
-              <div class="field">
-                <label for="telegramCodeInput">Telegram 验证码</label>
-                <input id="telegramCodeInput" type="text" inputmode="numeric" autocomplete="one-time-code">
-              </div>
-              <div class="field">
-                <label for="telegramPasswordInput">两步验证密码（如启用）</label>
-                <input id="telegramPasswordInput" type="password" autocomplete="current-password">
-              </div>
-              <button id="telegramLoginCompleteButton" class="primary" type="button">完成 Telegram 登录</button>
+
+            <div class="telegram-runtime-grid" aria-label="Telegram 连接信息">
+              <div><span>连接状态</span><strong id="telegramConnectionMetric">等待读取</strong></div>
+              <div><span>最后收到消息</span><strong id="telegramLastReceivedMetric">—</strong></div>
+              <div><span>当前账号</span><strong id="telegramAccountMetric">—</strong></div>
+              <div><span>监听来源</span><strong id="telegramSourceCountMetric">0 个</strong></div>
             </div>
-            <div id="telegramError" class="editor-error" role="alert"></div>
-            <div class="page-form-actions">
+            <p id="telegramRuntimeHint" class="telegram-runtime-hint">尚未连接 Telegram。</p>
+
+            <div class="telegram-config-layout">
+              <section class="telegram-sources-card" aria-labelledby="telegramSourcesTitle">
+                <div class="telegram-subsection-heading">
+                  <div><span class="bdpan-section-kicker">SOURCES</span><h4 id="telegramSourcesTitle">监听来源</h4></div>
+                  <span id="telegramSourceSummary">0 个来源</span>
+                </div>
+                <div id="telegramSourceTags" class="telegram-source-tags" aria-live="polite"></div>
+                <form id="telegramSourceAddForm" class="telegram-source-add">
+                  <input id="telegramSourceAddInput" type="text" placeholder="@channel 或 Telegram Chat ID" autocomplete="off">
+                  <button id="telegramSourceAddButton" type="submit">添加来源</button>
+                </form>
+                <textarea id="telegramSourcesInput" class="sr-only" rows="3" tabindex="-1" aria-hidden="true"></textarea>
+                <p class="settings-help">支持频道 / 群组用户名、t.me 地址和数字 Chat ID；登录账号需要先加入对应来源。</p>
+              </section>
+
+              <details class="telegram-account-card settings-advanced" open>
+                <summary><span><strong>账号与安全</strong><small>API 环境、手机号与 Session 状态</small></span></summary>
+                <div class="settings-advanced-content">
+                  <div class="telegram-security-grid">
+                    <div class="telegram-security-item"><span>API 环境</span><strong id="telegramApiCredentialStatus">正在检查…</strong><small>TELEGRAM_API_ID / TELEGRAM_API_HASH</small></div>
+                    <div class="telegram-security-item"><span>Session</span><strong id="telegramSessionStatus">等待读取</strong><small>AES-GCM 加密存储</small></div>
+                  </div>
+                  <div class="field telegram-phone-field">
+                    <label for="telegramPhoneInput">登录手机号</label>
+                    <input id="telegramPhoneInput" type="tel" placeholder="+8613800000000" autocomplete="tel">
+                    <p class="settings-help">仅在首次登录或更换账号时填写完整国际区号手机号。</p>
+                  </div>
+                  <div id="telegramLoginPanel" class="telegram-login-panel" hidden>
+                    <div class="field"><label for="telegramCodeInput">Telegram 验证码</label><input id="telegramCodeInput" type="text" inputmode="numeric" autocomplete="one-time-code"></div>
+                    <div class="field"><label for="telegramPasswordInput">两步验证密码（如启用）</label><input id="telegramPasswordInput" type="password" autocomplete="current-password"></div>
+                    <button id="telegramLoginCompleteButton" class="primary" type="button">完成登录</button>
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            <div id="telegramError" class="editor-error bdpan-inline-alert" role="alert"></div>
+            <div class="telegram-actions">
               <button id="telegramLogoutButton" class="danger-button" type="button" hidden>退出 Telegram</button>
+              <span class="telegram-action-spacer"></span>
               <button id="telegramLoginStartButton" type="button">发送登录验证码</button>
               <button id="telegramSaveButton" class="primary" type="button">保存 Telegram 配置</button>
             </div>
           </section>
 
-          <div class="bdpan-watch-panel">
-            <div class="bdpan-watch-head">
-              <strong>追更队列</strong>
-              <span id="bdpanRunningHint">等待调度</span>
+          <section class="panel tracking-activity-panel" aria-labelledby="trackingActivityTitle">
+            <div class="bdpan-section-heading">
+              <div><span class="bdpan-section-kicker">LIVE ACTIVITY</span><h3 id="trackingActivityTitle">实时活动</h3><p>基于当前运行状态展示最近收到、检查和同步的事件。</p></div>
+              <span id="trackingActivityStatus" class="gateway-status offline">等待事件</span>
+            </div>
+            <div id="trackingActivityFeed" class="tracking-activity-feed" aria-live="polite"></div>
+          </section>
+
+          <section class="panel bdpan-watch-panel" aria-labelledby="bdpanQueueTitle">
+            <div class="bdpan-section-heading">
+              <div><span class="bdpan-section-kicker">TRACKING QUEUE</span><h3 id="bdpanQueueTitle">追更队列</h3><p>按媒体查看分享状态、最近结果与同步进度。</p></div>
+              <span id="bdpanRunningHint" class="bdpan-queue-runtime">等待调度</span>
             </div>
             <div id="bdpanWatchList" class="bdpan-watch-list" aria-live="polite"></div>
-          </div>
-          <div id="bdpanError" class="editor-error" role="alert"></div>
-          <div class="page-form-actions">
-            <button id="bdpanResetButton" type="button">恢复已保存配置</button>
-            <button id="bdpanSaveButton" class="primary" type="button">保存并应用</button>
-          </div>
-        </section>
-
+          </section>
         </div>
       </section>
 
@@ -2013,11 +2317,21 @@
       mediaProbeReset: document.querySelector('#mediaProbeResetButton'),
       mediaProbeSave: document.querySelector('#mediaProbeSaveButton'),
       bdpanHeaderStatus: document.querySelector('#bdpanHeaderStatus'),
+      bdpanTelegramHeaderStatus: document.querySelector('#bdpanTelegramHeaderStatus'),
+      bdpanWorkspace: document.querySelector('#bdpanWorkspace'),
+      bdpanOverviewUpdatedAt: document.querySelector('#bdpanOverviewUpdatedAt'),
       bdpanCliStatus: document.querySelector('#bdpanCliStatus'),
+      bdpanCliHint: document.querySelector('#bdpanCliHint'),
       bdpanLoginStatus: document.querySelector('#bdpanLoginStatus'),
+      bdpanAccountHint: document.querySelector('#bdpanAccountHint'),
       bdpanWatchedStatus: document.querySelector('#bdpanWatchedStatus'),
       bdpanNextCheckStatus: document.querySelector('#bdpanNextCheckStatus'),
+      bdpanTelegramOverviewStatus: document.querySelector('#bdpanTelegramOverviewStatus'),
+      bdpanTelegramOverviewHint: document.querySelector('#bdpanTelegramOverviewHint'),
       bdpanEnabled: document.querySelector('#bdpanEnabledInput'),
+      bdpanEnabledLabel: document.querySelector('#bdpanEnabledLabel'),
+      bdpanMasterMode: document.querySelector('#bdpanMasterMode'),
+      bdpanModeCards: document.querySelector('#bdpanModeCards'),
       bdpanTrackingMode: document.querySelector('#bdpanTrackingModeInput'),
       bdpanSaveRoot: document.querySelector('#bdpanSaveRootInput'),
       bdpanInterval: document.querySelector('#bdpanIntervalInput'),
@@ -2041,9 +2355,18 @@
       telegramStatus: document.querySelector('#telegramStatus'),
       telegramRuntimeHint: document.querySelector('#telegramRuntimeHint'),
       telegramApiCredentialStatus: document.querySelector('#telegramApiCredentialStatus'),
+      telegramConnectionMetric: document.querySelector('#telegramConnectionMetric'),
+      telegramLastReceivedMetric: document.querySelector('#telegramLastReceivedMetric'),
+      telegramAccountMetric: document.querySelector('#telegramAccountMetric'),
+      telegramSourceCountMetric: document.querySelector('#telegramSourceCountMetric'),
+      telegramSessionStatus: document.querySelector('#telegramSessionStatus'),
       telegramEnabled: document.querySelector('#telegramEnabledInput'),
       telegramPhone: document.querySelector('#telegramPhoneInput'),
       telegramSources: document.querySelector('#telegramSourcesInput'),
+      telegramSourceTags: document.querySelector('#telegramSourceTags'),
+      telegramSourceSummary: document.querySelector('#telegramSourceSummary'),
+      telegramSourceAddForm: document.querySelector('#telegramSourceAddForm'),
+      telegramSourceAdd: document.querySelector('#telegramSourceAddInput'),
       telegramLoginPanel: document.querySelector('#telegramLoginPanel'),
       telegramCode: document.querySelector('#telegramCodeInput'),
       telegramPassword: document.querySelector('#telegramPasswordInput'),
@@ -2052,6 +2375,8 @@
       telegramLogout: document.querySelector('#telegramLogoutButton'),
       telegramError: document.querySelector('#telegramError'),
       telegramSave: document.querySelector('#telegramSaveButton'),
+      trackingActivityStatus: document.querySelector('#trackingActivityStatus'),
+      trackingActivityFeed: document.querySelector('#trackingActivityFeed'),
       wecomHeaderStatus: document.querySelector('#wecomHeaderStatus'),
       wecomWebhook: document.querySelector('#wecomWebhookInput'),
       wecomWebhookStatus: document.querySelector('#wecomWebhookStatus'),
@@ -2908,8 +3233,24 @@
       elements.bdpanInterval.value = String(config.checkIntervalMinutes || 10);
       elements.bdpanSettle.value = String(config.settleSeconds || 90);
       elements.bdpanMaxItems.value = String(config.maxNewItems || 20);
+      renderBdpanMode(elements.bdpanTrackingMode.value);
+      elements.bdpanWorkspace.classList.toggle('is-disabled', !elements.bdpanEnabled.checked);
+      elements.bdpanEnabledLabel.textContent = elements.bdpanEnabled.checked ? '已启用' : '未启用';
       state.bdpanSnapshot = JSON.stringify(bdpanValues());
       validateBdpan(false);
+    }
+
+    function renderBdpanMode(value) {
+      const mode = value === 'hybrid' ? 'hybrid' : 'polling';
+      elements.bdpanModeCards.querySelectorAll('[data-tracking-mode]').forEach((card) => {
+        const active = card.dataset.trackingMode === mode;
+        card.classList.toggle('active', active);
+        card.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      const interval = Number(elements.bdpanInterval.value || 10);
+      elements.bdpanMasterMode.textContent = mode === 'hybrid'
+        ? 'Telegram 实时 + ' + interval + ' 分钟百度兜底'
+        : '每 ' + interval + ' 分钟检查百度分享';
     }
 
     function formatNextCheck(value) {
@@ -2921,6 +3262,17 @@
         + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
     }
 
+    function bdpanWatchPresentation(watch, isRunning) {
+      if (isRunning) return { label: '检查中', tone: 'running' };
+      if (watch.suspended) return { label: '追更已暂停', tone: 'error' };
+      if (watch.lastError) return { label: '检查失败', tone: 'error' };
+      if (watch.pendingSync) return { label: '转存同步中', tone: 'warning' };
+      if (!watch.initialized) return { label: '等待首次检查', tone: 'warning' };
+      if (watch.lastSyncedAt) return { label: '已同步', tone: 'success' };
+      if (watch.lastTransferAt) return { label: '已发现更新', tone: 'success' };
+      return { label: '等待检查', tone: '' };
+    }
+
     function renderBdpan(data) {
       if (!data) return;
       const config = data.config || {};
@@ -2929,28 +3281,32 @@
       const ready = Boolean(runtime.available && runtime.loggedIn);
       const running = Boolean(runtime.checking);
       const broken = Boolean(runtime.error || !runtime.available);
+      elements.bdpanWorkspace.classList.toggle('is-disabled', !elements.bdpanEnabled.checked);
+      elements.bdpanEnabledLabel.textContent = elements.bdpanEnabled.checked ? '已启用' : '未启用';
+      renderBdpanMode(elements.bdpanTrackingMode.value);
+      elements.bdpanOverviewUpdatedAt.textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
       elements.bdpanHeaderStatus.className = 'gateway-status ' + (
         running ? 'pending' : broken ? 'error' : config.enabled && ready ? 'online' : ready ? 'offline' : 'pending'
       );
       elements.bdpanHeaderStatus.textContent = running
         ? '正在检查'
-        : broken ? 'CLI 不可用' : !runtime.loggedIn ? '等待授权' : config.enabled ? '自动追更中' : '未启用';
+        : broken ? 'CLI 不可用' : !runtime.loggedIn ? '等待授权' : config.enabled ? '自动追更已启用' : '自动追更未启用';
       elements.bdpanCliStatus.textContent = runtime.available
         ? 'bdpan ' + (runtime.version || '已安装') : '未找到';
       elements.bdpanCliStatus.title = runtime.binary || 'bdpan';
+      elements.bdpanCliHint.textContent = runtime.available
+        ? (runtime.binary || '命令行工具可用') : (runtime.error || '请检查镜像安装');
       const accountName = String(runtime.username || '').trim();
-      elements.bdpanLoginStatus.textContent = runtime.loggedIn
-        ? '已授权' + (accountName ? ' · ' + accountName : '')
-        : '未授权';
-      elements.bdpanLoginStatus.title = runtime.loggedIn && accountName
-        ? '当前账号：' + accountName
-        : '';
+      elements.bdpanLoginStatus.textContent = runtime.loggedIn ? '已授权' : '未授权';
+      elements.bdpanLoginStatus.title = runtime.loggedIn && accountName ? '当前账号：' + accountName : '';
+      elements.bdpanAccountHint.textContent = runtime.loggedIn
+        ? (accountName || '账号凭据有效') : '需要完成百度网盘授权';
       elements.bdpanAuthorizationCallout.hidden = Boolean(runtime.loggedIn);
       elements.bdpanLogout.hidden = !runtime.loggedIn;
       if (runtime.loggedIn) elements.bdpanLoginPanel.hidden = true;
       elements.bdpanWatchedStatus.textContent = String(runtime.watchedCount || 0) + ' 个';
       elements.bdpanNextCheckStatus.textContent = config.enabled
-        ? formatNextCheck(runtime.nextCheckAt) : '自动检查已关闭';
+        ? '下次 ' + formatNextCheck(runtime.nextCheckAt) : '自动检查已关闭';
       const runningWatch = watches.find((watch) => watch.itemId === runtime.runningItemId);
       elements.bdpanRunningHint.textContent = running
         ? '正在处理' + (runningWatch ? '：' + runningWatch.name : '…')
@@ -2964,27 +3320,72 @@
         empty.className = 'bdpan-watch-empty';
         empty.textContent = '暂无追更任务。请在“更新中”的媒体详情里填写百度网盘分享链接。';
         elements.bdpanWatchList.append(empty);
+        renderTrackingActivity();
         return;
       }
       for (const watch of watches) {
-        const row = document.createElement('div');
+        const isRunning = runtime.runningItemId === watch.itemId;
+        const presentation = bdpanWatchPresentation(watch, isRunning);
+        const row = document.createElement('article');
         row.className = 'bdpan-watch';
 
         const main = document.createElement('div');
         main.className = 'bdpan-watch-main';
+        const titleRow = document.createElement('div');
+        titleRow.className = 'bdpan-watch-title-row';
         const name = document.createElement('strong');
         name.textContent = watch.name || '未命名媒体';
-        const count = document.createElement('small');
-        count.textContent = watch.initialized ? '已记录 ' + String(watch.seenCount || 0) + ' 个媒体文件' : '等待首次建立基线';
-        main.append(name, count);
+        titleRow.append(name);
+        const badges = document.createElement('div');
+        badges.className = 'bdpan-watch-source-badges';
+        const baiduBadge = document.createElement('span');
+        baiduBadge.className = 'bdpan-source-badge';
+        baiduBadge.textContent = '百度网盘';
+        badges.append(baiduBadge);
+        if (config.trackingMode === 'hybrid') {
+          const telegramBadge = document.createElement('span');
+          telegramBadge.className = 'bdpan-source-badge telegram';
+          telegramBadge.textContent = 'Telegram';
+          badges.append(telegramBadge);
+        }
+        main.append(titleRow, badges);
 
+        const pathGroup = document.createElement('div');
+        pathGroup.className = 'bdpan-watch-path-group';
+        const pathLabel = document.createElement('span');
+        pathLabel.className = 'bdpan-watch-path-label';
+        pathLabel.textContent = '转存目录';
         const path = document.createElement('div');
         path.className = 'bdpan-watch-path';
         path.textContent = '我的应用数据/bdpan/' + String(watch.destination || '').replace(/^\/+/, '');
         path.title = path.textContent;
+        const metrics = document.createElement('div');
+        metrics.className = 'bdpan-watch-metrics';
+        const metricValues = [
+          ['源记录', watch.initialized ? String(watch.seenCount || 0) : '—'],
+          ['已提交', String(watch.submittedTaskCount || 0)],
+          ['最后检查', watch.lastCheckedAt ? formatDate(watch.lastCheckedAt) : '尚未'],
+        ];
+        for (const [label, value] of metricValues) {
+          const metric = document.createElement('div');
+          metric.className = 'bdpan-watch-metric';
+          const metricLabel = document.createElement('span');
+          metricLabel.textContent = label;
+          const metricValue = document.createElement('strong');
+          metricValue.textContent = value;
+          metric.append(metricLabel, metricValue);
+          metrics.append(metric);
+        }
+        pathGroup.append(pathLabel, path, metrics);
 
         const result = document.createElement('div');
         result.className = 'bdpan-watch-result';
+        const statusRow = document.createElement('div');
+        statusRow.className = 'bdpan-watch-status-row';
+        const status = document.createElement('span');
+        status.className = 'bdpan-watch-status ' + presentation.tone;
+        status.textContent = presentation.label;
+        statusRow.append(status);
         const resultText = document.createElement('span');
         resultText.textContent = watch.lastError || watch.lastResult || '等待检查';
         if (watch.lastError) resultText.classList.add('bdpan-watch-error');
@@ -2992,17 +3393,31 @@
         timing.textContent = watch.suspended
           ? '追更已暂停 · 更新分享链接后恢复'
           : watch.pendingSync
-            ? '等待自动扫描同步' : watch.lastCheckedAt ? '检查于 ' + formatDate(watch.lastCheckedAt) : '尚未检查';
-        result.append(resultText, timing);
+            ? '文件落盘后将自动扫描同步'
+            : watch.lastSyncedAt ? '同步于 ' + formatDate(watch.lastSyncedAt)
+              : watch.lastCheckedAt ? '检查于 ' + formatDate(watch.lastCheckedAt) : '尚未执行检查';
+        result.append(statusRow, resultText, timing);
 
+        const action = document.createElement('div');
+        action.className = 'bdpan-watch-action';
         const button = document.createElement('button');
         button.type = 'button';
-        button.textContent = runtime.runningItemId === watch.itemId ? '检查中…' : '检查';
+        if (isRunning) {
+          const spinner = document.createElement('span');
+          spinner.className = 'bdpan-check-spinner';
+          button.append(spinner, document.createTextNode('检查中'));
+        } else {
+          button.textContent = '检查';
+        }
         button.disabled = state.busy || running || !ready || Boolean(watch.suspended);
         button.addEventListener('click', () => checkBdpanNow(watch.itemId));
-        row.append(main, path, result, button);
+        const actionHint = document.createElement('small');
+        actionHint.textContent = watch.pendingSync ? '自动同步排队中' : '单项即时检查';
+        action.append(button, actionHint);
+        row.append(main, pathGroup, result, action);
         elements.bdpanWatchList.append(row);
       }
+      renderTrackingActivity();
     }
 
     function scheduleBdpanRefresh() {
@@ -3011,8 +3426,13 @@
       if (elements.bdpanView.hidden || !state.bdpanData) return;
       const runtime = state.bdpanData.runtime || {};
       const watches = Array.isArray(state.bdpanData.watches) ? state.bdpanData.watches : [];
-      if (!runtime.checking && !watches.some((watch) => watch.pendingSync)) return;
-      state.bdpanTimer = setTimeout(() => loadBdpan(false, false), 2500);
+      const activeWork = runtime.checking || watches.some((watch) => watch.pendingSync);
+      const telegramListening = Boolean(state.telegramData?.runtime?.listening);
+      if (!activeWork && !telegramListening) return;
+      state.bdpanTimer = setTimeout(() => Promise.all([
+        loadBdpan(false, false),
+        loadTelegram(false),
+      ]), activeWork ? 2500 : 10000);
     }
 
     async function loadBdpan(populateForm = false, refresh = false) {
@@ -3046,23 +3466,96 @@
       return {
         enabled: elements.telegramEnabled.checked,
         phone: elements.telegramPhone.value.trim(),
-        sources: elements.telegramSources.value.split(/[\n,]+/).map((value) => value.trim()).filter(Boolean),
+        sources: telegramSourceValues(),
       };
+    }
+
+    function telegramSourceValues() {
+      return elements.telegramSources.value
+        .split(/[\n,]+/)
+        .map((value) => value.trim())
+        .filter(Boolean);
+    }
+
+    function syncTelegramSources(values) {
+      const unique = [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+      elements.telegramSources.value = unique.join('\n');
+      elements.telegramSources.dispatchEvent(new Event('input', { bubbles: true }));
+      renderTelegramSourceTags();
+    }
+
+    function renderTelegramSourceTags() {
+      const sources = telegramSourceValues();
+      elements.telegramSourceTags.replaceChildren();
+      elements.telegramSourceSummary.textContent = String(sources.length) + ' 个来源';
+      elements.telegramSourceCountMetric.textContent = String(sources.length) + ' 个';
+      if (!sources.length) {
+        const empty = document.createElement('div');
+        empty.className = 'telegram-source-empty';
+        empty.textContent = '尚未添加监听来源';
+        elements.telegramSourceTags.append(empty);
+        return;
+      }
+      for (const source of sources) {
+        const tag = document.createElement('span');
+        tag.className = 'telegram-source-tag';
+        const label = document.createElement('span');
+        label.textContent = source;
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.setAttribute('aria-label', '移除 ' + source);
+        remove.textContent = '×';
+        remove.addEventListener('click', () => {
+          syncTelegramSources(telegramSourceValues().filter((value) => value !== source));
+        });
+        tag.append(label, remove);
+        elements.telegramSourceTags.append(tag);
+      }
+    }
+
+    function addTelegramSource() {
+      const value = elements.telegramSourceAdd.value.trim();
+      if (!value) {
+        elements.telegramSourceAdd.focus();
+        return;
+      }
+      syncTelegramSources([...telegramSourceValues(), value]);
+      elements.telegramSourceAdd.value = '';
+      elements.telegramSourceAdd.focus();
     }
 
     function renderTelegramStatus(data) {
       const config = data?.config || {};
       const runtime = data?.runtime || {};
-      elements.telegramApiCredentialStatus.textContent = config.apiConfigured
-        ? '已从环境变量安全加载' : '未配置，请修改 .env 并重启';
-      elements.telegramStatus.className = 'gateway-status '
-        + (!config.apiConfigured || runtime.lastError ? 'error' : runtime.listening ? 'online' : runtime.authorized ? 'offline' : 'pending');
-      elements.telegramStatus.textContent = !config.apiConfigured
+      const error = Boolean(!config.apiConfigured || runtime.lastError);
+      const statusClass = error ? 'error' : runtime.listening ? 'online' : runtime.authorized ? 'offline' : 'pending';
+      const statusText = !config.apiConfigured
         ? 'API 未配置'
         : runtime.listening
-        ? '实时监听中'
-        : runtime.lastError ? '连接异常'
-          : runtime.authorized ? (config.enabled ? '已授权，等待连接' : '已授权，当前未启用') : '等待登录';
+          ? '实时监听中'
+          : runtime.lastError ? '连接异常'
+            : runtime.authorized ? (config.enabled ? '已授权，等待连接' : '已授权，当前未启用') : '等待登录';
+      elements.telegramApiCredentialStatus.textContent = config.apiConfigured
+        ? '已从环境变量加载' : '未配置';
+      elements.telegramSessionStatus.textContent = runtime.authorized ? '已授权 · 已加密' : '尚未建立';
+      elements.telegramStatus.className = 'gateway-status ' + statusClass;
+      elements.telegramStatus.textContent = statusText;
+      elements.bdpanTelegramHeaderStatus.className = 'gateway-status ' + statusClass;
+      elements.bdpanTelegramHeaderStatus.textContent = 'Telegram ' + statusText;
+      elements.bdpanTelegramOverviewStatus.textContent = statusText;
+      elements.bdpanTelegramOverviewHint.textContent = runtime.lastReceivedAt
+        ? '最后消息 ' + formatDate(runtime.lastReceivedAt)
+        : (config.sources || []).length + ' 个监听来源';
+      const telegramOverviewCard = elements.bdpanTelegramOverviewStatus.closest('.telegram-overview-card');
+      if (telegramOverviewCard) telegramOverviewCard.classList.toggle('is-online', Boolean(runtime.listening));
+      elements.telegramConnectionMetric.textContent = runtime.connected
+        ? (runtime.listening ? '已连接 · 监听中' : '已连接') : '未连接';
+      elements.telegramLastReceivedMetric.textContent = runtime.lastReceivedAt
+        ? formatDate(runtime.lastReceivedAt) : '尚无消息';
+      elements.telegramLastReceivedMetric.title = runtime.lastReceivedAt || '';
+      elements.telegramAccountMetric.textContent = runtime.authorized
+        ? (config.phoneMasked || '已授权账号') : '未登录';
+      elements.telegramSourceCountMetric.textContent = String(telegramSourceValues().length) + ' 个';
       elements.telegramRuntimeHint.textContent = runtime.lastError
         ? '最近错误：' + runtime.lastError
         : runtime.lastMatch
@@ -3071,6 +3564,7 @@
       elements.telegramLogout.hidden = !runtime.authorized;
       elements.telegramLoginStart.hidden = Boolean(runtime.authorized);
       elements.telegramLoginStart.disabled = state.busy || !config.apiConfigured;
+      renderTrackingActivity();
     }
 
     function fillTelegramForm(data) {
@@ -3082,8 +3576,67 @@
         ? '已保存 ' + config.phoneMasked + '；重新登录时填写完整号码'
         : '+8613800000000';
       elements.telegramSources.value = (config.sources || []).join('\n');
+      renderTelegramSourceTags();
       renderTelegramStatus(data);
       state.telegramSnapshot = JSON.stringify(telegramValues());
+    }
+
+    function renderTrackingActivity() {
+      if (!elements.trackingActivityFeed) return;
+      const telegram = state.telegramData?.runtime || {};
+      const watches = Array.isArray(state.bdpanData?.watches) ? state.bdpanData.watches : [];
+      const entries = [];
+      if (telegram.lastReceivedAt) {
+        entries.push({
+          at: telegram.lastReceivedAt,
+          tone: telegram.lastError ? 'error' : 'telegram',
+          title: telegram.lastError ? 'Telegram 消息处理异常' : '收到 Telegram 消息',
+          detail: telegram.lastError || telegram.lastMatch || '消息已由实时监听器接收',
+        });
+      }
+      for (const watch of watches) {
+        if (watch.lastSyncedAt) entries.push({ at: watch.lastSyncedAt, tone: 'success', title: '媒体同步完成', detail: watch.name + ' · ' + (watch.lastResult || '已同步') });
+        if (watch.lastTransferAt) entries.push({ at: watch.lastTransferAt, tone: 'warning', title: '已提交网盘转存', detail: watch.name + ' · 等待文件落盘与同步' });
+        if (watch.lastCheckedAt) entries.push({ at: watch.lastCheckedAt, tone: watch.lastError ? 'error' : 'success', title: watch.lastError ? '追更检查失败' : '追更检查完成', detail: watch.name + ' · ' + (watch.lastError || watch.lastResult || '检查完成') });
+      }
+      entries.sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime());
+      elements.trackingActivityFeed.replaceChildren();
+      const visible = entries.filter((entry) => entry.at).slice(0, 6);
+      if (!visible.length) {
+        const empty = document.createElement('div');
+        empty.className = 'tracking-activity-empty';
+        empty.textContent = '暂无实时活动。Telegram 收到消息或追更任务执行后会显示在这里。';
+        elements.trackingActivityFeed.append(empty);
+      } else {
+        for (const entry of visible) {
+          const item = document.createElement('div');
+          item.className = 'tracking-activity-item ' + entry.tone;
+          const time = document.createElement('time');
+          time.className = 'tracking-activity-time';
+          const date = new Date(entry.at);
+          time.textContent = Number.isNaN(date.getTime())
+            ? '—' : date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+          time.dateTime = entry.at;
+          const rail = document.createElement('span');
+          rail.className = 'tracking-activity-rail';
+          const dot = document.createElement('span');
+          dot.className = 'tracking-activity-dot';
+          rail.append(dot);
+          const copy = document.createElement('div');
+          copy.className = 'tracking-activity-copy';
+          const title = document.createElement('strong');
+          title.textContent = entry.title;
+          const detail = document.createElement('span');
+          detail.textContent = entry.detail;
+          detail.title = entry.detail;
+          copy.append(title, detail);
+          item.append(time, rail, copy);
+          elements.trackingActivityFeed.append(item);
+        }
+      }
+      const listening = Boolean(telegram.listening);
+      elements.trackingActivityStatus.className = 'gateway-status ' + (listening ? 'online' : visible.length ? 'offline' : 'pending');
+      elements.trackingActivityStatus.textContent = listening ? '实时监听' : visible.length ? '最近活动' : '等待事件';
     }
 
     async function loadTelegram(populateForm = false) {
@@ -3092,6 +3645,7 @@
         state.telegramData = data;
         if (populateForm || !state.telegramSnapshot) fillTelegramForm(data);
         else renderTelegramStatus(data);
+        scheduleBdpanRefresh();
       } catch (error) {
         elements.telegramError.textContent = error.message;
         elements.telegramError.classList.add('show');
@@ -3906,6 +4460,7 @@
         elements.telegramEnabled,
         elements.telegramPhone,
         elements.telegramSources,
+        elements.telegramSourceAdd,
         elements.telegramCode,
         elements.telegramPassword,
       ].forEach((input) => { input.disabled = value; });
@@ -5603,10 +6158,21 @@
     elements.bdpanLoginComplete.addEventListener('click', completeBdpanLogin);
     elements.bdpanSave.addEventListener('click', saveBdpan);
     elements.bdpanReset.addEventListener('click', restoreBdpan);
+    elements.bdpanModeCards.querySelectorAll('[data-tracking-mode]').forEach((card) => {
+      card.addEventListener('click', () => {
+        elements.bdpanTrackingMode.value = card.dataset.trackingMode;
+        elements.bdpanTrackingMode.dispatchEvent(new Event('change', { bubbles: true }));
+        renderBdpanMode(elements.bdpanTrackingMode.value);
+      });
+    });
     elements.telegramSave.addEventListener('click', saveTelegram);
     elements.telegramLoginStart.addEventListener('click', startTelegramLogin);
     elements.telegramLoginComplete.addEventListener('click', completeTelegramLogin);
     elements.telegramLogout.addEventListener('click', logoutTelegram);
+    elements.telegramSourceAddForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      addTelegramSource();
+    });
     [
       elements.bdpanEnabled,
       elements.bdpanTrackingMode,
@@ -5615,8 +6181,16 @@
       elements.bdpanSettle,
       elements.bdpanMaxItems,
     ].forEach((input) => {
-      input.addEventListener('input', () => validateBdpan(false));
-      input.addEventListener('change', () => validateBdpan(false));
+      input.addEventListener('input', () => {
+        validateBdpan(false);
+        renderBdpanMode(elements.bdpanTrackingMode.value);
+      });
+      input.addEventListener('change', () => {
+        validateBdpan(false);
+        renderBdpanMode(elements.bdpanTrackingMode.value);
+        elements.bdpanWorkspace.classList.toggle('is-disabled', !elements.bdpanEnabled.checked);
+        elements.bdpanEnabledLabel.textContent = elements.bdpanEnabled.checked ? '已启用' : '未启用';
+      });
     });
     [
       elements.telegramEnabled,
