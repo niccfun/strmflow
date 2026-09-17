@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+from pydantic import ValidationError
+
+from strmflow.core.config import Settings
 from strmflow.core.runtime_logs import RuntimeLogStore
 from strmflow.services.telegram_tracker import TelegramTrackerService
 
@@ -90,6 +94,12 @@ def build_service() -> tuple[TelegramTrackerService, FakeMedia, FakeBdpan]:
     media = FakeMedia()
     bdpan = FakeBdpan()
     service = TelegramTrackerService(
+        Settings(
+            _env_file=None,
+            session_secret="test-session-secret-that-is-long-enough-123456",
+            telegram_api_id=123456,
+            telegram_api_hash="0123456789abcdef0123456789abcdef",
+        ),
         FakeRuntimeRepository(),  # type: ignore[arg-type]
         media,  # type: ignore[arg-type]
         bdpan,  # type: ignore[arg-type]
@@ -132,8 +142,6 @@ async def test_status_masks_telegram_secrets() -> None:
     service, _media, _bdpan = build_service()
     service.config.update(
         {
-            "apiId": 123456,
-            "apiHash": "0123456789abcdef0123456789abcdef",
             "phone": "+8613800000000",
             "session": "sensitive-session",
         }
@@ -141,9 +149,67 @@ async def test_status_masks_telegram_secrets() -> None:
 
     status = await service.status()
 
-    assert status["config"]["apiHashConfigured"] is True
+    assert status["config"]["apiConfigured"] is True
     assert status["config"]["phoneConfigured"] is True
     assert status["config"]["phoneMasked"] == "+86****000"
     assert "apiHash" not in status["config"]
     assert "session" not in status["config"]
     assert status["runtime"]["authorized"] is True
+
+
+def test_telegram_api_credentials_are_secret_environment_settings() -> None:
+    api_hash = "0123456789abcdef0123456789abcdef"
+    settings = Settings(
+        _env_file=None,
+        telegram_api_id=123456,
+        telegram_api_hash=api_hash,
+    )
+
+    assert settings.telegram_api_hash.get_secret_value() == api_hash
+    assert api_hash not in repr(settings)
+    with pytest.raises(ValidationError, match="必须同时配置"):
+        Settings(_env_file=None, telegram_api_id=123456)
+    invalid_hash = "must-not-appear-in-errors"
+    with pytest.raises(ValidationError) as error:
+        Settings(
+            _env_file=None,
+            session_secret="test-session-secret-that-is-long-enough-123456",
+            telegram_api_id=123456,
+            telegram_api_hash=invalid_hash,
+        )
+    assert invalid_hash not in str(error.value)
+
+
+async def test_initialize_removes_legacy_api_credentials_from_sqlite_config() -> None:
+    repository = FakeRuntimeRepository()
+    repository.telegram = {
+        "enabled": False,
+        "apiId": 123456,
+        "apiHash": "legacy-secret",
+        "phone": "",
+        "sources": ["@wfysfx03"],
+        "session": "legacy-plaintext-session",
+    }
+    media = FakeMedia()
+    bdpan = FakeBdpan()
+    service = TelegramTrackerService(
+        Settings(
+            _env_file=None,
+            session_secret="test-session-secret-that-is-long-enough-123456",
+            telegram_api_id=123456,
+            telegram_api_hash="0123456789abcdef0123456789abcdef",
+        ),
+        repository,  # type: ignore[arg-type]
+        media,  # type: ignore[arg-type]
+        bdpan,  # type: ignore[arg-type]
+        RuntimeLogStore(),
+    )
+
+    await service.initialize()
+
+    assert repository.telegram is not None
+    assert "apiId" not in repository.telegram
+    assert "apiHash" not in repository.telegram
+    assert "session" not in repository.telegram
+    assert repository.telegram["sessionEncrypted"].startswith("v1.")
+    assert "legacy-plaintext-session" not in repository.telegram["sessionEncrypted"]

@@ -1502,12 +1502,9 @@
             </label>
             <div class="settings-field-grid">
               <div class="field">
-                <label for="telegramApiIdInput">api_id</label>
-                <input id="telegramApiIdInput" type="number" min="1" max="2147483647" autocomplete="off">
-              </div>
-              <div class="field">
-                <label for="telegramApiHashInput">api_hash</label>
-                <input id="telegramApiHashInput" type="password" placeholder="留空则保留已保存值" autocomplete="new-password">
+                <label>Telegram API 凭据</label>
+                <strong id="telegramApiCredentialStatus">正在检查环境变量…</strong>
+                <p class="settings-help">仅从 <code>TELEGRAM_API_ID</code> 和 <code>TELEGRAM_API_HASH</code> 读取，修改 <code>.env</code> 后需重启服务。</p>
               </div>
               <div class="field">
                 <label for="telegramPhoneInput">登录手机号</label>
@@ -2043,9 +2040,8 @@
       bdpanSave: document.querySelector('#bdpanSaveButton'),
       telegramStatus: document.querySelector('#telegramStatus'),
       telegramRuntimeHint: document.querySelector('#telegramRuntimeHint'),
+      telegramApiCredentialStatus: document.querySelector('#telegramApiCredentialStatus'),
       telegramEnabled: document.querySelector('#telegramEnabledInput'),
-      telegramApiId: document.querySelector('#telegramApiIdInput'),
-      telegramApiHash: document.querySelector('#telegramApiHashInput'),
       telegramPhone: document.querySelector('#telegramPhoneInput'),
       telegramSources: document.querySelector('#telegramSourcesInput'),
       telegramLoginPanel: document.querySelector('#telegramLoginPanel'),
@@ -3049,8 +3045,6 @@
     function telegramValues() {
       return {
         enabled: elements.telegramEnabled.checked,
-        apiId: Number(elements.telegramApiId.value || 0),
-        apiHash: elements.telegramApiHash.value.trim(),
         phone: elements.telegramPhone.value.trim(),
         sources: elements.telegramSources.value.split(/[\n,]+/).map((value) => value.trim()).filter(Boolean),
       };
@@ -3059,9 +3053,13 @@
     function renderTelegramStatus(data) {
       const config = data?.config || {};
       const runtime = data?.runtime || {};
+      elements.telegramApiCredentialStatus.textContent = config.apiConfigured
+        ? '已从环境变量安全加载' : '未配置，请修改 .env 并重启';
       elements.telegramStatus.className = 'gateway-status '
-        + (runtime.lastError ? 'error' : runtime.listening ? 'online' : runtime.authorized ? 'offline' : 'pending');
-      elements.telegramStatus.textContent = runtime.listening
+        + (!config.apiConfigured || runtime.lastError ? 'error' : runtime.listening ? 'online' : runtime.authorized ? 'offline' : 'pending');
+      elements.telegramStatus.textContent = !config.apiConfigured
+        ? 'API 未配置'
+        : runtime.listening
         ? '实时监听中'
         : runtime.lastError ? '连接异常'
           : runtime.authorized ? (config.enabled ? '已授权，等待连接' : '已授权，当前未启用') : '等待登录';
@@ -3072,16 +3070,13 @@
           : runtime.lastReceivedAt ? '最近收到消息：' + formatDate(runtime.lastReceivedAt) : '尚未收到已配置来源的消息。';
       elements.telegramLogout.hidden = !runtime.authorized;
       elements.telegramLoginStart.hidden = Boolean(runtime.authorized);
+      elements.telegramLoginStart.disabled = state.busy || !config.apiConfigured;
     }
 
     function fillTelegramForm(data) {
       const config = data?.config || {};
       const enteredPhone = elements.telegramPhone.value.trim();
       elements.telegramEnabled.checked = Boolean(config.enabled);
-      elements.telegramApiId.value = config.apiId ? String(config.apiId) : '';
-      elements.telegramApiHash.value = '';
-      elements.telegramApiHash.placeholder = config.apiHashConfigured
-        ? '已保存，留空保持不变' : '填写 my.telegram.org 提供的 api_hash';
       elements.telegramPhone.value = config.phoneConfigured ? enteredPhone : '';
       elements.telegramPhone.placeholder = config.phoneMasked
         ? '已保存 ' + config.phoneMasked + '；重新登录时填写完整号码'
@@ -3105,8 +3100,8 @@
 
     async function saveTelegram() {
       const values = telegramValues();
-      if (!Number.isInteger(values.apiId) || values.apiId < 1 || (!values.apiHash && !state.telegramData?.config?.apiHashConfigured)) {
-        elements.telegramError.textContent = '请填写有效的 Telegram api_id 和 api_hash';
+      if (values.enabled && !state.telegramData?.config?.apiConfigured) {
+        elements.telegramError.textContent = '请先在 .env 中配置 TELEGRAM_API_ID 和 TELEGRAM_API_HASH 并重启服务';
         elements.telegramError.classList.add('show');
         return;
       }
@@ -3909,8 +3904,6 @@
         elements.wecomEpisodeUpdate,
         elements.wecomLinkInvalid,
         elements.telegramEnabled,
-        elements.telegramApiId,
-        elements.telegramApiHash,
         elements.telegramPhone,
         elements.telegramSources,
         elements.telegramCode,
@@ -3922,6 +3915,7 @@
         validateBdpan(false);
       }
       if (!value && state.wecomData) validateWecom(false);
+      if (!value && state.telegramData) renderTelegramStatus(state.telegramData);
       if (!value && state.mediaProbeData) {
         renderMediaProbe(state.mediaProbeData);
         validateMediaProbe(false);
@@ -5626,8 +5620,6 @@
     });
     [
       elements.telegramEnabled,
-      elements.telegramApiId,
-      elements.telegramApiHash,
       elements.telegramPhone,
       elements.telegramSources,
     ].forEach((input) => {

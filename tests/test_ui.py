@@ -148,8 +148,11 @@ def test_index_has_unique_element_ids() -> None:
     assert 'id="bdpanWatchList"' in template
     assert "'/api/bdpan'" in template
     assert "'/api/bdpan/check'" in template
-    assert 'id="telegramApiIdInput"' in template
-    assert 'id="telegramApiHashInput"' in template
+    assert 'id="telegramApiIdInput"' not in template
+    assert 'id="telegramApiHashInput"' not in template
+    assert 'id="telegramApiCredentialStatus"' in template
+    assert "TELEGRAM_API_ID" in template
+    assert "TELEGRAM_API_HASH" in template
     assert 'id="telegramSourcesInput"' in template
     assert 'id="telegramLoginStartButton"' in template
     assert "'/api/telegram'" in template

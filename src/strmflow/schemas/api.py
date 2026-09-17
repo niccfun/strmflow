@@ -141,8 +141,6 @@ class BdpanLoginStartRequest(ApiModel):
 
 class TelegramConfigUpdate(ApiModel):
     enabled: bool = False
-    api_id: int = Field(default=0, ge=0, le=2_147_483_647)
-    api_hash: str = Field(default="", max_length=128)
     phone: str = Field(default="", max_length=40)
     sources: list[str] = Field(default_factory=list, max_length=100)
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +13,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8-sig",
         case_sensitive=False,
         extra="ignore",
+        hide_input_in_errors=True,
     )
 
     app_user: str = "admin"
@@ -80,10 +81,23 @@ class Settings(BaseSettings):
     bdpan_max_new_items: int = Field(default=20, ge=1, le=100)
     transfer_job_retention: int = Field(default=200, ge=10, le=10_000)
 
+    # Telegram application credentials are deployment secrets. They are read
+    # from the environment only and are never persisted by the application.
+    telegram_api_id: int = Field(default=0, ge=0, le=2_147_483_647)
+    telegram_api_hash: SecretStr = SecretStr("")
+
     @model_validator(mode="after")
     def validate_pairs(self) -> Settings:
         if bool(self.turnstile_site_key) != bool(self.turnstile_secret_key):
             raise ValueError("TURNSTILE_SITE_KEY 和 TURNSTILE_SECRET_KEY 必须同时配置")
+        telegram_hash = self.telegram_api_hash.get_secret_value().strip()
+        if bool(self.telegram_api_id) != bool(telegram_hash):
+            raise ValueError("TELEGRAM_API_ID 和 TELEGRAM_API_HASH 必须同时配置")
+        if telegram_hash and (
+            len(telegram_hash) != 32
+            or any(character not in "0123456789abcdefABCDEF" for character in telegram_hash)
+        ):
+            raise ValueError("TELEGRAM_API_HASH 格式不正确")
         return self
 
     @property

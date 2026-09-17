@@ -39,7 +39,7 @@ StrmFlow 规范化目标 STRM 目录
 
 运行配置分为两类：
 
-- 登录、服务地址、Token 和数据库地址通过 `.env` 提供；
+- 登录、服务地址、Token、Telegram API 凭据和数据库地址通过 `.env` 提供；
 - 路径、自动追更、302 网关、媒体增强和通知设置在 Web 管理端保存到 SQLite。
 
 ## 环境要求
@@ -291,14 +291,21 @@ Docker 镜像通过固定提交及 SHA-256 校验后的百度官方安装脚本�
 Telegram 使用 MTProto 用户账号方式监听该账号已经加入的频道或群组，不使用 Bot Token。配置步骤：
 
 1. 从 [Telegram 官方开发者页面](https://my.telegram.org/apps)取得 `api_id` 和 `api_hash`。
-2. 在“自动追更”页面选择“Telegram 实时 + 百度兜底”，并设置所需的百度兜底检查频率。
-3. 填写 `api_id`、`api_hash` 和监听来源；来源支持每行一个 `@频道用户名`、`https://t.me/频道用户名` 或数字 Chat ID。
-4. 保存配置，填写完整国际区号手机号，发送验证码并完成登录；账号启用两步验证时还需要填写两步验证密码。
-5. 启用 Telegram 消息采集和百度网盘自动追更。
+2. 在 `.env` 中设置凭据，然后重启 StrmFlow：
+
+   ```env
+   TELEGRAM_API_ID=12345678
+   TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef
+   ```
+
+3. 在“自动追更”页面确认 API 凭据状态为“已从环境变量安全加载”，选择“Telegram 实时 + 百度兜底”，并设置百度兜底检查频率。
+4. 填写监听来源；来源支持每行一个 `@频道用户名`、`https://t.me/频道用户名` 或数字 Chat ID。
+5. 保存配置，填写完整国际区号手机号，发送验证码并完成登录；账号启用两步验证时还需要填写两步验证密码。
+6. 启用 Telegram 消息采集和百度网盘自动追更。
 
 收到消息后，系统按消息块提取媒体标题、季号、年份、更新集数和百度链接，只匹配状态为“更新中”的现有媒体。匹配成功时会更新已失效或已变化的百度链接、恢复该媒体追更，并立即安排一次百度分享检查；实际转存仍由现有 `bdpan` 流程完成。频道消息编辑也会被处理，同一消息内容不会重复消费。
 
-> Telegram 账号必须已经加入配置的频道或群组。`api_hash`、手机号和 MTProto 会话保存在本地 SQLite 中，API 不返回这些值的明文；`data/strmflow.db` 包含敏感会话信息，应限制访问并妥善备份。
+> Telegram 账号必须已经加入配置的频道或群组。`api_id` 和 `api_hash` 仅从运行环境读取，不写入 SQLite、不通过 Web/API 返回、不写入日志；MTProto 会话使用 AES-GCM 加密后保存到 SQLite，加密密钥由 `SESSION_SECRET` 或 `data/.session_secret` 派生。
 
 本地开发环境可使用仓库脚本安装和登录：
 
@@ -368,6 +375,8 @@ Webhook 在页面和 API 返回中只显示掩码，运行日志不会记录完�
 | `EMBY_URL` | 否 | `http://emby:8096` | StrmFlow 后端访问 Emby 的地址。 |
 | `EMBY_WEB_URL` | 否 | 空 | 浏览器访问 Emby 的地址。 |
 | `EMBY_API_KEY` | 按需 | 空 | 使用 Emby 刷新、302 或媒体增强功能时需要。 |
+| `TELEGRAM_API_ID` | 按需 | `0` | Telegram MTProto 应用 ID；启用实时追更时需要。 |
+| `TELEGRAM_API_HASH` | 按需 | 空 | Telegram MTProto 应用密钥；必须与 `TELEGRAM_API_ID` 同时设置。 |
 | `LIST_ROOT` | 否 | `/temp_strm` | 只读源 STRM 根目录的首次启动默认值。 |
 | `EMBY_STRM_ROOT` | 否 | `/local_media/emby-strm` | 目标 STRM 根目录的首次启动默认值。 |
 | `DATABASE_URL` | 否 | `sqlite+aiosqlite:///./data/strmflow.db` | SQLAlchemy 异步数据库地址。默认使用 SQLite。 |
@@ -388,7 +397,7 @@ Webhook 在页面和 API 返回中只显示掩码，运行日志不会记录完�
 | 百度网盘转存根目录 | `video` | SQLite |
 | 百度兜底检查周期 | `10` 分钟 | SQLite |
 | Telegram 实时追更 | 关闭 | SQLite |
-| Telegram 来源与 MTProto 会话 | 空 | SQLite |
+| Telegram 来源与加密 MTProto 会话 | 空 | SQLite |
 | 302 网关 | 关闭 | SQLite |
 | 302 网关端口 | `18096` | SQLite |
 | 直链缓存上限 | `21600` 秒 | SQLite |
@@ -413,7 +422,8 @@ data/
 建议：
 
 - 不要提交 `.env`、`data/` 或任何 Token。
-- Telegram MTProto 会话可代表已登录账号读取其有权访问的消息，必须像 Token 一样保护 `strmflow.db`。
+- 限制 `.env` 的宿主机读取权限，例如执行 `chmod 600 .env`；仓库已默认忽略 `.env`。
+- Telegram MTProto 会话可代表已登录账号读取其有权访问的消息；即使会话已加密，仍应同时保护 `strmflow.db` 和 `.session_secret`。
 - 备份和迁移时完整保留 `data/`，否则登录会话和运行状态会丢失。
 - OpenList Token 应限制在完成文件管理和扫描所需的最小权限范围内。
 - 对公网开放时，在反向代理层启用 HTTPS、访问控制和限流。
@@ -542,7 +552,7 @@ docker exec strmflow getent hosts emby
 依次确认：
 
 1. 追更模式为“Telegram 实时 + 百度兜底”，Telegram 消息采集与百度自动追更均已启用；
-2. 页面状态为“实时监听中”，`api_id`、`api_hash` 和用户账号授权有效；
+2. `.env` 中的 `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` 已同时设置并重启服务，页面状态为“实时监听中”；
 3. 监听来源与实际频道用户名或 Chat ID 一致，登录账号已加入该频道或群组；
 4. 消息中包含 `pan.baidu.com/s/...` 链接，媒体已经存在、状态为“更新中”，标题、季号和年份能够对应；
 5. 在运行日志中查看 `telegram` 分类的匹配数和错误信息。

@@ -1,18 +1,25 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
+import os
 import re
+from binascii import Error as BinasciiError
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qs, urlsplit, urlunsplit
 
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from telethon import TelegramClient, events
 from telethon.errors import PhoneCodeInvalidError, SessionPasswordNeededError
 from telethon.sessions import StringSession
 
+from strmflow.core.config import Settings
 from strmflow.core.errors import AppError
 from strmflow.core.runtime_logs import RuntimeLogStore
+from strmflow.core.security import resolve_session_key
 from strmflow.repositories.runtime_settings import RuntimeSettingsRepository
 from strmflow.schemas.api import TelegramConfigUpdate
 from strmflow.services.bdpan_automation import BdpanAutomationService
@@ -45,11 +52,18 @@ class TelegramTrackerService:
 
     def __init__(
         self,
+        settings: Settings,
         repository: RuntimeSettingsRepository,
         media: MediaService,
         bdpan: BdpanAutomationService,
         runtime_logs: RuntimeLogStore,
     ) -> None:
+        self.api_id = settings.telegram_api_id
+        self.api_hash = settings.telegram_api_hash.get_secret_value().strip()
+        encryption_key = hashlib.sha256(
+            b"strmflow-telegram-session-v1\0" + resolve_session_key(settings)
+        ).digest()
+        self._session_cipher = AESGCM(encryption_key)
         self.repository = repository
         self.media = media
         self.bdpan = bdpan
@@ -68,8 +82,11 @@ class TelegramTrackerService:
         stored = await self.repository.load_telegram()
         if stored:
             try:
-                self.config = self._normalize_config(stored, retain_secrets=False)
+                self.config = self._normalize_config(stored)
                 self._processed = [str(value) for value in stored.get("processed") or []][-500:]
+                if any(key in stored for key in ("apiId", "apiHash", "session")):
+                    await self._save()
+                    self._log("info", "已清理旧版 Telegram API 凭据并加密会话")
             except (TypeError, ValueError):
                 self._log("warning", "已忽略格式不正确的 Telegram 运行配置")
         if self.config["enabled"] and self._credentials_ready() and self.config["session"]:
@@ -89,8 +106,7 @@ class TelegramTrackerService:
         return {
             "config": {
                 "enabled": self.config["enabled"],
-                "apiId": self.config["apiId"],
-                "apiHashConfigured": bool(self.config["apiHash"]),
+                "apiConfigured": self._credentials_ready(),
                 "phoneConfigured": bool(self.config["phone"]),
                 "phoneMasked": self._mask_phone(self.config["phone"]),
                 "sources": list(self.config["sources"]),
@@ -107,13 +123,13 @@ class TelegramTrackerService:
 
     async def update_config(self, body: TelegramConfigUpdate) -> dict[str, Any]:
         previous = dict(self.config)
-        updated = self._normalize_config(body.model_dump(by_alias=True), retain_secrets=True)
-        credentials_changed = (
-            updated["apiId"] != previous["apiId"]
-            or updated["apiHash"] != previous["apiHash"]
-            or updated["phone"] != previous["phone"]
-        )
-        if credentials_changed:
+        updated = self._normalize_config(body.model_dump(by_alias=True))
+        if updated["enabled"] and not self._credentials_ready():
+            raise AppError(
+                409,
+                "请先在 .env 中配置 TELEGRAM_API_ID 和 TELEGRAM_API_HASH 并重启服务",
+            )
+        if updated["phone"] != previous["phone"]:
             updated["session"] = ""
         else:
             updated["session"] = previous["session"]
@@ -133,7 +149,10 @@ class TelegramTrackerService:
 
     async def start_login(self, phone: str) -> dict[str, Any]:
         if not self._credentials_ready():
-            raise AppError(409, "请先保存 Telegram api_id 和 api_hash")
+            raise AppError(
+                409,
+                "请先在 .env 中配置 TELEGRAM_API_ID 和 TELEGRAM_API_HASH 并重启服务",
+            )
         normalized_phone = self._normalize_phone(phone)
         await self._disconnect()
         self.client = self._new_client("")
@@ -235,8 +254,8 @@ class TelegramTrackerService:
     def _new_client(self, session: str) -> TelegramClient:
         return TelegramClient(
             StringSession(session),
-            int(self.config["apiId"]),
-            str(self.config["apiHash"]),
+            self.api_id,
+            self.api_hash,
             sequential_updates=True,
         )
 
@@ -399,35 +418,61 @@ class TelegramTrackerService:
     def _default_config(self) -> dict[str, Any]:
         return {
             "enabled": False,
-            "apiId": 0,
-            "apiHash": "",
             "phone": "",
             "sources": [],
             "session": "",
         }
 
-    def _normalize_config(self, value: dict[str, Any], *, retain_secrets: bool) -> dict[str, Any]:
-        current_hash = str(self.config.get("apiHash") or "")
-        incoming_hash = str(value.get("apiHash") or "").strip()
-        api_hash = current_hash if retain_secrets and not incoming_hash else incoming_hash
+    def _normalize_config(self, value: dict[str, Any]) -> dict[str, Any]:
         sources = [self._normalize_source(source) for source in value.get("sources") or []]
         sources = list(dict.fromkeys(source for source in sources if source))[:100]
+        encrypted_session = str(value.get("sessionEncrypted") or "")
+        session = (
+            self._decrypt_session(encrypted_session)
+            if encrypted_session
+            else str(value.get("session") or "")
+        )
         return {
             "enabled": bool(value.get("enabled", False)),
-            "apiId": int(value.get("apiId") or 0),
-            "apiHash": api_hash,
             "phone": self._normalize_phone(
                 str(value.get("phone") or self.config.get("phone") or "")
             ),
             "sources": sources,
-            "session": str(value.get("session") or "") if not retain_secrets else "",
+            "session": session,
         }
 
     async def _save(self) -> None:
-        await self.repository.save_telegram({**self.config, "processed": self._processed[-500:]})
+        await self.repository.save_telegram(
+            {
+                "enabled": self.config["enabled"],
+                "phone": self.config["phone"],
+                "sources": list(self.config["sources"]),
+                "sessionEncrypted": self._encrypt_session(str(self.config.get("session") or "")),
+                "processed": self._processed[-500:],
+            }
+        )
+
+    def _encrypt_session(self, value: str) -> str:
+        if not value:
+            return ""
+        nonce = os.urandom(12)
+        encrypted = self._session_cipher.encrypt(nonce, value.encode(), None)
+        return "v1." + base64.urlsafe_b64encode(nonce + encrypted).decode().rstrip("=")
+
+    def _decrypt_session(self, value: str) -> str:
+        try:
+            version, encoded = value.split(".", 1)
+            if version != "v1":
+                raise ValueError("unsupported version")
+            payload = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
+            if len(payload) <= 28:
+                raise ValueError("invalid encrypted session")
+            return self._session_cipher.decrypt(payload[:12], payload[12:], None).decode()
+        except (BinasciiError, InvalidTag, UnicodeError, ValueError) as exc:
+            raise ValueError("Telegram 加密会话读取失败") from exc
 
     def _credentials_ready(self) -> bool:
-        return bool(self.config["apiId"] and self.config["apiHash"])
+        return bool(self.api_id and self.api_hash)
 
     def _authorized(self) -> bool:
         return bool(self.config["session"])

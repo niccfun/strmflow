@@ -112,7 +112,7 @@ def build_container(
         media_probe,
         storage=storage,
     )
-    telegram = TelegramTrackerService(runtime_repository, media, bdpan, runtime_logs)
+    telegram = TelegramTrackerService(settings, runtime_repository, media, bdpan, runtime_logs)
     system_status = SystemStatusService(
         settings,
         database,
