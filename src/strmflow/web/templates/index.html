@@ -127,7 +127,8 @@
     .sidebar-subtitle { margin-top: 2px; color: var(--muted); font-size: 11px; white-space: nowrap; }
     .sidebar-nav { min-height: 0; display: grid; gap: 5px; margin-top: 28px; overflow-y: auto; scrollbar-width: thin; }
     .nav-section-title { margin: 0 10px 6px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .12em; }
-    .nav-section-title.system { margin-top: 18px; }
+    .nav-group { display: grid; gap: 4px; margin-top: 15px; }
+    .nav-group .sidebar-link { padding-left: 17px; }
     .sidebar-link {
       position: relative;
       width: 100%;
@@ -146,6 +147,51 @@
     .sidebar-link svg { width: 19px; height: 19px; flex: 0 0 auto; stroke-width: 1.8; }
     .nav-badge { min-width: 20px; margin-left: auto; padding: 1px 6px; border-radius: 999px; background: var(--border); color: var(--muted); font-size: 10px; text-align: center; }
     .sidebar-link.active .nav-badge { background: var(--primary-soft); background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--primary-soft-text); }
+    .overview-service-grid, .overview-metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+    .overview-service-card, .overview-metric-card, .task-summary-card {
+      min-width: 0; padding: 17px; border: 1px solid var(--border); border-radius: 13px; background: var(--panel);
+    }
+    .overview-service-card { display: grid; gap: 10px; }
+    .overview-service-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .overview-service-head strong { font-size: 12px; letter-spacing: .04em; }
+    .overview-health { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
+    .overview-health::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+    .overview-health.online::before { background: var(--success); box-shadow: 0 0 0 4px var(--success-soft); }
+    .overview-health.warning::before { background: var(--warning); }
+    .overview-health.error::before { background: var(--danger); }
+    .overview-service-card > strong { overflow: hidden; font-size: 17px; text-overflow: ellipsis; white-space: nowrap; }
+    .overview-service-card > small, .overview-metric-card > small { color: var(--muted); line-height: 1.45; }
+    .overview-metric-grid { margin-top: 14px; }
+    .overview-metric-card { display: grid; gap: 4px; }
+    .overview-metric-card span { color: var(--muted); font-size: 12px; }
+    .overview-metric-card strong { font-size: 25px; letter-spacing: -.03em; }
+    .overview-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr); gap: 16px; margin-top: 16px; }
+    .overview-list { display: grid; gap: 0; margin-top: 12px; }
+    .overview-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid var(--border); }
+    .overview-row:first-child { border-top: 0; }
+    .overview-row-copy { min-width: 0; display: grid; gap: 3px; }
+    .overview-row-copy strong, .overview-row-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .overview-row-copy small, .overview-row > time { color: var(--muted); font-size: 11px; }
+    .overview-empty { padding: 24px 8px; color: var(--muted); text-align: center; }
+    .task-tabs { display: flex; gap: 6px; margin-bottom: 14px; padding: 4px; border: 1px solid var(--border); border-radius: 11px; background: var(--panel-soft); }
+    .task-tab { border: 0; background: transparent; box-shadow: none; }
+    .task-tab.active { background: var(--panel); color: var(--primary-soft-text); box-shadow: var(--shadow-sm); }
+    .task-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .task-summary-card { display: grid; gap: 3px; padding: 14px 16px; }
+    .task-summary-card span { color: var(--muted); font-size: 11px; }
+    .task-summary-card strong { font-size: 21px; }
+    .task-list { display: grid; gap: 10px; }
+    .task-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 18px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+    .task-card-main { min-width: 0; display: grid; gap: 6px; }
+    .task-card-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .task-card-title strong { overflow-wrap: anywhere; }
+    .task-status { padding: 3px 8px; border-radius: 999px; background: var(--panel-soft); color: var(--muted); font-size: 10px; font-weight: 800; }
+    .task-status.running, .task-status.scanning, .task-status.queued { background: var(--primary-soft); color: var(--primary-soft-text); }
+    .task-status.succeeded, .task-status.complete { background: var(--success-soft); color: var(--success); }
+    .task-status.failed, .task-status.complete_with_errors { background: var(--danger-soft); color: var(--danger); }
+    .task-card-path, .task-card-error { overflow-wrap: anywhere; color: var(--muted); font-size: 12px; }
+    .task-card-error { padding: 8px 10px; border-radius: 8px; background: var(--danger-soft); color: var(--danger); }
+    .task-card-meta { align-self: start; color: var(--muted); font-size: 11px; white-space: nowrap; }
     .sidebar-footer { display: grid; gap: 8px; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); }
     .service-status { display: flex; align-items: center; gap: 8px; padding: 2px 11px 7px; color: var(--muted); font-size: 11px; }
     .service-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 4px var(--success-soft); }
@@ -935,6 +981,8 @@
       .brand-icon { width: 38px; height: 38px; border-radius: 10px; }
       .sidebar-nav { display: flex; justify-content: flex-start; gap: 4px; min-width: 0; margin: 0; overflow-x: auto; overflow-y: hidden; }
       .nav-section-title { display: none; }
+      .nav-group { display: contents; }
+      .nav-group .sidebar-link { padding-left: 11px; }
       .sidebar-link { width: auto; min-height: 40px; padding: 8px 11px; white-space: nowrap; }
       .nav-badge { margin-left: 2px; }
       .sidebar-footer { display: block; margin: 0; padding: 0; border: 0; }
@@ -971,6 +1019,8 @@
       .about-grid { grid-template-columns: 1fr; }
       .status-capacity-panel, .status-automation-panel, .status-data-panel, .status-gateway-panel { grid-column: 1 / -1; }
       .status-connections { grid-template-columns: 1fr; }
+      .overview-service-grid, .overview-metric-grid, .task-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .overview-layout { grid-template-columns: 1fr; }
       .media-detail-paths { grid-template-columns: 1fr; }
       .target-panel.detail-mode { width: min(880px, calc(100vw - 28px)); max-height: none; grid-template-columns: 1fr; padding: 18px; overflow: hidden; }
       .target-panel.detail-mode .baidu-link-field { grid-column: 1; }
@@ -1018,6 +1068,9 @@
       .sidebar-link { min-width: 58px; flex-direction: column; gap: 2px; padding: 6px 7px; font-size: 10px; }
       .sidebar-link svg { width: 18px; height: 18px; }
       .sidebar-link .nav-badge { position: absolute; top: 1px; right: 3px; }
+      .overview-service-grid, .overview-metric-grid, .task-summary-grid { grid-template-columns: 1fr; }
+      .task-card { grid-template-columns: 1fr; }
+      .task-card-meta { white-space: normal; }
       .panel { padding: 14px; }
       .controls { margin-top: 8px; }
       .page-form-actions { display: grid; grid-template-columns: 1fr; }
@@ -1104,42 +1157,42 @@
       </div>
 
       <nav class="sidebar-nav" aria-label="主导航">
-        <p class="nav-section-title">工作区</p>
-        <button id="mediaNavButton" class="sidebar-link active" type="button" aria-current="page">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="m10 9 5 3-5 3V9Z"></path></svg>
-          <span class="nav-label">媒体管理</span>
+        <button id="overviewNavButton" class="sidebar-link active" type="button" aria-current="page">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"></rect><rect x="14" y="3" width="7" height="7" rx="2"></rect><rect x="3" y="14" width="7" height="7" rx="2"></rect><rect x="14" y="14" width="7" height="7" rx="2"></rect></svg>
+          <span class="nav-label">概览</span>
         </button>
-        <button id="mediaProbeNavButton" class="sidebar-link" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"></path><circle cx="12" cy="12" r="4"></circle></svg>
-          <span class="nav-label">媒体增强</span>
+        <button id="mediaNavButton" class="sidebar-link" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="m10 9 5 3-5 3V9Z"></path></svg>
+          <span class="nav-label">媒体</span>
         </button>
         <button id="bdpanNavButton" class="sidebar-link" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M8.2 11.2c1.5 0 2.7-1.7 2.7-3.8S9.7 4 8.2 4 5.5 5.4 5.5 7.4s1.2 3.8 2.7 3.8ZM15.8 11.2c1.5 0 2.7-1.7 2.7-3.8S17.3 4 15.8 4s-2.7 1.4-2.7 3.4 1.2 3.8 2.7 3.8Z"></path><path d="M12 10.5c-3.3 0-6.5 4.2-6.5 6.5 0 1.8 2 3 3.7 3 .9 0 1.8-.5 2.8-.5s1.9.5 2.8.5c1.7 0 3.7-1.2 3.7-3 0-2.3-3.2-6.5-6.5-6.5Z"></path></svg>
           <span class="nav-label">自动追更</span>
         </button>
-        <button id="systemStatusButton" class="sidebar-link" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 13h3l2-7 4 12 2-5h5"></path><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"></path></svg>
-          <span class="nav-label">状态总览</span>
-          <span id="systemStatusNavDot" class="status-nav-dot" aria-label="状态尚未读取"></span>
-        </button>
-        <button id="emby302Button" class="sidebar-link" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 7h10a4 4 0 0 1 4 4v1M15 9l3-3 3 3M19 17H9a4 4 0 0 1-4-4v-1M9 15l-3 3-3-3"></path></svg>
-          <span class="nav-label">302 管理</span>
-        </button>
-        <button id="logsButton" class="sidebar-link" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10"></path><circle cx="18" cy="19" r="2"></circle></svg>
-          <span class="nav-label">运行日志</span>
-          <span id="logCount" class="nav-badge" hidden>0</span>
-        </button>
-        <p class="nav-section-title system">系统</p>
-        <button id="settingsButton" class="sidebar-link" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.09A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3V9.6h.09A1.7 1.7 0 0 0 4.6 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.5 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.12.38.34.72.64.98.3.26.68.4 1.08.42H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z"></path></svg>
-          <span class="nav-label">系统设置</span>
-        </button>
-        <button id="aboutButton" class="sidebar-link" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6M12 7.5v.5"></path></svg>
-          <span class="nav-label">关于</span>
-        </button>
+        <div class="nav-group">
+          <p class="nav-section-title">EMBY</p>
+          <button id="mediaProbeNavButton" class="sidebar-link" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"></path><circle cx="12" cy="12" r="4"></circle></svg>
+            <span class="nav-label">媒体增强</span>
+          </button>
+          <button id="emby302Button" class="sidebar-link" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 7h10a4 4 0 0 1 4 4v1M15 9l3-3 3 3M19 17H9a4 4 0 0 1-4-4v-1M9 15l-3 3-3-3"></path></svg>
+            <span class="nav-label">302 网关</span>
+          </button>
+        </div>
+        <div class="nav-group">
+          <p class="nav-section-title">任务</p>
+          <button id="transferTasksNavButton" class="sidebar-link" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M7 4l-3 3 3 3M20 17H4M17 14l3 3-3 3"></path></svg><span class="nav-label">转存任务</span></button>
+          <button id="enhancementTasksNavButton" class="sidebar-link" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m12 3 1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3Z"></path><path d="m18 15 .8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8L18 15Z"></path></svg><span class="nav-label">增强批次</span></button>
+          <button id="failedTasksNavButton" class="sidebar-link" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v6M12 17h.01"></path></svg><span class="nav-label">最近失败</span><span id="failedTaskCount" class="nav-badge" hidden>0</span></button>
+        </div>
+        <div class="nav-group">
+          <p class="nav-section-title">系统</p>
+          <button id="settingsButton" class="sidebar-link" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"></path><circle cx="16" cy="7" r="2"></circle><circle cx="8" cy="17" r="2"></circle></svg><span class="nav-label">路径与通知</span></button>
+          <button id="systemStatusButton" class="sidebar-link" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 13h3l2-7 4 12 2-5h5"></path><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"></path></svg><span class="nav-label">服务状态</span><span id="systemStatusNavDot" class="status-nav-dot" aria-label="状态尚未读取"></span></button>
+          <button id="logsButton" class="sidebar-link" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10"></path><circle cx="18" cy="19" r="2"></circle></svg><span class="nav-label">运行日志</span><span id="logCount" class="nav-badge" hidden>0</span></button>
+          <button id="aboutButton" class="sidebar-link" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6M12 7.5v.5"></path></svg><span class="nav-label">关于</span></button>
+        </div>
       </nav>
 
       <div class="sidebar-footer">
@@ -1152,7 +1205,37 @@
     </aside>
 
     <main class="main-content">
-      <section id="mediaView" class="app-view" aria-labelledby="mediaViewTitle">
+      <section id="overviewView" class="app-view" aria-labelledby="overviewViewTitle">
+        <header class="page-header">
+          <div class="page-heading">
+            <p class="eyebrow">DASHBOARD</p>
+            <div class="page-title-row">
+              <h2 id="overviewViewTitle" class="page-title">概览</h2>
+              <span id="overviewOverallStatus" class="gateway-status pending">正在检查</span>
+            </div>
+            <p class="muted hero-copy">服务健康、媒体规模和近期任务一目了然。</p>
+          </div>
+          <div class="toolbar"><button id="overviewRefreshButton" type="button">刷新概览</button></div>
+        </header>
+        <div class="overview-service-grid" aria-label="核心服务">
+          <article class="overview-service-card"><div class="overview-service-head"><strong>StrmFlow</strong><span id="overviewAppHealth" class="overview-health">读取中</span></div><strong id="overviewAppPrimary">正在连接…</strong><small id="overviewAppDetail">读取应用和数据库状态</small></article>
+          <article class="overview-service-card"><div class="overview-service-head"><strong>OpenList</strong><span id="overviewOpenListHealth" class="overview-health">读取中</span></div><strong id="overviewOpenListPrimary">正在连接…</strong><small id="overviewOpenListDetail">读取服务和存储状态</small></article>
+          <article class="overview-service-card"><div class="overview-service-head"><strong>Emby</strong><span id="overviewEmbyHealth" class="overview-health">读取中</span></div><strong id="overviewEmbyPrimary">正在连接…</strong><small id="overviewEmbyDetail">读取媒体服务器状态</small></article>
+          <article class="overview-service-card"><div class="overview-service-head"><strong>302 网关</strong><span id="overviewGatewayHealth" class="overview-health">读取中</span></div><strong id="overviewGatewayPrimary">正在读取…</strong><small id="overviewGatewayDetail">读取网关运行状态</small></article>
+        </div>
+        <div class="overview-metric-grid" aria-label="数据统计">
+          <article class="overview-metric-card"><span>媒体</span><strong id="overviewMediaCount">—</strong><small id="overviewMediaDetail">配置总数</small></article>
+          <article class="overview-metric-card"><span>STRM 文件</span><strong id="overviewStrmCount">—</strong><small>已同步文件</small></article>
+          <article class="overview-metric-card"><span>待处理任务</span><strong id="overviewPendingCount">—</strong><small>转存队列与运行中</small></article>
+          <article class="overview-metric-card"><span>失败任务</span><strong id="overviewFailedCount">—</strong><small>需要检查的最近任务</small></article>
+        </div>
+        <div class="overview-layout">
+          <section class="panel"><div class="utility-toolbar"><div><strong>最近媒体</strong><p class="muted">按最近更新排序</p></div><button id="overviewOpenMediaButton" type="button">查看全部</button></div><div id="overviewMediaList" class="overview-list"></div></section>
+          <section class="panel"><div class="utility-toolbar"><div><strong>最近任务</strong><p class="muted">转存与增强执行情况</p></div><button id="overviewOpenTasksButton" type="button">任务中心</button></div><div id="overviewTaskList" class="overview-list"></div></section>
+        </div>
+      </section>
+
+      <section id="mediaView" class="app-view" aria-labelledby="mediaViewTitle" hidden>
         <header class="page-header">
           <div class="page-heading">
             <p class="eyebrow">MEDIA LIBRARY</p>
@@ -1195,7 +1278,7 @@
           <div class="page-heading">
             <p class="eyebrow">SYSTEM HEALTH</p>
             <div class="page-title-row">
-              <h2 id="systemStatusViewTitle" class="page-title">状态总览</h2>
+              <h2 id="systemStatusViewTitle" class="page-title">服务状态</h2>
               <span id="systemStatusOverall" class="gateway-status pending">正在检查</span>
             </div>
             <p class="muted hero-copy">集中查看 OpenList、Emby、百度网盘和 StrmFlow 的运行状态。</p>
@@ -1856,11 +1939,34 @@
         </div>
       </section>
 
+      <section id="tasksView" class="app-view" aria-labelledby="tasksViewTitle" hidden>
+        <header class="page-header">
+          <div class="page-heading">
+            <p class="eyebrow">TASK CENTER</p>
+            <h2 id="tasksViewTitle" class="page-title">转存任务</h2>
+            <p id="tasksViewDescription" class="muted hero-copy">查看百度网盘转存队列、执行结果和错误信息。</p>
+          </div>
+          <div class="toolbar"><button id="tasksRefreshButton" type="button">刷新任务</button></div>
+        </header>
+        <div class="task-tabs" role="tablist" aria-label="任务类型">
+          <button class="task-tab active" type="button" role="tab" data-task-mode="transfers" aria-selected="true">转存任务</button>
+          <button class="task-tab" type="button" role="tab" data-task-mode="enhancement" aria-selected="false">增强批次</button>
+          <button class="task-tab" type="button" role="tab" data-task-mode="failed" aria-selected="false">最近失败</button>
+        </div>
+        <div class="task-summary-grid" aria-label="任务统计">
+          <article class="task-summary-card"><span>全部</span><strong id="tasksTotalCount">0</strong></article>
+          <article class="task-summary-card"><span>等待</span><strong id="tasksQueuedCount">0</strong></article>
+          <article class="task-summary-card"><span>运行中</span><strong id="tasksRunningCount">0</strong></article>
+          <article class="task-summary-card"><span>失败</span><strong id="tasksFailedCount">0</strong></article>
+        </div>
+        <section class="panel"><div id="tasksList" class="task-list" aria-live="polite"></div></section>
+      </section>
+
       <section id="settingsView" class="app-view" aria-labelledby="settingsViewTitle" hidden>
         <header class="page-header">
           <div class="page-heading">
             <p class="eyebrow">SETTINGS</p>
-            <h2 id="settingsViewTitle" class="page-title">系统设置</h2>
+            <h2 id="settingsViewTitle" class="page-title">路径与通知</h2>
             <p class="muted hero-copy">管理 STRM 路径与消息通知；媒体增强和自动追更已移至左侧独立工作区。</p>
           </div>
         </header>
@@ -2215,6 +2321,10 @@
       systemStatusData: null,
       systemStatusLoading: false,
       systemStatusTimer: null,
+      transfers: [],
+      taskMode: 'transfers',
+      tasksLoading: false,
+      overviewLoading: false,
     };
 
     const elements = {
@@ -2232,6 +2342,31 @@
       openListLink: document.querySelector('#openListLink'),
       embyLink: document.querySelector('#embyLink'),
       logout: document.querySelector('#logoutButton'),
+      overviewNav: document.querySelector('#overviewNavButton'),
+      overviewView: document.querySelector('#overviewView'),
+      overviewRefresh: document.querySelector('#overviewRefreshButton'),
+      overviewOverallStatus: document.querySelector('#overviewOverallStatus'),
+      overviewAppHealth: document.querySelector('#overviewAppHealth'),
+      overviewAppPrimary: document.querySelector('#overviewAppPrimary'),
+      overviewAppDetail: document.querySelector('#overviewAppDetail'),
+      overviewOpenListHealth: document.querySelector('#overviewOpenListHealth'),
+      overviewOpenListPrimary: document.querySelector('#overviewOpenListPrimary'),
+      overviewOpenListDetail: document.querySelector('#overviewOpenListDetail'),
+      overviewEmbyHealth: document.querySelector('#overviewEmbyHealth'),
+      overviewEmbyPrimary: document.querySelector('#overviewEmbyPrimary'),
+      overviewEmbyDetail: document.querySelector('#overviewEmbyDetail'),
+      overviewGatewayHealth: document.querySelector('#overviewGatewayHealth'),
+      overviewGatewayPrimary: document.querySelector('#overviewGatewayPrimary'),
+      overviewGatewayDetail: document.querySelector('#overviewGatewayDetail'),
+      overviewMediaCount: document.querySelector('#overviewMediaCount'),
+      overviewMediaDetail: document.querySelector('#overviewMediaDetail'),
+      overviewStrmCount: document.querySelector('#overviewStrmCount'),
+      overviewPendingCount: document.querySelector('#overviewPendingCount'),
+      overviewFailedCount: document.querySelector('#overviewFailedCount'),
+      overviewMediaList: document.querySelector('#overviewMediaList'),
+      overviewTaskList: document.querySelector('#overviewTaskList'),
+      overviewOpenMedia: document.querySelector('#overviewOpenMediaButton'),
+      overviewOpenTasks: document.querySelector('#overviewOpenTasksButton'),
       mediaNav: document.querySelector('#mediaNavButton'),
       mediaView: document.querySelector('#mediaView'),
       mediaProbeNav: document.querySelector('#mediaProbeNavButton'),
@@ -2290,6 +2425,20 @@
       settingsListRoot: document.querySelector('#settingsListRootInput'),
       settingsEmbyRoot: document.querySelector('#settingsEmbyRootInput'),
       settingsError: document.querySelector('#settingsError'),
+      transferTasksNav: document.querySelector('#transferTasksNavButton'),
+      enhancementTasksNav: document.querySelector('#enhancementTasksNavButton'),
+      failedTasksNav: document.querySelector('#failedTasksNavButton'),
+      failedTaskCount: document.querySelector('#failedTaskCount'),
+      tasksView: document.querySelector('#tasksView'),
+      tasksViewTitle: document.querySelector('#tasksViewTitle'),
+      tasksViewDescription: document.querySelector('#tasksViewDescription'),
+      tasksRefresh: document.querySelector('#tasksRefreshButton'),
+      taskTabs: Array.from(document.querySelectorAll('.task-tab')),
+      tasksTotalCount: document.querySelector('#tasksTotalCount'),
+      tasksQueuedCount: document.querySelector('#tasksQueuedCount'),
+      tasksRunningCount: document.querySelector('#tasksRunningCount'),
+      tasksFailedCount: document.querySelector('#tasksFailedCount'),
+      tasksList: document.querySelector('#tasksList'),
       mediaProbeHeaderStatus: document.querySelector('#mediaProbeHeaderStatus'),
       mediaProbeNextScan: document.querySelector('#mediaProbeNextScan'),
       mediaProbeLastScan: document.querySelector('#mediaProbeLastScan'),
@@ -4272,6 +4421,172 @@
         + ' · 每 30 秒自动刷新';
     }
 
+    function setOverviewHealth(element, status, label) {
+      element.className = 'overview-health ' + status;
+      element.textContent = label;
+    }
+
+    function appendOverviewRow(container, title, detail, time) {
+      const row = document.createElement('div');
+      row.className = 'overview-row';
+      const copy = document.createElement('div');
+      copy.className = 'overview-row-copy';
+      const strong = document.createElement('strong');
+      strong.textContent = title;
+      const small = document.createElement('small');
+      small.textContent = detail;
+      copy.append(strong, small);
+      const date = document.createElement('time');
+      date.textContent = formatDate(time);
+      row.append(copy, date);
+      container.append(row);
+    }
+
+    function renderOverview() {
+      const status = state.systemStatusData || {};
+      const app = status.app || {};
+      const openList = status.openList || {};
+      const emby = status.emby || {};
+      const gateway = status.gateway302 || {};
+      const data = status.data || {};
+      const overall = status.overall || 'offline';
+      elements.overviewOverallStatus.className = 'gateway-status '
+        + (overall === 'healthy' ? 'online' : overall === 'degraded' ? 'pending' : 'error');
+      elements.overviewOverallStatus.textContent = overall === 'healthy'
+        ? '运行正常' : overall === 'degraded' ? '部分异常' : '服务异常';
+
+      setOverviewHealth(elements.overviewAppHealth,
+        app.databaseConnected ? 'online' : 'error', app.databaseConnected ? '正常' : '异常');
+      elements.overviewAppPrimary.textContent = app.version ? 'v' + app.version : 'StrmFlow';
+      elements.overviewAppDetail.textContent = app.databaseConnected
+        ? 'SQLite 已连接 · 已运行 ' + formatUptime(app.uptimeSeconds) : 'SQLite 连接异常';
+
+      setOverviewHealth(elements.overviewOpenListHealth,
+        openList.status === 'online' ? 'online' : openList.connected ? 'warning' : 'error',
+        openList.status === 'online' ? '在线' : openList.connected ? '需检查' : '离线');
+      elements.overviewOpenListPrimary.textContent = openList.siteTitle || 'OpenList';
+      elements.overviewOpenListDetail.textContent = openList.connected
+        ? Number(openList.activeStorageCount || 0) + ' / ' + Number(openList.storageCount || 0) + ' 个存储正常'
+        : (openList.error || '连接失败');
+
+      setOverviewHealth(elements.overviewEmbyHealth,
+        emby.connected ? 'online' : emby.configured ? 'error' : 'warning',
+        emby.connected ? '在线' : emby.configured ? '离线' : '未配置');
+      elements.overviewEmbyPrimary.textContent = emby.serverName || 'Emby';
+      elements.overviewEmbyDetail.textContent = emby.connected
+        ? 'v' + (emby.version || '未知') + ' · ' + Number(emby.latencyMs || 0) + ' ms'
+        : (emby.error || '尚未连接');
+
+      const gatewayOnline = Boolean(gateway.enabled && gateway.running);
+      setOverviewHealth(elements.overviewGatewayHealth,
+        gatewayOnline ? 'online' : gateway.enabled ? 'error' : 'warning',
+        gatewayOnline ? '运行中' : gateway.enabled ? '异常' : '未启用');
+      elements.overviewGatewayPrimary.textContent = gatewayOnline
+        ? (gateway.listenAddress || '网关运行中') : gateway.enabled ? '启动失败' : '按需启用';
+      elements.overviewGatewayDetail.textContent = gatewayOnline
+        ? Number(gateway.redirects || 0) + ' 次跳转 · ' + Number(gateway.errors || 0) + ' 个错误'
+        : (gateway.lastError || '可在 Emby / 302 网关中配置');
+
+      elements.overviewMediaCount.textContent = String(data.mediaCount ?? state.folders.length);
+      elements.overviewMediaDetail.textContent = Number(data.ongoingCount || 0) + ' 个更新中 · '
+        + Number(data.completedCount || 0) + ' 个已完结';
+      elements.overviewStrmCount.textContent = String(data.syncedFileCount || 0);
+      elements.overviewPendingCount.textContent = String(Number(data.queuedTransferCount || 0)
+        + Number(data.runningTransferCount || 0));
+      const enhancementBatches = state.mediaProbeData?.runtime?.scanBatches || [];
+      const enhancementFailures = enhancementBatches.filter((batch) =>
+        ['failed', 'complete_with_errors'].includes(batch.status)).length;
+      const failedCount = Number(data.failedTransferCount || 0) + enhancementFailures;
+      elements.overviewFailedCount.textContent = String(failedCount);
+      updateFailedTaskBadge(failedCount);
+
+      elements.overviewMediaList.replaceChildren();
+      const recentMedia = [...state.folders].sort((left, right) =>
+        new Date(right.updatedAt || right.lastSyncedAt || right.createdAt || 0)
+          - new Date(left.updatedAt || left.lastSyncedAt || left.createdAt || 0)).slice(0, 5);
+      if (!recentMedia.length) {
+        const empty = document.createElement('div'); empty.className = 'overview-empty';
+        empty.textContent = '暂无媒体配置'; elements.overviewMediaList.append(empty);
+      }
+      for (const item of recentMedia) {
+        appendOverviewRow(elements.overviewMediaList, item.title || item.name || '未命名媒体',
+          [item.year, mediaTypeLabel(item.mediaType), item.status === 'completed' ? '已完结' : '更新中'].filter(Boolean).join(' · '),
+          item.updatedAt || item.lastSyncedAt || item.createdAt);
+      }
+
+      elements.overviewTaskList.replaceChildren();
+      const recentTasks = state.transfers.slice(0, 4).map((job) => ({
+        title: '转存 · ' + (job.destination || job.id),
+        detail: transferStatusLabel(job.status) + ' · ' + (job.provider || 'bdpan'),
+        time: job.finishedAt || job.startedAt || job.createdAt,
+      }));
+      if (enhancementBatches[0]) {
+        const batch = enhancementBatches[0];
+        recentTasks.push({ title: '媒体增强 · ' + String(batch.id || '').slice(0, 8),
+          detail: enhancementStatusLabel(batch.status) + ' · 扫描 ' + Number(batch.scannedCount || 0) + ' 项',
+          time: batch.finishedAt || batch.startedAt || batch.createdAt });
+      }
+      recentTasks.sort((left, right) => new Date(right.time || 0) - new Date(left.time || 0));
+      if (!recentTasks.length) {
+        const empty = document.createElement('div'); empty.className = 'overview-empty';
+        empty.textContent = '暂无任务记录'; elements.overviewTaskList.append(empty);
+      }
+      for (const item of recentTasks.slice(0, 5)) {
+        appendOverviewRow(elements.overviewTaskList, item.title, item.detail, item.time);
+      }
+    }
+
+    function transferStatusLabel(status) {
+      return ({ queued: '等待中', running: '运行中', succeeded: '已完成', failed: '失败' })[status]
+        || String(status || '未知');
+    }
+
+    function enhancementStatusLabel(status) {
+      return ({ scanning: '扫描中', running: '处理中', complete: '已完成',
+        complete_with_errors: '部分失败', failed: '失败', queued: '已入队' })[status]
+        || String(status || '等待中');
+    }
+
+    function updateFailedTaskBadge(count) {
+      const value = Math.max(0, Number(count || 0));
+      elements.failedTaskCount.textContent = String(value);
+      elements.failedTaskCount.hidden = value === 0;
+    }
+
+    async function loadOverview(refresh = false) {
+      if (state.overviewLoading) return;
+      state.overviewLoading = true;
+      elements.overviewRefresh.disabled = true;
+      try {
+        const [status, items, transfers, mediaProbe] = await Promise.all([
+          api('/api/status/overview' + (refresh ? '?refresh=1' : '')),
+          api('/api/items'),
+          api('/api/transfers'),
+          api('/api/media-probe'),
+        ]);
+        state.systemStatusData = status;
+        state.folders = Array.isArray(items.items) ? items.items : [];
+        state.transfers = Array.isArray(transfers.jobs) ? transfers.jobs : [];
+        state.mediaProbeData = mediaProbe;
+        renderSystemStatus(status);
+        renderOverview();
+        if (refresh) setStatus('概览已刷新。', 'success');
+      } catch (error) {
+        elements.overviewOverallStatus.className = 'gateway-status error';
+        elements.overviewOverallStatus.textContent = '读取失败';
+        setStatus(error.message, 'error');
+      } finally {
+        state.overviewLoading = false;
+        elements.overviewRefresh.disabled = state.busy;
+      }
+    }
+
+    async function openOverview() {
+      showView('overview');
+      if (state.systemStatusData) renderOverview();
+      await loadOverview(false);
+    }
+
     function scheduleSystemStatusRefresh() {
       clearTimeout(state.systemStatusTimer);
       state.systemStatusTimer = null;
@@ -4307,8 +4622,141 @@
       await loadSystemStatus(false);
     }
 
+    function renderTaskCard(task) {
+      const card = document.createElement('article');
+      card.className = 'task-card';
+      const main = document.createElement('div');
+      main.className = 'task-card-main';
+      const title = document.createElement('div');
+      title.className = 'task-card-title';
+      const strong = document.createElement('strong');
+      strong.textContent = task.title;
+      const badge = document.createElement('span');
+      badge.className = 'task-status ' + task.status;
+      badge.textContent = task.statusLabel;
+      title.append(strong, badge);
+      main.append(title);
+      if (task.detail) {
+        const detail = document.createElement('div');
+        detail.className = 'task-card-path'; detail.textContent = task.detail; main.append(detail);
+      }
+      if (task.error) {
+        const error = document.createElement('div');
+        error.className = 'task-card-error'; error.textContent = task.error; main.append(error);
+      }
+      const meta = document.createElement('time');
+      meta.className = 'task-card-meta'; meta.textContent = formatStatusDateTime(task.time);
+      card.append(main, meta);
+      return card;
+    }
+
+    function normalizedEnhancementBatches() {
+      return Array.isArray(state.mediaProbeData?.runtime?.scanBatches)
+        ? state.mediaProbeData.runtime.scanBatches : [];
+    }
+
+    function renderTasks() {
+      const mode = state.taskMode;
+      const titles = {
+        transfers: ['转存任务', '查看百度网盘转存队列、执行结果和错误信息。'],
+        enhancement: ['增强批次', '查看 Emby 媒体信息检查与剧集截图的扫描批次。'],
+        failed: ['最近失败', '集中查看需要处理的转存和媒体增强失败记录。'],
+      };
+      elements.tasksViewTitle.textContent = titles[mode][0];
+      elements.tasksViewDescription.textContent = titles[mode][1];
+      for (const tab of elements.taskTabs) {
+        const active = tab.dataset.taskMode === mode;
+        tab.classList.toggle('active', active);
+        tab.setAttribute('aria-selected', active ? 'true' : 'false');
+      }
+      const transfers = state.transfers;
+      const batches = normalizedEnhancementBatches();
+      const failedTransfers = transfers.filter((job) => job.status === 'failed');
+      const failedBatches = batches.filter((batch) =>
+        ['failed', 'complete_with_errors'].includes(batch.status));
+      const allCount = mode === 'transfers' ? transfers.length
+        : mode === 'enhancement' ? batches.length : failedTransfers.length + failedBatches.length;
+      const queuedCount = mode === 'transfers'
+        ? transfers.filter((job) => job.status === 'queued').length
+        : mode === 'enhancement' ? batches.filter((batch) => batch.status === 'queued').length : 0;
+      const runningCount = mode === 'transfers'
+        ? transfers.filter((job) => job.status === 'running').length
+        : mode === 'enhancement' ? batches.filter((batch) =>
+          ['scanning', 'running'].includes(batch.status)).length : 0;
+      const failedCount = mode === 'transfers' ? failedTransfers.length
+        : mode === 'enhancement' ? failedBatches.length : allCount;
+      elements.tasksTotalCount.textContent = String(allCount);
+      elements.tasksQueuedCount.textContent = String(queuedCount);
+      elements.tasksRunningCount.textContent = String(runningCount);
+      elements.tasksFailedCount.textContent = String(failedCount);
+      updateFailedTaskBadge(failedTransfers.length + failedBatches.length);
+      elements.tasksList.replaceChildren();
+
+      let tasks = [];
+      if (mode === 'transfers' || mode === 'failed') {
+        const source = mode === 'failed' ? failedTransfers : transfers;
+        tasks.push(...source.map((job) => ({
+          title: (job.provider || 'bdpan') + ' · ' + String(job.id || '').slice(0, 8),
+          detail: job.destination || '未记录目标目录', status: job.status,
+          statusLabel: transferStatusLabel(job.status),
+          error: job.status === 'failed'
+            ? String(job.stderr || '任务失败，未返回详细原因').slice(0, 1000) : '',
+          time: job.finishedAt || job.startedAt || job.createdAt,
+        })));
+      }
+      if (mode === 'enhancement' || mode === 'failed') {
+        const source = mode === 'failed' ? failedBatches : batches;
+        tasks.push(...source.map((batch) => ({
+          title: '媒体增强 · ' + String(batch.id || '').slice(0, 8),
+          detail: (batch.trigger === 'scheduled' ? '定时扫描' : '手动扫描')
+            + ' · 扫描 ' + Number(batch.scannedCount || 0) + ' 项 · 入队 '
+            + Number(batch.queuedCount || 0) + ' 项',
+          status: batch.status || 'queued', statusLabel: enhancementStatusLabel(batch.status),
+          error: ['failed', 'complete_with_errors'].includes(batch.status)
+            ? String(batch.error || '批次中存在失败任务，可在 Emby / 媒体增强中展开查看').slice(0, 1000) : '',
+          time: batch.finishedAt || batch.startedAt || batch.createdAt,
+        })));
+      }
+      tasks.sort((left, right) => new Date(right.time || 0) - new Date(left.time || 0));
+      if (!tasks.length) {
+        const empty = document.createElement('div');
+        empty.className = 'overview-empty';
+        empty.textContent = mode === 'failed' ? '最近没有失败任务' : '暂无任务记录';
+        elements.tasksList.append(empty);
+      } else {
+        for (const task of tasks) elements.tasksList.append(renderTaskCard(task));
+      }
+    }
+
+    async function loadTasks() {
+      if (state.tasksLoading) return;
+      state.tasksLoading = true;
+      elements.tasksRefresh.disabled = true;
+      try {
+        const [transfers, mediaProbe] = await Promise.all([
+          api('/api/transfers'), api('/api/media-probe'),
+        ]);
+        state.transfers = Array.isArray(transfers.jobs) ? transfers.jobs : [];
+        state.mediaProbeData = mediaProbe;
+        renderTasks();
+      } catch (error) {
+        setStatus(error.message, 'error');
+      } finally {
+        state.tasksLoading = false;
+        elements.tasksRefresh.disabled = state.busy;
+      }
+    }
+
+    async function openTasks(mode = 'transfers') {
+      state.taskMode = ['transfers', 'enhancement', 'failed'].includes(mode) ? mode : 'transfers';
+      showView('tasks-' + state.taskMode);
+      renderTasks();
+      await loadTasks();
+    }
+
     function setActiveNav(name) {
       const navigation = [
+        ['overview', elements.overviewNav],
         ['media', elements.mediaNav],
         ['mediaProbe', elements.mediaProbeNav],
         ['bdpan', elements.bdpanNav],
@@ -4317,6 +4765,9 @@
         ['logs', elements.logs],
         ['settings', elements.settings],
         ['about', elements.about],
+        ['tasks-transfers', elements.transferTasksNav],
+        ['tasks-enhancement', elements.enhancementTasksNav],
+        ['tasks-failed', elements.failedTasksNav],
       ];
       for (const [key, button] of navigation) {
         const active = key === name;
@@ -4327,7 +4778,9 @@
     }
 
     function showView(name) {
+      const viewName = name.startsWith('tasks-') ? 'tasks' : name;
       const views = [
+        ['overview', elements.overviewView],
         ['media', elements.mediaView],
         ['mediaProbe', elements.mediaProbeView],
         ['bdpan', elements.bdpanView],
@@ -4336,8 +4789,9 @@
         ['logs', elements.logsView],
         ['settings', elements.settingsView],
         ['about', elements.aboutView],
+        ['tasks', elements.tasksView],
       ];
-      for (const [key, view] of views) view.hidden = key !== name;
+      for (const [key, view] of views) view.hidden = key !== viewName;
       if (name !== 'bdpan') {
         clearTimeout(state.bdpanTimer);
         state.bdpanTimer = null;
@@ -6113,7 +6567,11 @@
     elements.modal.addEventListener('click', (event) => {
       if (event.target === elements.modal) requestCloseEditor();
     });
-    elements.mediaNav.addEventListener('click', () => showView('media'));
+    elements.overviewNav.addEventListener('click', openOverview);
+    elements.overviewRefresh.addEventListener('click', () => loadOverview(true));
+    elements.overviewOpenMedia.addEventListener('click', () => showView('media'));
+    elements.overviewOpenTasks.addEventListener('click', () => openTasks('transfers'));
+    elements.mediaNav.addEventListener('click', () => { render(); showView('media'); });
     elements.mediaProbeNav.addEventListener('click', openMediaProbe);
     elements.bdpanNav.addEventListener('click', openBdpan);
     elements.systemStatus.addEventListener('click', openSystemStatus);
@@ -6142,6 +6600,11 @@
     elements.logsRealtime.addEventListener('click', toggleRealtimeLogs);
     elements.logsClear.addEventListener('click', clearActivityLogs);
     elements.settings.addEventListener('click', openSettings);
+    elements.transferTasksNav.addEventListener('click', () => openTasks('transfers'));
+    elements.enhancementTasksNav.addEventListener('click', () => openTasks('enhancement'));
+    elements.failedTasksNav.addEventListener('click', () => openTasks('failed'));
+    elements.tasksRefresh.addEventListener('click', loadTasks);
+    elements.taskTabs.forEach((tab) => tab.addEventListener('click', () => openTasks(tab.dataset.taskMode)));
     elements.settingsSave.addEventListener('click', saveSettings);
     elements.settingsReset.addEventListener('click', restoreSettings);
     elements.mediaProbeSave.addEventListener('click', saveMediaProbe);
@@ -6271,12 +6734,12 @@
 
     renderActivityLogs();
     updateRealtimeButton();
-    showView('media');
+    showView('overview');
 
     (async () => {
       try {
         await loadConfig();
-        await loadFolders(false);
+        await loadOverview(false);
       } catch (error) {
         setStatus(error.message, 'error');
         elements.summary.textContent = '加载失败';

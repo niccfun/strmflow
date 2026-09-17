@@ -30,6 +30,10 @@ def test_index_has_unique_element_ids() -> None:
     sidebar_start = template.index('id="sidebar"')
     sidebar_end = template.index("</aside>", sidebar_start)
     assert sidebar_start < template.index('id="settingsButton"') < sidebar_end
+    assert sidebar_start < template.index('id="overviewNavButton"') < sidebar_end
+    assert sidebar_start < template.index('id="transferTasksNavButton"') < sidebar_end
+    assert sidebar_start < template.index('id="enhancementTasksNavButton"') < sidebar_end
+    assert sidebar_start < template.index('id="failedTasksNavButton"') < sidebar_end
     assert sidebar_start < template.index('id="systemStatusButton"') < sidebar_end
     assert sidebar_start < template.index('id="logsButton"') < sidebar_end
     assert sidebar_start < template.index('id="emby302Button"') < sidebar_end
@@ -37,6 +41,30 @@ def test_index_has_unique_element_ids() -> None:
     assert sidebar_start < template.index('id="bdpanNavButton"') < sidebar_end
     assert sidebar_start < template.index('id="aboutButton"') < sidebar_end
     assert 'id="mediaView"' in template
+    assert 'id="overviewView"' in template
+    assert 'id="tasksView"' in template
+    assert "showView('overview')" in template
+    assert "openTasks('transfers')" in template
+    assert "openTasks('enhancement')" in template
+    assert "openTasks('failed')" in template
+    assert "'/api/transfers'" in template
+    assert "'/api/media-probe'" in template
+    nav_order = [
+        'id="overviewNavButton"',
+        'id="mediaNavButton"',
+        'id="bdpanNavButton"',
+        'id="mediaProbeNavButton"',
+        'id="emby302Button"',
+        'id="transferTasksNavButton"',
+        'id="enhancementTasksNavButton"',
+        'id="failedTasksNavButton"',
+        'id="settingsButton"',
+        'id="systemStatusButton"',
+        'id="logsButton"',
+        'id="aboutButton"',
+    ]
+    positions = [template.index(token, sidebar_start, sidebar_end) for token in nav_order]
+    assert positions == sorted(positions)
     assert 'id="systemStatusView"' in template
     assert 'id="systemStatusOverall"' in template
     assert 'id="systemStatusStorageList"' in template
