@@ -1,6 +1,6 @@
 [project]
 name = "strmflow"
-version = "0.5.0"
+version = "0.6.0"
 description = "基于 FastAPI 的 OpenList STRM 追更与转存服务"
 readme = "README.md"
 requires-python = ">=3.12"
