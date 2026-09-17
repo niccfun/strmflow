@@ -3,12 +3,33 @@ import stat
 from base64 import b64encode
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from strmflow import __version__
 from strmflow.core.config import Settings
-from strmflow.core.security import SessionSigner
+from strmflow.core.security import LoginAttemptLimiter, SessionSigner
 from strmflow.main import create_app
+
+
+def test_login_limiter_bounds_tracked_client_identities() -> None:
+    limiter = LoginAttemptLimiter(attempts=2, window_seconds=300, max_identities=2)
+
+    limiter.failed("client-1")
+    limiter.failed("client-2")
+    limiter.failed("client-3")
+
+    assert list(limiter._failures) == ["client-2", "client-3"]
+    assert limiter.retry_after("unknown-client") == 0
+    assert "unknown-client" not in limiter._failures
+
+
+@pytest.mark.parametrize("password", ("change-me", "changeme", "password", "admin"))
+def test_runtime_rejects_placeholder_admin_password(password: str) -> None:
+    settings = Settings(app_password=password, openlist_token="token")
+
+    with pytest.raises(ValueError, match="APP_PASSWORD"):
+        settings.validate_runtime()
 
 
 def test_login_cookie_and_health(tmp_path) -> None:
@@ -235,7 +256,7 @@ def test_bdpan_command_preview_is_available_while_execution_disabled(tmp_path) -
         assert preview.status_code == 200
         command = preview.json()["data"]["command"]
         assert command[0] == "bdpan"
-        assert command[1:3] == ["transfer", "https://pan.baidu.com/s/example"]
+        assert command[1:3] == ["transfer", "https://pan.baidu.com/s/[已隐藏]"]
         assert command[command.index("-d") + 1] == "影视/待整理"
         assert "--json" in command
         assert "--no-check-update" in command

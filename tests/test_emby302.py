@@ -3,9 +3,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
+import pytest
+from pydantic import ValidationError
 
 from strmflow.core.config import Settings
 from strmflow.core.runtime_logs import RuntimeLogStore
+from strmflow.schemas.api import Emby302ConfigUpdate
 from strmflow.services.emby302 import Emby302Gateway
 from strmflow.services.openlist import OpenListClient
 
@@ -29,6 +32,19 @@ def test_playback_info_uses_longer_timeout_than_regular_gateway_requests() -> No
     gateway.config = type("Config", (), {"timeout_ms": 30_000})()
     assert gateway._buffered_timeout("/emby/Items/3762/PlaybackInfo") == 120
     assert gateway._buffered_timeout("/emby/Items/3762") == 30
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "http://admin:secret@emby:8096",
+        "http://emby:99999",
+        "http://emby:8096/#fragment",
+    ),
+)
+def test_gateway_config_rejects_credentials_and_malformed_urls(value: str) -> None:
+    with pytest.raises(ValidationError):
+        Emby302ConfigUpdate(emby_url=value)
 
 
 def test_extract_openlist_path_accepts_public_p_prefix() -> None:

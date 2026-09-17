@@ -117,7 +117,19 @@ class Emby302ConfigUpdate(ApiModel):
         if not url:
             return ""
         parsed = urlsplit(url)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        try:
+            port = parsed.port
+        except ValueError as exc:
+            raise ValueError("容器地址端口格式不正确") from exc
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.fragment
+            or port is not None
+            and not 1 <= port <= 65_535
+        ):
             raise ValueError("容器地址需要是完整的 HTTP 或 HTTPS URL")
         return url
 

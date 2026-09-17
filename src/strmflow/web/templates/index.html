@@ -2059,7 +2059,8 @@
       </div>
       <div class="field">
         <label for="titleInput">剧名 / 片名</label>
-        <input id="titleInput" type="text" placeholder="八千里路云和月" autocomplete="off" required maxlength="100">
+        <input id="titleInput" type="text" placeholder="八千里路云和月 (2026)" autocomplete="off" required maxlength="100" aria-describedby="titleYearHelp">
+        <p id="titleYearHelp" class="settings-help">名称中包含“(年份)”或“（年份）”时，将自动拆分并填写年份。</p>
       </div>
       <div class="field">
         <label for="yearInput">年份</label>
@@ -4896,9 +4897,23 @@
     }
 
     function parseTitleYear(name) {
-      const match = String(name || '').match(/^(.*?)[（(](\d{4})[）)]\s*$/);
+      const value = String(name || '');
+      const match = value.match(/[（(]\s*(\d{4})\s*[）)]/);
       if (!match) return { title: name || '', year: '' };
-      return { title: match[1].trim(), year: match[2] };
+      const title = (value.slice(0, match.index) + ' ' + value.slice(match.index + match[0].length))
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!title) return { title: name || '', year: '' };
+      return { title, year: match[1] };
+    }
+
+    function normalizeTitleYearInput() {
+      const parsed = parseTitleYear(elements.title.value);
+      if (parsed.title && parsed.year) {
+        elements.title.value = parsed.title;
+        elements.year.value = parsed.year;
+      }
+      updateTargetPreview();
     }
 
     function guessCategory(folder) {
@@ -4997,8 +5012,9 @@
         return;
       }
       if (overwriteMetadata) {
-        elements.title.value = candidate.title || candidate.name || '';
-        elements.year.value = candidate.year || '';
+        const parsed = parseTitleYear(candidate.title || candidate.name);
+        elements.title.value = parsed.title;
+        elements.year.value = candidate.year || parsed.year;
       }
       elements.shareInspectionMeta.textContent = String(candidate.fileCount || 0)
         + ' 个有效媒体文件 · ' + formatByteSize(candidate.totalBytes || 0);
@@ -5127,9 +5143,10 @@
       elements.sourcePath.value = sourcePath;
       const folder = findSourceFolder(sourcePath);
       if (folder && overwriteMetadata) {
-        const parsed = parseTitleYear(folder.name);
-        elements.title.value = folder.title || parsed.title;
-        elements.year.value = folder.year || parsed.year;
+        const parsedName = parseTitleYear(folder.name);
+        const parsedTitle = parseTitleYear(folder.title || parsedName.title);
+        elements.title.value = parsedTitle.title;
+        elements.year.value = folder.year || parsedTitle.year || parsedName.year;
       }
       if (folder) elements.mediaType.value = sourceFolderType(folder);
       const added = findAddedSource(sourcePath);
@@ -5453,14 +5470,15 @@
       elements.sourceTypeLabel.textContent = '媒体类型';
       elements.categoryLabel.textContent = '内置分类';
       elements.sourceFolderLabel.textContent = '媒体资源';
-      const parsed = parseTitleYear(folder.name);
+      const parsedName = parseTitleYear(folder.name);
+      const parsedTitle = parseTitleYear(folder.title || parsedName.title);
       const sourcePath = folder.sourcePath || folder.scanPath;
       const category = folder.category || guessCategory(folder);
       const mediaType = folder.mediaType || guessMediaType(folder);
       const typeDir = sourceFolderTypeDir(folder);
       elements.sourcePath.value = sourcePath;
-      elements.title.value = folder.title || parsed.title;
-      elements.year.value = folder.year || parsed.year;
+      elements.title.value = parsedTitle.title;
+      elements.year.value = folder.year || parsedTitle.year || parsedName.year;
       elements.totalEpisodes.value = folder.totalEpisodes || '';
       elements.season.value = folder.season || 1;
       elements.updateSchedule.value = folder.updateSchedule || '';
@@ -6044,7 +6062,7 @@
       if (!loaded) return;
       setStatus('只读源 STRM 根目录已重新扫描。', 'success');
     });
-    elements.title.addEventListener('input', updateTargetPreview);
+    elements.title.addEventListener('input', normalizeTitleYearInput);
     elements.year.addEventListener('input', updateTargetPreview);
     elements.totalEpisodes.addEventListener('input', () => validateEditor(false));
     elements.season.addEventListener('input', () => validateEditor(false));

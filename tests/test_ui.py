@@ -220,6 +220,10 @@ def test_index_has_unique_element_ids() -> None:
     assert 'id="sourceTypeInput"' in template
     assert 'id="refreshSourcesButton"' in template
     assert 'id="sourcePathInput" type="hidden"' in template
+    assert 'id="titleYearHelp"' in template
+    assert "function normalizeTitleYearInput()" in template
+    assert "elements.title.addEventListener('input', normalizeTitleYearInput)" in template
+    assert "elements.year.value = parsed.year;" in template
     assert "/api/media/options" in template
     assert "'请选择媒体类型'" in template
     assert "系统内置媒体类型" in template

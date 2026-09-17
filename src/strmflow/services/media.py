@@ -875,8 +875,13 @@ class MediaService:
         return source
 
     def _build_target(self, body: dict[str, Any]) -> dict[str, Any]:
-        title = self._validate_segment(body.get("title"), "剧名", 100)
-        year = str(body.get("year") or "").strip()
+        raw_title = str(body.get("title") or "").strip()
+        embedded_year = re.search(r"[（(]\s*(\d{4})\s*[）)]", raw_title)
+        if embedded_year:
+            raw_title = raw_title[: embedded_year.start()] + " " + raw_title[embedded_year.end() :]
+            raw_title = re.sub(r"\s+", " ", raw_title).strip()
+        title = self._validate_segment(raw_title, "剧名", 100)
+        year = str(body.get("year") or (embedded_year.group(1) if embedded_year else "")).strip()
         if year and not re.fullmatch(r"\d{4}", year):
             raise AppError(400, "年份必须是 4 位数字")
         media_type = self._validate_segment(

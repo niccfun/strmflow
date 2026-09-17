@@ -290,6 +290,33 @@ def test_tv_target_uses_emby_series_root() -> None:
     assert target["targetDir"] == "/emby/电视剧/国产剧/示例剧 (2026)"
 
 
+def test_target_extracts_parenthesized_year_from_title() -> None:
+    service = MediaService(
+        Settings(),
+        None,  # type: ignore[arg-type]
+        None,  # type: ignore[arg-type]
+        None,  # type: ignore[arg-type]
+        type(
+            "PathConfig",
+            (),
+            {"list_root": "/temp_strm", "emby_strm_root": "/emby"},
+        )(),  # type: ignore[arg-type]
+    )
+
+    target = service._build_target(
+        {
+            "sourcePath": "/temp_strm/电视剧/国产剧/示例剧（2026）4K",
+            "title": "示例剧（2026） 4K",
+            "mediaType": "tv",
+            "category": "国产剧",
+        }
+    )
+
+    assert target["title"] == "示例剧 4K"
+    assert target["year"] == "2026"
+    assert target["folderName"] == "示例剧 4K (2026)"
+
+
 def test_movie_and_other_targets_follow_builtin_chinese_layout() -> None:
     service = MediaService(
         Settings(),

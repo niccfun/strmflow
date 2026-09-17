@@ -1,6 +1,11 @@
 import logging
 
-from strmflow.core.runtime_logs import RuntimeLogStore, request_category, status_level
+from strmflow.core.runtime_logs import (
+    RuntimeLogStore,
+    redact_sensitive_text,
+    request_category,
+    status_level,
+)
 
 
 def test_runtime_log_store_filters_and_honors_capacity() -> None:
@@ -54,3 +59,42 @@ def test_raw_log_stream_is_bounded_and_keeps_original_text() -> None:
     store.capture_raw("third")
 
     assert [line["text"] for line in store.raw_lines(limit=10)] == ["second", "third"]
+
+
+def test_runtime_logs_redact_secrets_in_raw_and_structured_values() -> None:
+    store = RuntimeLogStore()
+    store.capture_raw(
+        "Authorization: Bearer top-secret\n"
+        "GET /play?access_token=token-value&pwd=6666 HTTP/1.1 "
+        'body={"api_hash":"hash-value"} upstream=http://admin:url-secret@emby:8096'
+    )
+    entry = store.add(
+        category="security",
+        message="request https://example.test/hook?key=webhook-secret",
+        password="password-value",
+        nested={"embyApiKey": "emby-secret", "safe": "visible"},
+        command="bdpan transfer -p 6666 --session-id session-value",
+    )
+
+    raw = store.raw_lines()[0]["text"]
+    combined = raw + str(entry)
+    for secret in (
+        "top-secret",
+        "token-value",
+        "6666",
+        "hash-value",
+        "webhook-secret",
+        "password-value",
+        "emby-secret",
+        "session-value",
+        "url-secret",
+    ):
+        assert secret not in combined
+    assert entry["nested"]["safe"] == "visible"
+    assert "[已隐藏]" in raw
+
+
+def test_redact_sensitive_text_keeps_non_secret_status_fields() -> None:
+    value = redact_sensitive_text('statusCode=200 payload={"code":"13001"}')
+
+    assert value == 'statusCode=200 payload={"code":"13001"}'

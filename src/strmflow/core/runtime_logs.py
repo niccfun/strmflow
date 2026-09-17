@@ -2,10 +2,84 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections import Counter, deque
 from datetime import UTC, datetime
 from threading import Lock
 from typing import Any
+
+_SENSITIVE_FIELD_NAMES = {
+    "authorization",
+    "cookie",
+    "setcookie",
+    "password",
+    "passwd",
+    "pwd",
+    "apikey",
+    "apihash",
+    "accesstoken",
+    "refreshtoken",
+    "session",
+    "sessionid",
+    "strmsession",
+    "openlisttoken",
+    "embyapikey",
+    "telegramapihash",
+    "turnstilesecretkey",
+    "extractcode",
+    "webhookurl",
+}
+_HEADER_SECRET = re.compile(r"(?im)\b(authorization|x-emby-token|cookie|set-cookie)\s*:\s*[^\r\n]+")
+_QUERY_SECRET = re.compile(
+    r"(?i)([?&](?:access_token|refresh_token|api[_-]?key|api[_-]?hash|token|"
+    r"password|passwd|pwd|session(?:_id)?|key)=)[^&#\s]+"
+)
+_JSON_SECRET = re.compile(
+    r"""(?ix)
+    (["']?(?:authorization|password|passwd|pwd|api[_-]?key|api[_-]?hash|
+       access[_-]?token|refresh[_-]?token|session(?:_id)?|strm_session|
+       openlist_token|emby_api_key|telegram_api_hash|turnstile_secret_key|
+       extract[_-]?code|webhook_url)["']?\s*[:=]\s*)
+    (["'])(.*?)(\2)
+    """
+)
+_CLI_SECRET = re.compile(
+    r"(?i)(\s(?:--password|--passwd|--pwd|--extract-code|--session-id|-p)\s+)(\S+)"
+)
+_URL_USERINFO = re.compile(r"(?i)(https?://)[^/@\s]+@")
+
+
+def redact_sensitive_text(value: object) -> str:
+    """Remove common credentials from raw or third-party log messages."""
+    text = str(value)
+    text = _HEADER_SECRET.sub(lambda match: f"{match.group(1)}: [已隐藏]", text)
+    text = _QUERY_SECRET.sub(lambda match: f"{match.group(1)}[已隐藏]", text)
+    text = _JSON_SECRET.sub(
+        lambda match: f"{match.group(1)}{match.group(2)}[已隐藏]{match.group(4)}", text
+    )
+    text = _CLI_SECRET.sub(lambda match: f"{match.group(1)}[已隐藏]", text)
+    return _URL_USERINFO.sub(lambda match: f"{match.group(1)}[已隐藏]@", text)
+
+
+def _normalized_field_name(value: object) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value).casefold())
+
+
+def redact_sensitive_value(value: Any, *, field_name: str = "") -> Any:
+    """Recursively redact structured log details without changing their shape."""
+    if _normalized_field_name(field_name) in _SENSITIVE_FIELD_NAMES:
+        return "[已隐藏]" if value is not None and value != "" else value
+    if isinstance(value, dict):
+        return {
+            key: redact_sensitive_value(item, field_name=str(key)) for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [redact_sensitive_value(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(redact_sensitive_value(item) for item in value)
+    if isinstance(value, str):
+        return redact_sensitive_text(value)
+    return value
 
 
 class _RawLogHandler(logging.Handler):
@@ -70,7 +144,7 @@ class RuntimeLogStore:
         logger: str = "",
         created: float | None = None,
     ) -> dict[str, Any]:
-        value = str(text)
+        value = redact_sensitive_text(text)
         if len(value) > self._max_line_chars:
             value = value[: self._max_line_chars] + " … [单条日志已截断]"
         timestamp = (
@@ -96,14 +170,17 @@ class RuntimeLogStore:
         level: str = "info",
         **details: Any,
     ) -> dict[str, Any]:
+        safe_details = {
+            key: redact_sensitive_value(value, field_name=key) for key, value in details.items()
+        }
         with self._lock:
             entry = {
                 "id": self._next_id,
                 "time": datetime.now(UTC).isoformat(),
                 "category": category,
                 "level": level,
-                "message": message,
-                **details,
+                "message": redact_sensitive_text(message),
+                **safe_details,
             }
             self._next_id += 1
             self._entries.appendleft(entry)

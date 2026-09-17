@@ -4,6 +4,7 @@ import asyncio
 import secrets
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlsplit
 
 from strmflow.core.config import Settings
 from strmflow.core.errors import AppError
@@ -106,6 +107,19 @@ class TransferManager:
                 returnCode=result.return_code,
                 destination=spec.destination,
             )
+        except asyncio.CancelledError:
+            await self.repository.update(
+                job_id,
+                status="failed",
+                stderr="服务停止，任务执行被取消",
+            )
+            self._log(
+                "warning",
+                f"转存任务已取消：{provider.name}",
+                jobId=job_id,
+                destination=spec.destination,
+            )
+            raise
         except Exception as exc:  # noqa: BLE001 - persist every background failure on the job
             await self.repository.update(job_id, status="failed", stderr=str(exc))
             self._log(
@@ -139,6 +153,13 @@ class TransferManager:
     @staticmethod
     def _redact(command: list[str]) -> list[str]:
         result = list(command)
+        for index, value in enumerate(result):
+            try:
+                parsed = urlsplit(value)
+            except ValueError:
+                continue
+            if parsed.scheme in {"http", "https"} and parsed.hostname == "pan.baidu.com":
+                result[index] = "https://pan.baidu.com/s/[已隐藏]"
         for index, value in enumerate(result[:-1]):
             if value in {"-p", "--pwd", "--extract-code"}:
                 result[index + 1] = "[已隐藏]"

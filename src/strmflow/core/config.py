@@ -133,6 +133,13 @@ class Settings(BaseSettings):
         ]
         if missing:
             raise ValueError(f"缺少服务配置：{', '.join(missing)}")
+        if self.app_password.strip().casefold() in {
+            "change-me",
+            "changeme",
+            "password",
+            "admin",
+        }:
+            raise ValueError("APP_PASSWORD 仍是默认或弱密码，请在启动前替换")
 
 
 @lru_cache

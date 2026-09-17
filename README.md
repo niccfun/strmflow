@@ -505,7 +505,7 @@ docker compose up -d
 docker compose logs --tail=200 strmflow
 ```
 
-`APP_PASSWORD` 或 `OPENLIST_TOKEN` 为空时，运行时配置校验会阻止服务启动。
+`APP_PASSWORD` 或 `OPENLIST_TOKEN` 为空时，运行时配置校验会阻止服务启动；常见默认弱密码（如 `change-me`、`password`、`admin`）同样会被拒绝。
 
 ### OpenList 或 Emby 显示不可用
 

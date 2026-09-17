@@ -1693,8 +1693,20 @@ class Emby302Gateway:
         for label, url in (("Emby", config.emby_url), ("OpenList", config.openlist_url)):
             if not url:
                 continue
-            parsed = urlsplit(url)
-            if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            try:
+                parsed = urlsplit(url)
+                port = parsed.port
+            except ValueError as exc:
+                raise AppError(422, f"{label} 容器地址格式不正确") from exc
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username
+                or parsed.password
+                or parsed.fragment
+                or port is not None
+                and not 1 <= port <= 65_535
+            ):
                 raise AppError(422, f"{label} 容器地址格式不正确")
         ranges = {
             "监听端口": (config.port, 1, 65_535),

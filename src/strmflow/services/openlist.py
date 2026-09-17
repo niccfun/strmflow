@@ -9,6 +9,9 @@ from strmflow.core.config import Settings
 from strmflow.core.errors import AppError, UpstreamError
 from strmflow.utils.paths import normalize_virtual_path
 
+OPENLIST_PAGE_SIZE = 1_000
+OPENLIST_MAX_LIST_ITEMS = 100_000
+
 
 class OpenListClient:
     def __init__(self, settings: Settings, http: httpx.AsyncClient) -> None:
@@ -60,19 +63,38 @@ class OpenListClient:
         return payload.get("data")
 
     async def list_dir(self, path: str, *, refresh: bool = False) -> list[dict[str, Any]]:
-        data = await self.request(
-            "POST",
-            "/api/fs/list",
-            {
-                "path": normalize_virtual_path(path),
-                "password": self.settings.openlist_path_password,
-                "page": 1,
-                "per_page": 1000,
-                "refresh": refresh,
-            },
-        )
-        content = data.get("content") if isinstance(data, dict) else None
-        return content if isinstance(content, list) else []
+        normalized = normalize_virtual_path(path)
+        result: list[dict[str, Any]] = []
+        page = 1
+        while True:
+            data = await self.request(
+                "POST",
+                "/api/fs/list",
+                {
+                    "path": normalized,
+                    "password": self.settings.openlist_path_password,
+                    "page": page,
+                    "per_page": OPENLIST_PAGE_SIZE,
+                    # Refresh once, then read the remaining pages from the same
+                    # OpenList directory cache to avoid rebuilding it per page.
+                    "refresh": refresh and page == 1,
+                },
+            )
+            content = data.get("content") if isinstance(data, dict) else None
+            items = content if isinstance(content, list) else []
+            result.extend(item for item in items if isinstance(item, dict))
+            try:
+                total = max(0, int(data.get("total") or 0)) if isinstance(data, dict) else 0
+            except (TypeError, ValueError):
+                total = 0
+            if total > OPENLIST_MAX_LIST_ITEMS or len(result) > OPENLIST_MAX_LIST_ITEMS:
+                raise UpstreamError(
+                    f"OpenList 目录项目超过安全上限：{OPENLIST_MAX_LIST_ITEMS}",
+                    {"service": "OpenList", "path": normalized},
+                )
+            if (total and len(result) >= total) or len(items) < OPENLIST_PAGE_SIZE:
+                return result
+            page += 1
 
     async def mkdir(self, path: str) -> None:
         normalized = normalize_virtual_path(path)
@@ -80,7 +102,17 @@ class OpenListClient:
             await self.request("POST", "/api/fs/mkdir", {"path": normalized})
         except AppError as exc:
             # OpenList may report an existing directory as a conflict.
-            if exc.status_code != 409:
+            exists = any(
+                phrase in exc.message.casefold()
+                for phrase in (
+                    "already exists",
+                    "object exists",
+                    "file exists",
+                    "directory exists",
+                    "已存在",
+                )
+            )
+            if exc.status_code != 409 or not exists:
                 raise
 
     async def get_file_info(
