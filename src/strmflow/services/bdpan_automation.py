@@ -1233,7 +1233,11 @@ class BdpanAutomationService:
         )
 
     async def _notify_invalid_link_once(self, item: dict[str, Any], error: Exception) -> None:
-        if not self.notifications or not self._is_invalid_share_error(error):
+        if (
+            self.config.get("trackingMode") == "hybrid"
+            or not self.notifications
+            or not self._is_invalid_share_error(error)
+        ):
             return
         state = self.states.setdefault(str(item["id"]), {})
         notification_key = self._share_link_key(item)

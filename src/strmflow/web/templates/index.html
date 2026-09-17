@@ -366,6 +366,7 @@
     .item-actions { display: flex; align-items: center; gap: 7px; margin: auto -19px 0; padding: 12px 19px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--panel-soft) 62%, var(--panel)); }
     .item-actions > * { min-width: 0; padding: 8px 10px; font-size: 12px; }
     .item-actions .sync-button { flex: 1 1 auto; }
+    .item-actions .resync-button { flex: 0 0 auto; }
     .item-actions .baidu-button { flex: 0 0 auto; }
     .item-actions .media-details-button { border-color: color-mix(in srgb, var(--primary) 24%, var(--border)); background: var(--primary-soft); color: var(--primary-soft-text); font-weight: 650; }
     .path-row.has-open { grid-template-columns: minmax(0, 1fr) auto auto; }
@@ -1781,7 +1782,7 @@
                 </button>
                 <button class="bdpan-mode-card recommended" type="button" data-tracking-mode="hybrid">
                   <span class="bdpan-mode-icon" aria-hidden="true">⚡</span>
-                  <span><span class="bdpan-recommended-badge">推荐</span><strong>Telegram 实时 + 百度兜底</strong><small>消息到达后立即检查，定时任务补偿漏报和网络波动。</small></span>
+                  <span><span class="bdpan-recommended-badge">推荐</span><strong>Telegram 实时 + 百度兜底</strong><small>消息到达后立即检查；链接失效时静默等待 Telegram 更新链接。</small></span>
                   <span class="bdpan-mode-check" aria-hidden="true">✓</span>
                 </button>
               </div>
@@ -2036,7 +2037,7 @@
                 <input id="wecomEpisodeUpdateInput" type="checkbox">
               </label>
               <label class="notification-option" for="wecomLinkInvalidInput">
-                <span><strong>链接失效通知</strong><small>分享失效、取消或不存在时发送一次</small></span>
+                <span><strong>链接失效通知</strong><small>仅百度定时模式下发送；混合模式静默等待 Telegram 更新链接</small></span>
                 <input id="wecomLinkInvalidInput" type="checkbox">
               </label>
             </div>
@@ -5127,8 +5128,8 @@
       });
     }
 
-    function openSyncModal(folder) {
-      elements.renameTitle.textContent = '同步追更 · ' + folder.name;
+    function openSyncModal(folder, replaceExisting = false) {
+      elements.renameTitle.textContent = (replaceExisting ? '重新同步 · ' : '同步追更 · ') + folder.name;
       elements.renameHint.textContent = '目标目录：' + folder.targetDir;
       elements.renameColumns.hidden = true;
       elements.renameList.hidden = true;
@@ -5144,8 +5145,10 @@
       elements.renameCancel.onclick = null;
       elements.renameConfirm.onclick = null;
       elements.renameModal.classList.add('show');
-      addActivityLog('开始同步：' + folder.name, 'running');
-      updateSyncStage('scan', '正在启动扫描', '正在连接 OpenList…', { running: true });
+      addActivityLog((replaceExisting ? '开始重新同步：' : '开始同步：') + folder.name, 'running');
+      updateSyncStage('scan', '正在启动扫描', replaceExisting
+        ? '正在刷新 OpenList STRM，并准备覆盖目标目录中的现有清单…'
+        : '正在连接 OpenList…', { running: true });
     }
 
     function closeSyncModal() {
@@ -5229,14 +5232,17 @@
         const upgradeDetail = Number(preview.qualityUpgradeCount || 0) > 0
           ? '，新增 ' + preview.qualityUpgradeCount + ' 个高质量版本'
           : '';
+        const replacementDetail = Number(preview.replacementCount || 0) > 0
+          ? '，将重新写入 ' + preview.replacementCount + ' 个 STRM'
+          : '';
         const newFileSet = new Set(newFiles.map((file) => String(file || '').replace(/\\/g, '/')));
         const recoveryCount = rows.filter((row) => !newFileSet.has(String(row.sourceRel || '').replace(/\\/g, '/'))).length;
         updateSyncStage(
           'preview',
           rows.length > 0 ? '确认同步文件名' : '没有待复制文件',
           rows.length > 0
-            ? '已发现 ' + (preview.episodeCount || 0) + episodeTotal + ' 集' + seasonDetail + duplicateDetail + upgradeDetail + '，请确认下方文件名后开始同步。'
-            : '已发现 ' + (preview.episodeCount || 0) + episodeTotal + ' 集' + seasonDetail + duplicateDetail + upgradeDetail + '，本次没有需要复制或恢复的文件。',
+            ? '已发现 ' + (preview.episodeCount || 0) + episodeTotal + ' 集' + seasonDetail + duplicateDetail + upgradeDetail + replacementDetail + '，请确认下方文件名后开始同步。'
+            : '已发现 ' + (preview.episodeCount || 0) + episodeTotal + ' 集' + seasonDetail + duplicateDetail + upgradeDetail + replacementDetail + '，本次没有需要复制或恢复的文件。',
         );
         elements.renameHint.textContent = '目标目录：' + preview.targetDir + (rows.length > 0 ? '；可在下方修改目标相对路径。' : '');
         elements.syncPreviewNew.textContent = String(newFiles.length) + ' 个';
@@ -6172,7 +6178,14 @@
         syncButton.textContent = '同步更新';
         syncButton.addEventListener('click', () => generateSelected(folder));
 
-        actions.append(syncButton);
+        const resyncButton = document.createElement('button');
+        resyncButton.type = 'button';
+        resyncButton.className = 'resync-button';
+        resyncButton.textContent = '重新同步';
+        resyncButton.title = '重新扫描源目录并覆盖现有目标 STRM';
+        resyncButton.addEventListener('click', () => requestResync(folder));
+
+        actions.append(syncButton, resyncButton);
         if (baiduUrl) {
           const baiduButton = document.createElement('a');
           baiduButton.className = 'button-like baidu-button';
@@ -6295,7 +6308,8 @@
       if (state.busy || !folder) return;
       state.selected = folder;
       clearStatus();
-      openSyncModal(folder);
+      const replaceExisting = Boolean(options.replaceExisting);
+      openSyncModal(folder, replaceExisting);
       setBusy(true);
 
       let preview;
@@ -6310,7 +6324,7 @@
         updateSyncStage('preview', '正在生成文件名预览', '正在读取本地 STRM 与 Emby 目标目录…', { running: true });
         preview = await api('/api/emby/publish/preview', {
           method: 'POST',
-          body: JSON.stringify({ id: folder.id }),
+          body: JSON.stringify({ id: folder.id, replaceExisting }),
         });
       } catch (error) {
         setBusy(false);
@@ -6332,7 +6346,7 @@
       try {
         const result = await api('/api/emby/publish', {
           method: 'POST',
-          body: JSON.stringify({ id: folder.id, renamePlan }),
+          body: JSON.stringify({ id: folder.id, renamePlan, replaceExisting }),
         });
         const shouldRefresh = Number(result.copied || 0) > 0;
         if (shouldRefresh) {
@@ -6344,6 +6358,7 @@
         details.push(result.newFiles?.length ? '发现 ' + result.newFiles.length + ' 个新文件' : '未发现新文件');
         if (result.renamedFiles?.length) details.push('重命名 ' + result.renamedFiles.length + ' 个文件');
         if (Number(result.qualityUpgradeCount || 0) > 0) details.push('新增 ' + result.qualityUpgradeCount + ' 个高质量版本');
+        if (Number(result.replacedStrmFiles || 0) > 0) details.push('重新写入 ' + result.replacedStrmFiles + ' 个 STRM');
         if (Number(result.seasonCount || 0) > 1) details.push('已自动整理 ' + result.seasonCount + ' 个季度');
         if (result.missingTargetFiles?.length && !result.newFiles?.length) details.push('已恢复目标目录缺失文件');
         details.push(shouldRefresh ? 'Emby 媒体库已刷新' : '媒体库无需刷新');
@@ -6354,6 +6369,17 @@
         setBusy(false);
         showSyncFailure('publish', error);
       }
+    }
+
+    async function requestResync(folder) {
+      if (state.busy || !folder) return;
+      const confirmed = await confirmAction({
+        title: '重新同步“' + (folder.title || folder.name) + '”？',
+        message: '请先确认 OpenList 的 Strm 来源路径已经更新。继续后会重新扫描源目录，并用最新生成的内容覆盖目标目录中现有的 STRM 文件；不会删除网盘原视频。',
+        okText: '重新扫描并同步',
+      });
+      if (!confirmed) return;
+      await generateSelected(folder, { replaceExisting: true });
     }
 
     async function pollScan(folder) {

@@ -1087,6 +1087,40 @@ async def test_abnormal_share_status_13001_sends_link_invalid_notification() -> 
     assert notifications.invalid_links == [("m1", message)]
 
 
+@pytest.mark.asyncio
+async def test_hybrid_mode_suspends_invalid_link_without_notification() -> None:
+    settings = Settings(bdpan_binary="bdpan")
+    notifications = FakeNotifications()
+    media = FakeMedia()
+    service = BdpanAutomationService(
+        settings,
+        FakeBdpanCli(settings),
+        FakeRuntimeRepository(),  # type: ignore[arg-type]
+        media,  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        FakePathConfig(),  # type: ignore[arg-type]
+        RuntimeLogStore(),
+        notifications,  # type: ignore[arg-type]
+    )
+    service.config["trackingMode"] = "hybrid"
+
+    async def invalid_share(*_args: Any, **_kwargs: Any) -> list[ShareMediaFile]:
+        raise BdpanCliError("分享链接已失效、已取消或不存在", code="13004")
+
+    service._list_share_media = invalid_share  # type: ignore[method-assign]
+
+    with pytest.raises(BdpanCliError):
+        await service.check_item("m1")
+
+    state = service.states["m1"]
+    assert notifications.invalid_links == []
+    assert state["invalidShareKey"] == service._share_link_key(media.item)
+    assert state["nextCheckAt"] is None
+    assert "linkInvalidNotificationKey" not in state
+    assert service._public_watch(media.item)["suspended"] is True
+
+
 def test_embedded_13001_is_recognized_when_error_code_is_not_preserved() -> None:
     error = AppError(
         502,

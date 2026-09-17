@@ -68,6 +68,7 @@ class PublishRequest(ApiModel):
     media_type: Literal["tv", "movie"] = "tv"
     season: int = Field(default=1, ge=1, le=99)
     rename_plan: list[dict[str, str]] | None = None
+    replace_existing: bool = False
 
 
 class TransferCreateRequest(ApiModel):

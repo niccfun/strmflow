@@ -262,6 +262,10 @@ def test_index_has_unique_element_ids() -> None:
     assert "· 已添加" in template
     assert "该媒体已添加" in template
     assert "generateSelected(savedItem, { autoConfirm: true })" in template
+    assert "function requestResync(folder)" in template
+    assert "replaceExisting: true" in template
+    assert "重新扫描并同步" in template
+    assert "重新写入 ' + result.replacedStrmFiles + ' 个 STRM" in template
     assert "默认季数（多季资源自动识别）" in template
     assert "同步时自动生成 Season XX" in template
     assert "function seasonSummary(folder)" in template

@@ -229,13 +229,29 @@ class MediaService:
         plan, quality_upgrades = self._apply_version_targets(plan, context, targets)
         seasons = self._effective_seasons(files, context)
         missing = [entry for entry in plan if entry["targetRel"] not in targets]
+        replacements = (
+            [
+                entry
+                for entry in plan
+                if entry["targetRel"] in targets and entry["targetRel"].casefold().endswith(".strm")
+            ]
+            if body.replace_existing
+            else []
+        )
+        pending = list(
+            {
+                (entry["sourceRel"], entry["targetRel"]): entry
+                for entry in [*missing, *replacements]
+            }.values()
+        )
         synced = set(context.get("syncedFiles") or [])
         self._log(
             "info",
             f"同步预览生成完成：{context.get('name') or source}",
             sourceFileCount=len(files),
             targetFileCount=len(targets),
-            pendingFileCount=len(missing),
+            pendingFileCount=len(pending),
+            replacementCount=len(replacements),
             seasonCount=len(seasons),
             skippedDuplicateCount=len(duplicate_files),
             qualityUpgradeCount=len(quality_upgrades),
@@ -252,13 +268,15 @@ class MediaService:
             "seasonCount": len(seasons),
             "newFiles": [name for name in files if name not in synced],
             "missingTargetFiles": [entry["sourceRel"] for entry in missing],
-            "pendingFiles": len(missing),
+            "pendingFiles": len(pending),
+            "replaceExisting": body.replace_existing,
+            "replacementCount": len(replacements),
             "qualityUpgrades": quality_upgrades,
             "qualityUpgradeCount": len(quality_upgrades),
             "skippedDuplicateFiles": duplicate_files,
             "skippedDuplicateCount": len(duplicate_files),
             "plan": [
-                {**entry, "changed": entry["sourceRel"] != entry["targetRel"]} for entry in missing
+                {**entry, "changed": entry["sourceRel"] != entry["targetRel"]} for entry in pending
             ],
         }
 
@@ -292,6 +310,16 @@ class MediaService:
         plan, quality_upgrades = self._apply_version_targets(plan, context, target_files)
         seasons = self._effective_seasons(files, context)
         missing = [entry for entry in plan if entry["targetRel"] not in target_files]
+        replacement_manifests = (
+            [
+                entry
+                for entry in plan
+                if entry["targetRel"] in target_files
+                and entry["targetRel"].casefold().endswith(".strm")
+            ]
+            if body.replace_existing
+            else []
+        )
         normalize_manifests = int(context.get("manifestVersion") or 0) < STRM_MANIFEST_VERSION
         legacy_manifests = (
             [
@@ -307,7 +335,7 @@ class MediaService:
         sync_plan = list(
             {
                 (entry["sourceRel"], entry["targetRel"]): entry
-                for entry in [*missing, *legacy_manifests]
+                for entry in [*missing, *legacy_manifests, *replacement_manifests]
             }.values()
         )
         new_files = [name for name in files if name not in synced]
@@ -318,6 +346,7 @@ class MediaService:
             set(new_files)
             | set(missing_target_files)
             | {entry["sourceRel"] for entry in legacy_manifests}
+            | {entry["sourceRel"] for entry in replacement_manifests}
         )
         warmup_paths = [
             join_virtual_path(target, entry["targetRel"])
@@ -330,14 +359,22 @@ class MediaService:
             f"媒体文件清点完成：{context.get('name') or source}",
             sourceFileCount=len(files),
             existingTargetCount=len(target_files),
-            pendingFileCount=len(missing),
+            pendingFileCount=len(sync_plan),
             qualityUpgradeCount=len(quality_upgrades),
             manifestUpgradeCount=len(legacy_manifests),
+            replacementCount=len(replacement_manifests),
             seasons=seasons,
             skippedDuplicateCount=len(duplicate_files),
             removedTargetDuplicateCount=len(target_duplicates),
         )
         await self.openlist.mkdir(target)
+        renamed_replacement_targets = [
+            entry["targetRel"]
+            for entry in replacement_manifests
+            if entry["sourceRel"].rsplit("/", 1)[-1] != entry["targetRel"].rsplit("/", 1)[-1]
+        ]
+        if renamed_replacement_targets:
+            await self._remove_relative_files(target, renamed_replacement_targets)
         copied, renamed = await self._copy_plan(source, target, sync_plan)
         episode_count = self._episode_count(files, context)
         auto_completed = False
@@ -365,6 +402,7 @@ class MediaService:
             renamedCount=len(renamed),
             qualityUpgradeCount=len(quality_upgrades),
             manifestUpgradeCount=len(legacy_manifests),
+            replacementCount=len(replacement_manifests),
             status=status,
             autoCompleted=auto_completed,
             skippedDuplicateCount=len(duplicate_files),
@@ -393,7 +431,7 @@ class MediaService:
             "normalizedStrmFiles": len(legacy_manifests),
             "qualityUpgrades": quality_upgrades,
             "qualityUpgradeCount": len(quality_upgrades),
-            "replacedStrmFiles": 0,
+            "replacedStrmFiles": len(replacement_manifests),
             "skippedDuplicateFiles": duplicate_files,
             "skippedDuplicateCount": len(duplicate_files),
             "removedTargetDuplicateFiles": target_duplicates,
