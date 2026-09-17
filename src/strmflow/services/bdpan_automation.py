@@ -1494,9 +1494,40 @@ class BdpanAutomationService:
         if link_changed and state.get("initialized"):
             state["reconcileOnNextCheck"] = True
         suffix = f"，消息提示更新至 {episode} 集" if episode else ""
-        state["lastResult"] = f"Telegram 已匹配更新：{source}{suffix}"
-        await self._save_states()
+        if not self.config["enabled"]:
+            state["lastResult"] = f"Telegram 已匹配 {source}{suffix}，但百度网盘自动追更未启用"
+            await self._save_states()
+            self._log(
+                "warning",
+                f"Telegram 更新未执行检查：{item['name']}，百度网盘自动追更未启用",
+                itemId=item["id"],
+                source=source,
+                episode=episode,
+                linkChanged=link_changed,
+            )
+            return
+
+        can_start_now = not self._operation_lock.locked() and not self._manual_check_pending
+        state["lastResult"] = (
+            f"Telegram 已匹配更新：{source}{suffix}，已加入即时检查"
+            if can_start_now
+            else f"Telegram 已匹配更新：{source}{suffix}，等待当前网盘任务完成"
+        )
+        if can_start_now:
+            self._manual_check_pending = True
+        try:
+            await self._save_states()
+        except Exception:
+            if can_start_now:
+                self._manual_check_pending = False
+            raise
         self._wake.set()
+        if can_start_now:
+            task = asyncio.create_task(
+                self._run_telegram_check(str(item["id"]), source),
+                name="bdpan-telegram-check",
+            )
+            self._track(task)
         self._log(
             "success",
             f"Telegram 更新已匹配：{item['name']}",
@@ -1504,7 +1535,37 @@ class BdpanAutomationService:
             source=source,
             episode=episode,
             linkChanged=link_changed,
+            immediateCheck=can_start_now,
         )
+
+    async def _run_telegram_check(self, item_id: str, source: str) -> None:
+        try:
+            self._log(
+                "info",
+                "Telegram 已触发百度网盘即时检查",
+                itemId=item_id,
+                source=source,
+            )
+            result = await self.check_item(item_id)
+            self._log(
+                "success",
+                "Telegram 触发的百度网盘检查已完成",
+                itemId=item_id,
+                source=source,
+                newCount=int(result.get("newCount") or 0),
+                baseline=bool(result.get("baseline")),
+                skipped=bool(result.get("skipped")),
+            )
+        except Exception as exc:  # noqa: BLE001 - background failure is reported in runtime log
+            self._log(
+                "error",
+                f"Telegram 触发的百度网盘检查失败：{str(exc)[:300]}",
+                itemId=item_id,
+                source=source,
+            )
+        finally:
+            self._manual_check_pending = False
+            self._wake.set()
 
     def _next_check_at(self) -> str:
         interval = int(self.config["checkIntervalMinutes"]) * 60

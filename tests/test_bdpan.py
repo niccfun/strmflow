@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 from datetime import UTC, datetime, timedelta
@@ -993,6 +994,69 @@ async def test_telegram_does_not_resume_suspended_watch_with_same_link() -> None
     assert state["invalidShareKey"] == original_key
     assert state["nextCheckAt"] is None
     assert "继续暂停追更" in state["lastResult"]
+
+
+@pytest.mark.asyncio
+async def test_telegram_match_starts_immediate_bdpan_check() -> None:
+    settings = Settings(bdpan_binary="bdpan")
+    media = FakeMedia()
+    service = BdpanAutomationService(
+        settings,
+        FakeBdpanCli(settings),
+        FakeRuntimeRepository(),  # type: ignore[arg-type]
+        media,  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        FakePathConfig(),  # type: ignore[arg-type]
+        RuntimeLogStore(),
+    )
+    service.config["enabled"] = True
+    checked = asyncio.Event()
+
+    async def check_item(item_id: str) -> dict[str, Any]:
+        assert item_id == "m1"
+        checked.set()
+        return {"itemId": item_id, "newCount": 1, "baseline": False}
+
+    service.check_item = check_item  # type: ignore[method-assign]
+
+    await service.telegram_update(
+        media.item,
+        link_changed=False,
+        source="@wfysfx03",
+        episode=25,
+    )
+    await asyncio.wait_for(checked.wait(), timeout=1)
+    await asyncio.gather(*service._tasks)
+
+    assert service._manual_check_pending is False
+    assert "已加入即时检查" in service.states["m1"]["lastResult"]
+
+
+@pytest.mark.asyncio
+async def test_telegram_match_explains_when_bdpan_automation_is_disabled() -> None:
+    settings = Settings(bdpan_binary="bdpan")
+    media = FakeMedia()
+    service = BdpanAutomationService(
+        settings,
+        FakeBdpanCli(settings),
+        FakeRuntimeRepository(),  # type: ignore[arg-type]
+        media,  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        FakePathConfig(),  # type: ignore[arg-type]
+        RuntimeLogStore(),
+    )
+
+    await service.telegram_update(
+        media.item,
+        link_changed=False,
+        source="@wfysfx03",
+        episode=25,
+    )
+
+    assert not service._tasks
+    assert "百度网盘自动追更未启用" in service.states["m1"]["lastResult"]
 
 
 @pytest.mark.asyncio
