@@ -86,11 +86,62 @@ async def test_wecom_update_can_retain_or_clear_saved_webhook() -> None:
         assert repository.config is not None
         assert repository.config["webhookUrl"] == WEBHOOK
 
+        masked = service.status()["config"]["maskedWebhookUrl"]
+        await service.update_config(
+            WecomWebhookConfigUpdate(
+                webhook_url=masked,
+                episode_update_enabled=True,
+                link_invalid_enabled=True,
+            )
+        )
+        assert repository.config["webhookUrl"] == WEBHOOK
+
         status = await service.update_config(WecomWebhookConfigUpdate(webhook_url=""))
 
     assert status["config"]["webhookConfigured"] is False
     assert repository.config is not None
     assert repository.config["webhookUrl"] == ""
+
+
+@pytest.mark.asyncio
+async def test_episode_update_notification_lists_exact_episode() -> None:
+    requests: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"errcode": 0, "errmsg": "ok"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        service = WecomWebhookService(
+            FakeNotificationRepository(),  # type: ignore[arg-type]
+            client,
+            RuntimeLogStore(),
+        )
+        await service.update_config(
+            WecomWebhookConfigUpdate(
+                webhook_url=WEBHOOK,
+                episode_update_enabled=True,
+            )
+        )
+        sent = await service.notify_episode_update(
+            {"name": "兰香如故 (2026)"},
+            1,
+            13,
+            ["S01E13"],
+        )
+
+    assert sent is True
+    content = requests[0].content.decode()
+    assert "🆕 本次新增：1 集" in content
+    assert "🎞️ 新增剧集：第 13 集" in content
+    assert "📚 当前已同步：13 集" in content
+
+
+def test_episode_update_detail_keeps_multi_season_identity() -> None:
+    assert (
+        WecomWebhookService._format_episode_detail(["S02E01", "S01E13", "S02E01", "invalid"])
+        == "第 13 集、S02E01"
+    )
 
 
 @pytest.mark.asyncio

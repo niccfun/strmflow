@@ -1,4 +1,5 @@
 import socket
+import stat
 from base64 import b64encode
 
 import httpx
@@ -6,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from strmflow import __version__
 from strmflow.core.config import Settings
+from strmflow.core.security import SessionSigner
 from strmflow.main import create_app
 
 
@@ -34,6 +36,16 @@ def test_login_cookie_and_health(tmp_path) -> None:
         unauthorized = client.get("/api/health")
         assert unauthorized.status_code == 401
         assert unauthorized.json() == {"ok": False, "error": "需要登录"}
+        for path in (
+            "/api/config",
+            "/api/items",
+            "/api/bdpan",
+            "/api/media-probe",
+            "/api/notifications/wecom",
+        ):
+            assert client.get(path).status_code == 401
+        assert client.get("/docs").status_code == 404
+        assert client.get("/openapi.json").status_code == 404
 
         response = client.post("/api/login", json={"username": "admin", "password": "secret"})
         assert response.status_code == 200
@@ -123,28 +135,53 @@ def test_login_cookie_and_health(tmp_path) -> None:
         probe = client.get("/api/media-probe")
         assert probe.status_code == 200
         assert probe.json()["data"]["config"]["dailyEnabled"] is False
+        assert probe.json()["data"]["config"]["episodeImageEnabled"] is True
+        assert probe.json()["data"]["config"]["episodeImageSeekPercent"] == 30
+        assert probe.json()["data"]["config"]["episodeImageMaxWidth"] == 1920
         probe_update = client.put(
             "/api/media-probe",
-            json={"dailyEnabled": True, "scanTime": "04:35"},
+            json={
+                "dailyEnabled": True,
+                "scanTime": "04:35",
+                "episodeImageEnabled": False,
+                "timezone": "Asia/Shanghai",
+                "scanConcurrency": 6,
+                "probeDelaySeconds": 15,
+                "probeTimeoutSeconds": 120,
+                "episodeImageTimeoutSeconds": 150,
+                "episodeImageSeekPercent": 35,
+                "episodeImageMaxWidth": 2560,
+                "episodeImageJpegQuality": 3,
+            },
         )
         assert probe_update.status_code == 200
         probe_data = probe_update.json()["data"]
         assert probe_data["config"]["scanTime"] == "04:35"
-        assert probe_data["config"]["timezone"] == "Asia/Hong_Kong"
+        assert probe_data["config"]["episodeImageEnabled"] is False
+        assert probe_data["config"]["timezone"] == "Asia/Shanghai"
+        assert probe_data["config"]["scanConcurrency"] == 6
+        assert probe_data["config"]["probeDelaySeconds"] == 15
+        assert probe_data["config"]["probeTimeoutSeconds"] == 120
+        assert probe_data["config"]["episodeImageTimeoutSeconds"] == 150
+        assert probe_data["config"]["episodeImageSeekPercent"] == 35
+        assert probe_data["config"]["episodeImageMaxWidth"] == 2560
+        assert probe_data["config"]["episodeImageJpegQuality"] == 3
         assert probe_data["runtime"]["nextScanAt"]
+        probe_time_only = client.put(
+            "/api/media-probe",
+            json={"dailyEnabled": True, "scanTime": "05:10"},
+        )
+        assert probe_time_only.status_code == 200
+        assert probe_time_only.json()["data"]["config"]["episodeImageEnabled"] is False
+        assert probe_time_only.json()["data"]["config"]["episodeImageSeekPercent"] == 35
 
         logs = client.get("/api/logs?limit=500")
         assert logs.status_code == 200
         log_data = logs.json()["data"]
-        assert any(
-            entry.get("path") == "/"
-            and entry.get("statusCode") == 302
-            and entry.get("redirectTo") == "/login"
-            for entry in log_data["items"]
-        )
-        assert log_data["categories"]["http"] >= 1
+        assert log_data["lines"]
+        assert all("text" in line for line in log_data["lines"])
         assert client.delete("/api/logs").json()["data"]["cleared"] >= 1
-        assert client.get("/api/logs").json()["data"]["items"] == []
+        assert client.get("/api/logs").json()["data"]["lines"] == []
 
 
 def test_health_accepts_basic_auth(tmp_path) -> None:
@@ -160,6 +197,20 @@ def test_health_accepts_basic_auth(tmp_path) -> None:
     with TestClient(app) as client:
         response = client.get("/api/health", headers={"Authorization": f"Basic {encoded}"})
         assert response.status_code == 200
+
+
+def test_session_secret_is_generated_once_with_private_permissions(tmp_path) -> None:
+    settings = Settings(
+        database_url=f"sqlite+aiosqlite:///{tmp_path}/app.db",
+        session_secret="",
+    )
+    first = SessionSigner(settings)
+    token = first.create()
+    secret_path = tmp_path / ".session_secret"
+
+    assert secret_path.exists()
+    assert stat.S_IMODE(secret_path.stat().st_mode) == 0o600
+    assert SessionSigner(settings).verify(token) is True
 
 
 def test_bdpan_command_preview_is_available_while_execution_disabled(tmp_path) -> None:
@@ -218,9 +269,8 @@ def test_bdpan_runtime_config_is_available_when_cli_is_missing(tmp_path) -> None
             headers=headers,
             json={
                 "enabled": False,
-                "binary": "/definitely/missing/bdpan",
                 "checkIntervalMinutes": 15,
-                "saveRoot": "StrmFlow",
+                "saveRoot": "media",
                 "settleSeconds": 120,
                 "maxNewItems": 10,
             },

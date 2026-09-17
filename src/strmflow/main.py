@@ -18,7 +18,7 @@ from strmflow.container import build_container
 from strmflow.core.config import Settings, get_settings
 from strmflow.core.errors import AppError
 from strmflow.core.runtime_logs import RuntimeLogStore, request_category, status_level
-from strmflow.core.security import SESSION_COOKIE, SessionSigner
+from strmflow.core.security import SESSION_COOKIE, LoginAttemptLimiter, SessionSigner
 from strmflow.infrastructure.database import Database
 
 SECURITY_HEADERS = {
@@ -41,6 +41,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        runtime_logs.attach()
         runtime_logs.add(
             category="system",
             message="StrmFlow 正在启动",
@@ -112,14 +113,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     )
         finally:
             await database.close()
+            runtime_logs.detach()
 
     app = FastAPI(
         title="StrmFlow API",
         version=__version__,
         description="OpenList STRM 追更、Emby 发布及可插拔转存服务",
         lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
     )
     app.state.runtime_logs = runtime_logs
+    app.state.login_limiter = LoginAttemptLimiter()
 
     @app.middleware("http")
     async def runtime_access_log(request: Request, call_next):
@@ -165,6 +171,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             redirectTo=response.headers.get("location", ""),
             userAgent=user_agent,
         )
+        return response
+
+    @app.middleware("http")
+    async def protect_management_api(request: Request, call_next):
+        """Default-deny every management API except the credential exchange.
+
+        Route dependencies remain in place as defense in depth.  This guard
+        prevents a newly added router from accidentally exposing media paths,
+        cloud-drive operations, or configuration without authentication.
+        """
+        path = request.url.path.rstrip("/") or "/"
+        if path.startswith("/api/") and path != "/api/login":
+            try:
+                await require_auth(request)
+            except AppError as exc:
+                return JSONResponse(
+                    {"ok": False, "error": exc.message},
+                    status_code=exc.status_code,
+                    headers={
+                        "Cache-Control": "no-store",
+                        "X-Content-Type-Options": "nosniff",
+                    },
+                )
+        response = await call_next(request)
+        if path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["X-Content-Type-Options"] = "nosniff"
         return response
 
     app.mount(

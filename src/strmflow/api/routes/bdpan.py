@@ -45,6 +45,11 @@ async def login_complete(body: BdpanLoginCompleteRequest, request: Request) -> d
     return ok(await services(request).bdpan.complete_login(body.code))
 
 
+@router.post("/bdpan/logout")
+async def logout(request: Request) -> dict[str, Any]:
+    return ok(await services(request).bdpan.logout())
+
+
 @router.post("/bdpan/share/inspect")
 async def inspect_share(body: BdpanShareInspectRequest, request: Request) -> dict[str, Any]:
     return ok(await services(request).bdpan.inspect_share(body.share_url, body.extract_code))

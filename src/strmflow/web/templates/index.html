@@ -38,6 +38,13 @@
       --overlay: rgb(15 23 42 / 50%);
       --radius-lg: 18px;
       --radius-md: 12px;
+      --control-height: 42px;
+      --control-radius: 10px;
+      --control-padding-inline: 12px;
+      --field-gap: 6px;
+      --form-row-gap: 12px;
+      --form-column-gap: 12px;
+      --form-label-height: 32px;
       --shadow-sm: 0 1px 2px rgb(15 23 42 / 5%);
       --shadow: 0 10px 30px rgb(15 23 42 / 8%);
       --shadow-lg: 0 24px 70px rgb(15 23 42 / 25%);
@@ -118,7 +125,7 @@
       -webkit-text-fill-color: transparent;
     }
     .sidebar-subtitle { margin-top: 2px; color: var(--muted); font-size: 11px; white-space: nowrap; }
-    .sidebar-nav { display: grid; gap: 5px; margin-top: 28px; }
+    .sidebar-nav { min-height: 0; display: grid; gap: 5px; margin-top: 28px; overflow-y: auto; scrollbar-width: thin; }
     .nav-section-title { margin: 0 10px 6px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .12em; }
     .nav-section-title.system { margin-top: 18px; }
     .sidebar-link {
@@ -157,7 +164,7 @@
     .tab-count { min-width: 19px; display: inline-grid; place-items: center; padding: 0 5px; border-radius: 999px; background: var(--border); color: var(--muted); font-size: 11px; }
     .filter-tab.active .tab-count { background: var(--primary-soft); color: var(--primary-soft-text); }
 
-    button, input, select { font: inherit; }
+    button, input, select, textarea { font: inherit; }
     [hidden] { display: none !important; }
     button, .button-like {
       display: inline-flex;
@@ -204,12 +211,14 @@
       padding: 22px;
       box-shadow: var(--shadow);
     }
-    .path-label, .field label, .stat-label {
+    .path-label, .field > label, .stat-label {
       color: var(--muted);
       font-size: 11px;
       font-weight: 700;
+      line-height: 1.35;
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      overflow-wrap: anywhere;
     }
     .path, .item-path {
       margin-top: 6px;
@@ -227,19 +236,29 @@
     .copy-button { padding: 7px 9px; color: var(--muted); background: var(--panel-soft); box-shadow: none; font-size: 12px; }
 
     .controls { display: grid; grid-template-columns: auto minmax(220px, 1fr) auto; gap: 10px; align-items: center; margin-bottom: 18px; }
-    input, select {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea {
+      display: block;
       width: 100%;
+      min-width: 0;
+      height: var(--control-height);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
+      border-radius: var(--control-radius);
+      padding: 0 var(--control-padding-inline);
       background: var(--input-bg);
       color: var(--text);
+      line-height: 1.4;
       outline: none;
       transition: border-color .16s ease, box-shadow .16s ease;
     }
-    input:focus, select:focus { border-color: var(--primary); box-shadow: var(--ring); }
-    input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 3px rgb(220 38 38 / 12%); }
-    input::placeholder { color: var(--muted); opacity: .7; }
+    textarea { min-height: 96px; height: auto; padding-block: 10px; resize: vertical; }
+    input[type="checkbox"], input[type="radio"] { width: auto; min-width: 0; height: auto; min-height: 0; padding: 0; }
+    input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: var(--ring); }
+    input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 3px rgb(220 38 38 / 12%); }
+    input:disabled, select:disabled, textarea:disabled { background: var(--panel-soft); color: var(--muted); cursor: not-allowed; opacity: .72; }
+    input::placeholder, textarea::placeholder { color: var(--muted); opacity: .7; }
+    input[type="search"] { appearance: none; }
+    input[type="search"]::-webkit-search-cancel-button { opacity: .7; cursor: pointer; }
+    .controls > input, .controls > button, .controls > .filter-tabs { height: var(--control-height); min-height: var(--control-height); }
 
     .filter-tabs { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-soft); }
     .filter-tab { border: 0; padding: 7px 13px; border-radius: 8px; background: transparent; color: var(--muted); box-shadow: none; }
@@ -320,14 +339,13 @@
     }
     @keyframes modal-in { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
     .target-panel { width: min(1180px, calc(100vw - 32px)); max-height: calc(100dvh - 28px); overflow: hidden; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 12px; padding: 22px; isolation: isolate; }
+    .target-panel { row-gap: var(--form-row-gap); column-gap: var(--form-column-gap); }
     .target-panel:not(.detail-mode) .source-resource-field { grid-column: span 2; }
     .target-panel:not(.detail-mode) .baidu-link-field { grid-column: span 2; }
     .target-panel.share-mode #sourceTypeField, .target-panel.share-mode #categoryField { grid-column: span 2; }
-    .target-panel:not(.detail-mode) input, .target-panel:not(.detail-mode) select { padding-top: 8px; padding-bottom: 8px; }
     .target-panel.detail-mode { width: min(1180px, calc(100vw - 32px)); max-height: none; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 12px; padding: 22px; overflow: hidden; isolation: isolate; }
     .target-panel.detail-mode .baidu-link-field { grid-column: span 2; }
     .target-panel.detail-mode .editor-actions { position: static; bottom: auto; margin: 4px -22px -22px; padding: 13px 22px 22px; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
-    .target-panel.detail-mode input, .target-panel.detail-mode select { padding-top: 8px; padding-bottom: 8px; }
     .target-panel.detail-mode .source-hierarchy-field, .target-panel.detail-mode #targetPreview, .target-panel.detail-mode #selectedHint { display: none; }
     .target-panel.detail-mode .media-detail-overview { gap: 10px; padding: 13px; }
     .media-detail-overview { grid-column: 1 / -1; display: grid; gap: 13px; padding: 15px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
@@ -350,8 +368,8 @@
     .add-mode-button.active { border-color: color-mix(in srgb, var(--primary) 24%, var(--border)); background: var(--panel); box-shadow: var(--shadow-sm); }
     .add-mode-button.active strong { color: var(--primary-soft-text); }
     .share-import-panel { grid-column: 1 / -1; display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
-    .share-check-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
-    .share-check-button { min-width: 116px; }
+    .share-check-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 8px; }
+    .share-check-button { min-width: 116px; min-height: var(--control-height); }
     .share-inspection-result { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .7fr); gap: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
     .share-result-copy { display: grid; align-content: start; gap: 6px; }
     .share-result-copy strong { font-size: 14px; }
@@ -361,13 +379,31 @@
     .share-sample-list li:nth-child(n + 3) { display: none; }
     .share-destination-hint { grid-column: 1 / -1; margin: -2px 0 0; color: var(--muted); font-size: 12px; }
     .target-panel.detail-mode .add-mode-switch, .target-panel.detail-mode .share-import-panel, .target-panel.detail-mode .share-destination-hint { display: none; }
-    .settings-help { color: var(--muted); font-size: 12px; }
+    .settings-help { color: var(--muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
     .settings-page { width: 100%; display: grid; gap: 16px; }
+    .feature-page { width: 100%; display: grid; gap: 16px; }
+    .feature-toolbar > * { min-width: 112px; min-height: 42px; }
     .settings-content { width: 100%; display: grid; gap: 20px; }
+    .settings-content input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), .settings-content select, .settings-content textarea { min-height: var(--control-height); }
     .settings-section-title { padding-bottom: 12px; border-bottom: 1px solid var(--border); }
     .settings-section-title h3 { margin: 0; font-size: 16px; }
     .settings-section-title p { margin-top: 3px; color: var(--muted); font-size: 12px; }
-    .settings-path-layout { display: grid; grid-template-columns: minmax(0, 1fr) 58px minmax(0, 1fr); align-items: stretch; gap: 12px; }
+    .settings-block-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .settings-block { min-width: 0; display: grid; align-content: start; gap: 14px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .settings-block-heading { display: grid; gap: 3px; }
+    .settings-block-heading strong { font-size: 14px; }
+    .settings-block-heading span { color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .settings-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--form-row-gap) var(--form-column-gap); }
+    .settings-field-grid.three-columns { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .settings-field-grid > .field, .bdpan-settings-grid > .field { min-width: 0; align-content: start; }
+    .settings-advanced { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .settings-advanced summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 16px; color: var(--text); font-size: 13px; font-weight: 700; cursor: pointer; list-style: none; }
+    .settings-advanced summary::-webkit-details-marker { display: none; }
+    .settings-advanced summary::after { content: "+"; width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 50%; color: var(--muted); font-size: 15px; font-weight: 500; }
+    .settings-advanced[open] summary::after { content: "−"; }
+    .settings-advanced-content { padding: 0 16px 16px; border-top: 1px solid var(--border); }
+    .settings-advanced-content .settings-field-grid { padding-top: 14px; }
+    .settings-path-layout { display: grid; grid-template-columns: minmax(0, 1fr) 58px minmax(0, 1fr); align-items: stretch; gap: var(--form-column-gap); }
     .path-config-card { min-width: 0; display: grid; align-content: start; gap: 14px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
     .path-config-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
     .path-config-heading strong { font-size: 14px; }
@@ -375,7 +411,8 @@
     .path-config-card.target .path-config-tag { border-color: transparent; background: var(--primary-soft); color: var(--primary-soft-text); }
     .path-flow-arrow { align-self: center; justify-self: center; width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--border); border-color: color-mix(in srgb, var(--primary) 24%, var(--border)); border-radius: 50%; background: var(--primary-soft); color: var(--primary-soft-text); box-shadow: 0 8px 20px rgb(79 70 229 / 16%); }
     .path-flow-arrow svg { width: 21px; height: 21px; stroke-width: 2; }
-    .page-form-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; }
+    .page-form-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding-top: 4px; }
+    .page-form-actions button { min-width: 132px; min-height: 42px; }
     .bdpan-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
     .bdpan-title-copy { min-width: 0; }
     .bdpan-title-copy h3 { display: flex; align-items: center; gap: 8px; }
@@ -384,9 +421,10 @@
     .bdpan-status-card { min-width: 0; display: grid; gap: 4px; padding: 13px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
     .bdpan-status-card span { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .04em; }
     .bdpan-status-card strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
-    .bdpan-settings-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; }
-    .bdpan-binary-field, .bdpan-root-field { grid-column: span 3; }
-    .bdpan-binary-field input, .bdpan-root-field input { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .bdpan-settings-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: start; gap: var(--form-row-gap) var(--form-column-gap); }
+    .bdpan-root-field { grid-column: 1 / -1; }
+    .bdpan-root-field input { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .bdpan-metric-field { grid-column: span 2; }
     .bdpan-callout { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 15px 16px; border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border)); border-radius: var(--radius-md); background: var(--primary-soft); }
     .bdpan-callout-copy { display: grid; gap: 3px; min-width: 0; }
     .bdpan-callout-copy strong { color: var(--primary-soft-text); font-size: 13px; }
@@ -394,18 +432,20 @@
     .bdpan-consent { display: flex; align-items: flex-start; gap: 7px; margin-top: 5px; color: var(--muted); font-size: 10px; cursor: pointer; }
     .bdpan-consent input { width: 14px; height: 14px; flex: 0 0 auto; margin: 1px 0 0; accent-color: var(--primary); }
     .bdpan-auth-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .bdpan-login-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, .65fr) auto; align-items: end; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
-    .bdpan-auth-link { align-self: end; min-height: 41px; color: var(--primary-soft-text); background: var(--primary-soft); font-weight: 650; }
+    .bdpan-login-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, .65fr) auto; align-items: end; gap: var(--form-column-gap); padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .bdpan-auth-link, .bdpan-login-panel > button { align-self: end; min-height: var(--control-height); font-weight: 650; }
+    .bdpan-auth-link { background: var(--primary-soft); color: var(--primary-soft-text); }
     .bdpan-watch-panel { display: grid; gap: 10px; }
     .bdpan-watch-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
     .bdpan-watch-head span { color: var(--muted); font-size: 11px; }
     .bdpan-watch-list { display: grid; gap: 7px; }
-    .bdpan-watch { min-width: 0; display: grid; grid-template-columns: minmax(150px, .8fr) minmax(220px, 1.25fr) minmax(160px, .8fr) auto; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-soft); }
+    .bdpan-watch { min-width: 0; display: grid; grid-template-columns: minmax(150px, .8fr) minmax(220px, 1.25fr) minmax(160px, .8fr) 88px; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-soft); }
     .bdpan-watch-main, .bdpan-watch-result { min-width: 0; display: grid; gap: 2px; }
     .bdpan-watch-main strong, .bdpan-watch-result span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .bdpan-watch-main small, .bdpan-watch-result small { color: var(--muted); font-size: 10px; }
     .bdpan-watch-path { min-width: 0; overflow: hidden; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
     .bdpan-watch-error { color: var(--danger-text) !important; }
+    .bdpan-watch > button { width: 88px; min-width: 88px; justify-content: center; }
     .bdpan-watch-empty { padding: 22px; border: 1px dashed var(--border-strong); border-radius: var(--radius-md); color: var(--muted); text-align: center; }
     .notification-settings-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, .65fr); gap: 14px; }
     .notification-webhook-card { min-width: 0; display: grid; gap: 8px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
@@ -441,10 +481,11 @@
     .gateway-enable-card input:checked + .toggle-switch { background: var(--primary); }
     .gateway-enable-card input:checked + .toggle-switch::after { transform: translateX(18px); }
     .gateway-enable-card input:focus-visible + .toggle-switch { box-shadow: var(--ring); }
-    .gateway-config-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; }
+    .gateway-config-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--form-row-gap) var(--form-column-gap); }
+    .gateway-config-grid > .field { align-content: start; }
     .gateway-url-field { grid-column: span 3; }
     .gateway-url-field input { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    .gateway-field-help { margin-top: 5px; color: var(--muted); font-size: 10px; }
+    .gateway-field-help { min-height: 30px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
     .gateway-recent-panel { display: grid; gap: 0; }
     .compact-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md); }
     .compact-table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 12px; }
@@ -452,6 +493,7 @@
     .compact-table th { background: var(--panel-soft); color: var(--muted); font-size: 10px; letter-spacing: .04em; white-space: nowrap; }
     .compact-table tr:last-child td { border-bottom: 0; }
     .compact-table td { overflow-wrap: anywhere; }
+    .startup-duration { cursor: help; text-decoration: underline dotted color-mix(in srgb, currentColor 48%, transparent); text-underline-offset: 3px; white-space: nowrap; }
     .compact-empty { height: 100px; color: var(--muted); text-align: center !important; }
     .utility-toolbar { display: flex; justify-content: space-between; align-items: end; gap: 14px; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
     .utility-toolbar .muted { font-size: 12px; }
@@ -459,26 +501,76 @@
     .realtime-button.active { border-color: var(--success-border); background: var(--success-soft); color: var(--success-text); }
     .realtime-button.active .realtime-dot { background: var(--success); box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 14%, transparent); animation: realtime-pulse 1.5s ease-in-out infinite; }
     @keyframes realtime-pulse { 50% { opacity: .45; } }
-    .log-table-wrap { max-height: calc(100vh - 265px); overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-md); }
-    .log-table { width: 100%; min-width: 900px; border-spacing: 0; border-collapse: separate; font-size: 12px; }
-    .log-table th { position: sticky; top: 0; z-index: 1; padding: 8px 10px; border-bottom: 1px solid var(--border); background: var(--panel-soft); color: var(--muted); font-size: 10px; font-weight: 800; text-align: left; letter-spacing: .04em; white-space: nowrap; }
-    .log-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-    .log-table tr:last-child td { border-bottom: 0; }
-    .log-table tbody tr:hover { background: var(--panel-soft); }
-    .log-table .time-cell, .log-table .method-cell, .log-table .status-cell, .log-table .duration-cell, .log-table .client-cell { white-space: nowrap; }
-    .log-table th:nth-child(2), .log-table td:nth-child(2) { width: 96px; min-width: 96px; white-space: nowrap; }
-    .log-table .path-cell { width: 100%; min-width: 260px; }
-    .log-primary { overflow-wrap: anywhere; color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    .log-secondary { margin-top: 2px; overflow-wrap: anywhere; color: var(--muted); font-size: 10px; }
-    .log-category, .log-method, .log-status-code { display: inline-flex; align-items: center; min-height: 19px; padding: 2px 6px; border-radius: 5px; font-size: 9px; font-weight: 800; line-height: 1; }
-    .log-category { background: var(--primary-soft); color: var(--primary-soft-text); white-space: nowrap; }
-    .log-method { border: 1px solid var(--border); background: var(--panel); color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    .log-status-code { background: var(--success-soft); color: var(--success-text); }
-    .log-status-code.redirect { background: var(--primary-soft); color: var(--primary-soft-text); }
-    .log-status-code.warning { background: var(--warning-soft); color: var(--warning-text); }
-    .log-status-code.error { background: var(--danger-soft); color: var(--danger-text); }
-    .log-time { color: var(--muted); font-size: 10px; }
-    .log-empty-cell { height: 240px; color: var(--muted); text-align: center; }
+    .raw-log-wrap { height: calc(100vh - 265px); min-height: 360px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-md); background: #10131a; }
+    .raw-log-stream { min-width: max-content; margin: 0; padding: 14px 16px; color: #d6deeb; font: 11px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 2; white-space: pre; }
+    .settings-block-heading-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .settings-block-heading-row > div { min-width: 0; display: grid; gap: 3px; }
+    .runtime-context-badge { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel); color: var(--muted); font-size: 10px; white-space: nowrap; }
+    .runtime-context-badge strong { color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; }
+    .media-probe-settings { gap: 18px; }
+    .media-probe-status-grid .bdpan-status-card { min-height: 76px; align-content: center; padding: 14px 16px; background: linear-gradient(145deg, var(--panel-soft), var(--panel)); }
+    .media-probe-status-grid .bdpan-status-card strong { font-size: 16px; }
+    .media-probe-config-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+    .media-probe-config-copy { min-width: 0; display: grid; gap: 4px; }
+    .media-probe-config-copy h3 { margin: 0; font-size: 16px; }
+    .media-probe-config-copy p { color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .media-probe-flow { flex: 0 0 auto; display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 10px; font-weight: 700; white-space: nowrap; }
+    .media-probe-flow span { padding: 5px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel-soft); }
+    .media-probe-flow i { color: var(--primary); font-style: normal; }
+    .media-probe-card-heading { display: flex; align-items: flex-start; gap: 10px; }
+    .media-probe-step { width: 26px; height: 26px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--primary) 26%, var(--border)); border-radius: 9px; background: var(--primary-soft); color: var(--primary-soft-text); font-size: 11px; font-weight: 800; }
+    .media-probe-card-heading .settings-block-heading { min-width: 0; }
+    .media-probe-schedule-grid { grid-template-columns: minmax(0, 1fr); }
+    .media-probe-capture-grid > .field { grid-template-rows: var(--form-label-height) var(--control-height) minmax(34px, auto); }
+    .media-probe-capture-grid .settings-help { margin: 0; font-size: 10px; line-height: 1.45; }
+    .episode-library-picker { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .media-probe-library-scope { position: relative; overflow: hidden; }
+    .media-probe-library-scope::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--primary); opacity: .72; }
+    .episode-library-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .episode-library-head > div { min-width: 0; display: grid; gap: 2px; }
+    .episode-library-head strong { font-size: 13px; }
+    .episode-library-head small { color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .episode-library-refresh { flex: 0 0 auto; padding: 6px 9px; color: var(--primary-soft-text); background: var(--primary-soft); font-size: 11px; box-shadow: none; }
+    .episode-library-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .episode-library-option { min-width: 0; display: flex; align-items: flex-start; gap: 8px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-soft); cursor: pointer; }
+    .episode-library-option:has(input:checked) { border-color: color-mix(in srgb, var(--primary) 34%, var(--border)); background: var(--primary-soft); }
+    .episode-library-option input { width: 15px !important; height: 15px; min-height: 0 !important; flex: 0 0 auto; margin-top: 1px; accent-color: var(--primary); }
+    .episode-library-copy { min-width: 0; display: grid; gap: 2px; }
+    .episode-library-copy strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    .episode-library-copy small { overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+    .episode-library-empty { grid-column: 1 / -1; padding: 13px; border: 1px dashed var(--border-strong); border-radius: 9px; color: var(--muted); font-size: 11px; text-align: center; }
+    .media-probe-footer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .media-probe-last-result { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 11px; }
+    .media-probe-result-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 11px; background: var(--primary-soft); color: var(--primary-soft-text); }
+    .media-probe-result-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+    .media-probe-result-copy { min-width: 0; display: grid; gap: 2px; }
+    .media-probe-result-copy strong { font-size: 12px; }
+    .media-probe-result-copy small { overflow: hidden; color: var(--muted); font-size: 10px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
+    .media-probe-footer .page-form-actions { padding-top: 0; }
+    .media-probe-history { display: grid; gap: 12px; }
+    .media-probe-batch-list { display: grid; gap: 9px; }
+    .probe-batch { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
+    .probe-batch > summary { display: grid; grid-template-columns: minmax(210px, 1fr) repeat(5, auto); align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; list-style: none; }
+    .probe-batch > summary::-webkit-details-marker { display: none; }
+    .probe-batch[open] > summary { border-bottom: 1px solid var(--border); }
+    .probe-batch-title { min-width: 0; display: grid; gap: 2px; }
+    .probe-batch-title strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+    .probe-batch-title small, .probe-batch-metric { color: var(--muted); font-size: 10px; white-space: nowrap; }
+    .probe-batch-status { display: inline-flex; justify-self: end; padding: 3px 8px; border-radius: 999px; background: var(--panel); color: var(--muted); font-size: 10px; font-weight: 750; }
+    .probe-batch-status.running { background: var(--warning-soft); color: var(--warning-text); }
+    .probe-batch-status.complete { background: var(--success-soft); color: var(--success-text); }
+    .probe-batch-status.failed { background: var(--danger-soft); color: var(--danger-text); }
+    .probe-task-list { display: grid; gap: 8px; padding: 12px; }
+    .probe-task { min-width: 0; display: grid; gap: 7px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+    .probe-task-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .probe-task-head strong { min-width: 0; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .probe-task-head span { flex: 0 0 auto; color: var(--muted); font-size: 10px; font-weight: 700; }
+    .probe-task-path { overflow-wrap: anywhere; color: var(--muted); font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .probe-task-meta { display: flex; flex-wrap: wrap; gap: 6px; color: var(--muted); font-size: 10px; }
+    .probe-task-meta span { padding: 2px 7px; border-radius: 999px; background: var(--panel-soft); }
+    .probe-task-message { color: var(--text); font-size: 11px; overflow-wrap: anywhere; }
+    .probe-task-logs { display: grid; gap: 3px; margin: 0; padding: 8px 10px 8px 27px; border-radius: 8px; background: #10131a; color: #d6deeb; font: 10px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .probe-batch-empty { padding: 24px; border: 1px dashed var(--border-strong); border-radius: var(--radius-md); color: var(--muted); text-align: center; }
     .about-content { width: 100%; display: grid; gap: 20px; }
     .about-hero { display: grid; justify-items: start; gap: 8px; padding: 8px 4px 14px; text-align: left; }
     .about-logo { width: 72px; height: 72px; border-radius: 19px; box-shadow: 0 14px 32px rgb(79 70 229 / 24%); }
@@ -555,10 +647,39 @@
     .status-connection span { color: var(--muted); font-size: 9px; font-weight: 750; }
     .status-connection code { overflow: hidden; color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
     .status-updated { color: var(--muted); font-size: 10px; text-align: right; }
-    .source-picker-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+    .source-picker-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 8px; }
+    .source-picker-row > button, .share-check-row > button { min-height: var(--control-height); height: var(--control-height); }
     .target-head { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
     .target-head, .target-panel .wide, #targetPreview, .modal-actions { grid-column: 1 / -1; }
-    .field { display: grid; gap: 6px; }
+    .field { min-width: 0; display: grid; align-content: start; gap: var(--field-gap); }
+    .target-panel > .field,
+    .share-import-panel > .field,
+    .share-inspection-result > .field,
+    .gateway-config-grid > .field,
+    .settings-field-grid > .field,
+    .bdpan-settings-grid > .field,
+    .bdpan-login-panel > .field,
+    .path-config-card > .field,
+    .notification-webhook-card > .field {
+      grid-template-rows: var(--form-label-height) var(--control-height) auto;
+    }
+    .target-panel > .field > label,
+    .share-import-panel > .field > label,
+    .share-inspection-result > .field > label,
+    .gateway-config-grid > .field > label,
+    .settings-field-grid > .field > label,
+    .bdpan-settings-grid > .field > label,
+    .bdpan-login-panel > .field > label,
+    .path-config-card > .field > label,
+    .notification-webhook-card > .field > label {
+      min-height: var(--form-label-height);
+      display: flex;
+      align-items: flex-end;
+    }
+    .bdpan-auth-link, .bdpan-login-panel > button { height: var(--control-height); }
+    .bdpan-auth-link { color: var(--primary-soft-text); }
+    .bdpan-login-panel > button.primary { color: #fff; }
+    .media-probe-capture-grid > .field { grid-template-rows: var(--form-label-height) var(--control-height) minmax(34px, auto); }
     .modal-actions, .confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
     .sync-actions { display: flex; justify-content: flex-end; align-items: center; }
     .sync-actions button { min-width: 120px; }
@@ -602,7 +723,7 @@
     .preview-list { display: grid; gap: 8px; max-height: min(56vh, 560px); overflow: auto; padding-right: 4px; }
     .preview-row { padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
     .preview-old { min-width: 0; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; color: var(--text); font-size: 12px; }
-    .preview-new { width: 100%; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: 12px; }
+    .preview-new { width: 100%; height: var(--control-height); font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: 12px; }
     .preview-error { display: none; padding: 9px 12px; border: 1px solid var(--danger-border); border-radius: var(--radius-md); background: var(--danger-soft); color: var(--danger-text); }
     .preview-error.show { display: block; }
 
@@ -611,20 +732,19 @@
       .gateway-config-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .gateway-url-field { grid-column: 1 / -1; }
       .bdpan-settings-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      .bdpan-binary-field, .bdpan-root-field { grid-column: span 3; }
-      .bdpan-watch { grid-template-columns: minmax(150px, .8fr) minmax(220px, 1.2fr) minmax(160px, .8fr) auto; }
+      .bdpan-root-field { grid-column: span 3; }
+      .bdpan-metric-field { grid-column: span 1; }
+      .bdpan-watch { grid-template-columns: minmax(150px, .8fr) minmax(220px, 1.2fr) minmax(160px, .8fr) 88px; }
     }
     @media (min-width: 881px) and (max-height: 760px) {
       .modal { padding: 10px; }
-      .target-panel { max-height: calc(100dvh - 20px); gap: 7px 10px; padding: 16px 18px; }
+      .target-panel { max-height: calc(100dvh - 20px); gap: var(--form-row-gap) var(--form-column-gap); padding: 16px 18px; }
       .target-head h2 { font-size: 19px; }
       .target-head .muted { font-size: 11px; }
       .add-mode-button { min-height: 44px; padding: 7px 11px; }
       .share-import-panel { gap: 7px; padding: 9px 11px; }
       .share-inspection-result { padding-top: 7px; }
       .settings-help { font-size: 10px; line-height: 1.35; }
-      .field { gap: 4px; }
-      .target-panel:not(.detail-mode) input, .target-panel:not(.detail-mode) select { padding-top: 6px; padding-bottom: 6px; }
       .target-panel:not(.detail-mode) .editor-actions { margin: 2px -18px -16px; padding: 10px 18px 14px; }
       #targetPreview { margin-top: 2px; padding-top: 6px; padding-bottom: 6px; }
     }
@@ -644,7 +764,7 @@
       }
       .sidebar-brand { padding: 0; }
       .brand-icon { width: 38px; height: 38px; border-radius: 10px; }
-      .sidebar-nav { display: flex; justify-content: center; gap: 4px; min-width: 0; margin: 0; }
+      .sidebar-nav { display: flex; justify-content: flex-start; gap: 4px; min-width: 0; margin: 0; overflow-x: auto; overflow-y: hidden; }
       .nav-section-title { display: none; }
       .sidebar-link { width: auto; min-height: 40px; padding: 8px 11px; white-space: nowrap; }
       .nav-badge { margin-left: 2px; }
@@ -664,6 +784,7 @@
       .add-mode-switch, .share-inspection-result { grid-template-columns: 1fr; }
       .share-check-row { grid-template-columns: 1fr; }
       .settings-path-layout { grid-template-columns: 1fr; }
+      .settings-block-grid, .settings-field-grid, .settings-field-grid.three-columns { grid-template-columns: 1fr; }
       .path-flow-arrow { transform: rotate(90deg); }
       .source-picker-row { grid-template-columns: 1fr; }
       .filter-tabs { width: 100%; }
@@ -692,16 +813,26 @@
       .gateway-url-field { grid-column: auto; }
       .bdpan-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .bdpan-settings-grid { grid-template-columns: 1fr; }
-      .bdpan-binary-field, .bdpan-root-field { grid-column: auto; }
+      .bdpan-root-field, .bdpan-metric-field { grid-column: auto; }
       .bdpan-login-panel, .bdpan-watch { grid-template-columns: 1fr; }
+      .bdpan-watch > button { width: 100%; min-width: 0; }
       .bdpan-callout { grid-template-columns: 1fr; }
       .bdpan-watch-path { white-space: normal; overflow-wrap: anywhere; }
       .notification-settings-grid { grid-template-columns: 1fr; }
+      .settings-block-heading-row { align-items: flex-start; flex-direction: column; }
+      .media-probe-config-heading { align-items: flex-start; flex-direction: column; }
+      .media-probe-flow { white-space: normal; }
+      .media-probe-footer { grid-template-columns: 1fr; }
+      .media-probe-footer .page-form-actions { justify-content: stretch; }
+      .media-probe-footer .page-form-actions button { flex: 1 1 0; }
+      .episode-library-list { grid-template-columns: 1fr; }
+      .probe-batch > summary { grid-template-columns: minmax(0, 1fr) auto; }
+      .probe-batch-metric { display: none; }
     }
     @media (max-width: 880px) {
       .sidebar { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding-bottom: 8px; }
       .sidebar-subtitle { display: none; }
-      .sidebar-nav { grid-column: 1 / -1; grid-row: 2; justify-content: space-between; overflow-x: auto; padding-top: 2px; }
+      .sidebar-nav { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; overflow-x: auto; overflow-y: hidden; padding-top: 2px; }
       .sidebar-link { flex: 1 0 auto; justify-content: center; }
       .sidebar-footer { grid-column: 2; grid-row: 1; }
       .main-content { padding: 22px 14px 54px; }
@@ -722,6 +853,9 @@
       .page-form-actions { display: grid; grid-template-columns: 1fr; }
       .page-form-actions button { width: 100%; }
       .notification-actions, .notification-actions > div { display: grid; grid-template-columns: 1fr; }
+      .media-probe-flow { width: 100%; display: grid; grid-template-columns: 1fr auto 1fr; text-align: center; }
+      .media-probe-footer { padding: 13px; }
+      .media-probe-result-copy small { white-space: normal; }
       #newButton { position: fixed; right: 18px; bottom: 18px; z-index: 10; padding: 12px 18px; box-shadow: var(--shadow-lg); }
       .list { grid-template-columns: 1fr; }
       .status-service-grid, .capacity-stats, .status-metric-grid { grid-template-columns: 1fr; }
@@ -751,6 +885,14 @@
         <button id="mediaNavButton" class="sidebar-link active" type="button" aria-current="page">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="m10 9 5 3-5 3V9Z"></path></svg>
           <span class="nav-label">媒体管理</span>
+        </button>
+        <button id="mediaProbeNavButton" class="sidebar-link" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"></path><circle cx="12" cy="12" r="4"></circle></svg>
+          <span class="nav-label">媒体增强</span>
+        </button>
+        <button id="bdpanNavButton" class="sidebar-link" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M8.2 11.2c1.5 0 2.7-1.7 2.7-3.8S9.7 4 8.2 4 5.5 5.4 5.5 7.4s1.2 3.8 2.7 3.8ZM15.8 11.2c1.5 0 2.7-1.7 2.7-3.8S17.3 4 15.8 4s-2.7 1.4-2.7 3.4 1.2 3.8 2.7 3.8Z"></path><path d="M12 10.5c-3.3 0-6.5 4.2-6.5 6.5 0 1.8 2 3 3.7 3 .9 0 1.8-.5 2.8-.5s1.9.5 2.8.5c1.7 0 3.7-1.2 3.7-3 0-2.3-3.2-6.5-6.5-6.5Z"></path></svg>
+          <span class="nav-label">自动追更</span>
         </button>
         <button id="systemStatusButton" class="sidebar-link" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 13h3l2-7 4 12 2-5h5"></path><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"></path></svg>
@@ -1012,10 +1154,12 @@
               <div class="field">
                 <label for="emby302HostInput">监听地址</label>
                 <input id="emby302HostInput" type="text" value="0.0.0.0" autocomplete="off">
+                <p class="gateway-field-help">Docker 部署保持 0.0.0.0，由端口映射控制外部访问。</p>
               </div>
               <div class="field">
                 <label for="emby302PortInput">监听端口</label>
                 <input id="emby302PortInput" type="number" value="18096" min="1" max="65535" inputmode="numeric">
+                <p class="gateway-field-help">Emby 客户端连接 StrmFlow 302 网关时使用的端口。</p>
               </div>
               <div class="field">
                 <label for="emby302CacheTtlInput">直链缓存上限（秒）</label>
@@ -1025,6 +1169,7 @@
               <div class="field">
                 <label for="emby302CacheMaxInput">最大缓存数量</label>
                 <input id="emby302CacheMaxInput" type="number" value="1000" min="1" max="100000" inputmode="numeric">
+                <p class="gateway-field-help">超过上限后优先清理最久未使用的直链缓存。</p>
               </div>
               <div class="field">
                 <label for="emby302TimeoutInput">上游超时（毫秒）</label>
@@ -1034,6 +1179,7 @@
               <div class="field">
                 <label for="emby302BodyLimitInput">请求体缓冲上限（字节）</label>
                 <input id="emby302BodyLimitInput" type="number" value="1048576" min="1024" max="107374182400" inputmode="numeric">
+                <p class="gateway-field-help">仅限制需要缓冲的控制请求，不缓冲视频流量。</p>
               </div>
             </div>
             <div id="emby302Error" class="editor-error" role="alert"></div>
@@ -1050,7 +1196,7 @@
             </div>
             <div class="compact-table-wrap">
               <table class="compact-table">
-                <thead><tr><th>时间</th><th>Emby 项目</th><th>OpenList 路径</th><th>来源</th><th>目标域名</th></tr></thead>
+                <thead><tr><th>跳转时间</th><th>起播耗时</th><th>Emby 项目</th><th>OpenList 路径</th><th>来源</th><th>目标域名</th></tr></thead>
                 <tbody id="emby302RecentList"></tbody>
               </table>
             </div>
@@ -1063,7 +1209,7 @@
           <div class="page-heading">
             <p class="eyebrow">ACTIVITY</p>
             <h2 id="logsViewTitle" class="page-title">运行日志</h2>
-            <p class="muted hero-copy">查看最近的扫描、同步、配置操作和错误信息。</p>
+            <p class="muted hero-copy">直接查看服务端原始日志输出流，不做分类或字段重组。</p>
           </div>
           <div class="toolbar">
             <button id="logsRefreshButton" type="button">立即刷新</button>
@@ -1076,18 +1222,275 @@
         </header>
         <section class="panel">
           <div class="utility-toolbar">
-            <strong>最近记录</strong>
+            <strong>原始输出</strong>
             <p id="logsUpdatedAt" class="muted">等待读取服务日志…</p>
           </div>
-          <div class="log-table-wrap" role="region" aria-label="运行日志列表" tabindex="0">
-            <table class="log-table">
-              <thead>
-                <tr><th>时间</th><th>分类</th><th>方法</th><th>状态</th><th>路径 / 事件</th><th>耗时</th><th>客户端</th></tr>
-              </thead>
-              <tbody id="logsList" aria-live="polite"></tbody>
-            </table>
+          <div class="raw-log-wrap" role="region" aria-label="原始运行日志输出" tabindex="0">
+            <pre id="logsList" class="raw-log-stream" aria-live="polite">暂无日志输出</pre>
           </div>
         </section>
+      </section>
+
+      <section id="mediaProbeView" class="app-view" aria-labelledby="mediaProbeViewTitle" hidden>
+        <header class="page-header">
+          <div class="page-heading">
+            <p class="eyebrow">MEDIA ENHANCEMENT</p>
+            <div class="page-title-row">
+              <h2 id="mediaProbeViewTitle" class="page-title">媒体增强</h2>
+              <span class="bdpan-official-badge">Emby + FFmpeg</span>
+              <span id="mediaProbeHeaderStatus" class="gateway-status offline">正在读取</span>
+            </div>
+            <p class="muted hero-copy">维护 Emby 媒体信息，并为缺少主图的剧集生成清晰截图。</p>
+          </div>
+          <div class="toolbar feature-toolbar">
+            <button id="mediaProbeScanButton" type="button">立即扫描缺失项</button>
+          </div>
+        </header>
+        <div class="feature-page">
+        <section class="panel settings-content media-probe-settings" aria-labelledby="mediaProbeViewTitle">
+          <div class="bdpan-status-grid media-probe-status-grid" aria-label="媒体增强维护状态">
+            <article class="bdpan-status-card"><span>下次扫描</span><strong id="mediaProbeNextScan">—</strong></article>
+            <article class="bdpan-status-card"><span>上次扫描</span><strong id="mediaProbeLastScan">—</strong></article>
+            <article class="bdpan-status-card"><span>上次发现缺失</span><strong id="mediaProbeMissingCount">0 个</strong></article>
+            <article class="bdpan-status-card"><span>等待 / 处理中</span><strong id="mediaProbeQueueCount">0 个</strong></article>
+          </div>
+
+          <div class="media-probe-config-heading">
+            <div class="media-probe-config-copy">
+              <h3>增强配置</h3>
+              <p>先快速检查 Emby 已保存的数据，仅将确实缺失的项目送入后台处理队列。</p>
+            </div>
+            <div class="media-probe-flow" aria-label="媒体增强执行流程">
+              <span>并发检查</span><i aria-hidden="true">→</i><span>单线程处理</span>
+            </div>
+          </div>
+
+          <div class="settings-block-grid">
+            <section class="settings-block" aria-labelledby="mediaProbeScheduleTitle">
+              <div class="settings-block-heading-row">
+                <div class="media-probe-card-heading">
+                  <span class="media-probe-step" aria-hidden="true">01</span>
+                  <div class="settings-block-heading">
+                    <strong id="mediaProbeScheduleTitle">定时扫描</strong>
+                    <span>定期检查媒体信息和剧集图片的缺失情况。</span>
+                  </div>
+                </div>
+                <span class="runtime-context-badge">容器时区 <strong id="mediaProbeTimezoneValue">Asia/Shanghai</strong></span>
+              </div>
+              <label class="gateway-enable-card" for="mediaProbeDailyEnabledInput">
+                <span>
+                  <strong>启用每日扫描</strong>
+                  <small id="mediaProbeTimezoneHint">按容器 Asia/Shanghai 时区执行；完整项目会直接跳过。</small>
+                </span>
+                <input id="mediaProbeDailyEnabledInput" type="checkbox">
+                <span class="toggle-switch" aria-hidden="true"></span>
+              </label>
+              <div class="settings-field-grid media-probe-schedule-grid">
+                <div class="field media-probe-time-field">
+                  <label for="mediaProbeScanTimeInput">每日扫描时间</label>
+                  <input id="mediaProbeScanTimeInput" type="time" value="03:00" step="60">
+                  <p class="settings-help">按容器运行时区执行，时区不属于媒体增强保存项。</p>
+                </div>
+              </div>
+            </section>
+
+            <section class="settings-block" aria-labelledby="episodeImageSettingsTitle">
+              <div class="media-probe-card-heading">
+                <span class="media-probe-step" aria-hidden="true">02</span>
+                <div class="settings-block-heading">
+                  <strong id="episodeImageSettingsTitle">剧集截图</strong>
+                  <span id="episodeImageStrategyHint">缺少 Primary 图片时，默认在全集 30% 位置截取最高 1920px 的 JPEG。</span>
+                </div>
+              </div>
+              <label class="gateway-enable-card" for="episodeImageEnabledInput">
+                <span>
+                  <strong>自动补全缺失集图片</strong>
+                  <small>已有图片直接跳过，不覆盖 Emby 元数据提供器下载的图片。</small>
+                </span>
+                <input id="episodeImageEnabledInput" type="checkbox" checked>
+                <span class="toggle-switch" aria-hidden="true"></span>
+              </label>
+              <div class="settings-field-grid three-columns media-probe-capture-grid">
+                <div class="field">
+                  <label for="episodeImageSeekPercentInput">截图位置（%）</label>
+                  <input id="episodeImageSeekPercentInput" type="number" value="30" min="5" max="90" inputmode="numeric">
+                  <p class="settings-help">按整集时长百分比定位，自动避开片头附近。</p>
+                </div>
+                <div class="field">
+                  <label for="episodeImageMaxWidthInput">最大宽度（px）</label>
+                  <input id="episodeImageMaxWidthInput" type="number" value="1920" min="320" max="3840" step="160" inputmode="numeric">
+                  <p class="settings-help">仅缩小超出宽度的画面，不放大小分辨率视频。</p>
+                </div>
+                <div class="field">
+                  <label for="episodeImageJpegQualityInput">JPEG 质量</label>
+                  <input id="episodeImageJpegQualityInput" type="number" value="2" min="1" max="10" inputmode="numeric">
+                  <p class="settings-help">1 最清晰，数值越大文件越小。</p>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <section class="episode-library-picker media-probe-library-scope" aria-labelledby="episodeImageLibraryTitle">
+            <div class="episode-library-head">
+              <div>
+                <strong id="episodeImageLibraryTitle">启用截图的媒体库</strong>
+                <small id="episodeImageLibrarySummary">正在读取 Emby 媒体库…</small>
+              </div>
+              <button id="episodeImageLibraryRefreshButton" class="episode-library-refresh" type="button">刷新媒体库</button>
+            </div>
+            <div id="episodeImageLibraryList" class="episode-library-list" aria-live="polite"></div>
+          </section>
+
+          <details class="settings-advanced">
+            <summary>高级执行参数</summary>
+            <div class="settings-advanced-content">
+              <div class="settings-field-grid">
+                <div class="field">
+                  <label for="mediaProbeScanConcurrencyInput">Emby 检查并发</label>
+                  <input id="mediaProbeScanConcurrencyInput" type="number" value="8" min="1" max="32" inputmode="numeric">
+                  <p class="settings-help">仅用于读取 Emby 列表，不会并发访问网盘。</p>
+                </div>
+                <div class="field">
+                  <label for="mediaProbeDelayInput">新集入队延迟（秒）</label>
+                  <input id="mediaProbeDelayInput" type="number" value="10" min="0" max="300" inputmode="numeric">
+                  <p class="settings-help">给 Emby 媒体库扫描预留识别时间。</p>
+                </div>
+                <div class="field">
+                  <label for="mediaProbeTimeoutInput">媒体探测超时（秒）</label>
+                  <input id="mediaProbeTimeoutInput" type="number" value="90" min="10" max="600" inputmode="numeric">
+                </div>
+                <div class="field">
+                  <label for="episodeImageTimeoutInput">单次截图超时（秒）</label>
+                  <input id="episodeImageTimeoutInput" type="number" value="120" min="10" max="600" inputmode="numeric">
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <div id="mediaProbeError" class="editor-error" role="alert"></div>
+          <div class="media-probe-footer">
+            <div class="media-probe-last-result">
+              <span class="media-probe-result-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19V3"></path></svg>
+              </span>
+              <span class="media-probe-result-copy">
+                <strong>最近扫描结果</strong>
+                <small id="mediaProbeLastResult">尚未执行完整扫描</small>
+              </span>
+            </div>
+            <div class="page-form-actions">
+              <button id="mediaProbeResetButton" type="button">恢复已保存配置</button>
+              <button id="mediaProbeSaveButton" class="primary" type="button">保存增强设置</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel media-probe-history" aria-labelledby="mediaProbeBatchTitle">
+          <div class="utility-toolbar">
+            <div>
+              <strong id="mediaProbeBatchTitle">扫描批次</strong>
+              <p class="muted">保留最近 20 个批次；展开可查看每个任务的状态、重试和结果日志。</p>
+            </div>
+          </div>
+          <div id="mediaProbeBatchList" class="media-probe-batch-list" aria-live="polite"></div>
+        </section>
+
+        </div>
+      </section>
+
+      <section id="bdpanView" class="app-view" aria-labelledby="bdpanViewTitle" hidden>
+        <header class="page-header">
+          <div class="page-heading">
+            <p class="eyebrow">BAIDU NETDISK</p>
+            <div class="page-title-row">
+              <h2 id="bdpanViewTitle" class="page-title">自动追更</h2>
+              <span class="bdpan-official-badge">官方 bdpan CLI</span>
+              <span id="bdpanHeaderStatus" class="gateway-status offline">正在读取</span>
+            </div>
+            <p class="muted hero-copy">检查百度网盘分享更新，择优转存新集并自动同步至 Emby。</p>
+          </div>
+          <div class="toolbar feature-toolbar">
+            <button id="bdpanRefreshButton" type="button">刷新状态</button>
+            <button id="bdpanCheckButton" type="button">立即检查</button>
+            <button id="bdpanLogoutButton" class="danger-button" type="button" hidden>退出网盘账号</button>
+          </div>
+        </header>
+        <div class="feature-page">
+        <section class="panel settings-content" aria-labelledby="bdpanViewTitle">
+          <div class="bdpan-status-grid" aria-label="百度网盘自动追更状态">
+            <article class="bdpan-status-card"><span>CLI</span><strong id="bdpanCliStatus">检查中…</strong></article>
+            <article class="bdpan-status-card"><span>网盘授权</span><strong id="bdpanLoginStatus">检查中…</strong></article>
+            <article class="bdpan-status-card"><span>追更媒体</span><strong id="bdpanWatchedStatus">0 个</strong></article>
+            <article class="bdpan-status-card"><span>下次检查</span><strong id="bdpanNextCheckStatus">—</strong></article>
+          </div>
+
+          <label class="gateway-enable-card" for="bdpanEnabledInput">
+            <span>
+              <strong>启用百度网盘自动追更</strong>
+              <small>仅处理“更新中”且已填写百度分享链接的媒体；首次检查只建立基线，不会转存历史文件。</small>
+            </span>
+            <input id="bdpanEnabledInput" type="checkbox">
+            <span class="toggle-switch" aria-hidden="true"></span>
+          </label>
+
+          <div class="bdpan-settings-grid">
+            <div class="field bdpan-root-field">
+              <label for="bdpanSaveRootInput">网盘转存根目录</label>
+              <input id="bdpanSaveRootInput" type="text" value="media" placeholder="media" autocomplete="off">
+              <p class="gateway-field-help">默认为“我的应用数据/bdpan/media”；镜像内固定使用已安装的 bdpan CLI。</p>
+            </div>
+            <div class="field bdpan-metric-field">
+              <label for="bdpanIntervalInput">检查间隔（分钟）</label>
+              <input id="bdpanIntervalInput" type="number" value="10" min="5" max="1440" inputmode="numeric">
+            </div>
+            <div class="field bdpan-metric-field">
+              <label for="bdpanSettleInput">转存等待（秒）</label>
+              <input id="bdpanSettleInput" type="number" value="90" min="30" max="1800" inputmode="numeric">
+            </div>
+            <div class="field bdpan-metric-field">
+              <label for="bdpanMaxItemsInput">单次最多新增</label>
+              <input id="bdpanMaxItemsInput" type="number" value="20" min="1" max="100" inputmode="numeric">
+            </div>
+          </div>
+
+          <div id="bdpanAuthorizationCallout" class="bdpan-callout" hidden>
+            <div class="bdpan-callout-copy">
+              <strong>低频、串行、带抖动的检查策略</strong>
+              <span>最短 5 分钟；目录请求串行执行并留出间隔，失败后指数退避，避免重复提交相同文件。</span>
+              <label class="bdpan-consent" for="bdpanDisclaimerInput">
+                <input id="bdpanDisclaimerInput" type="checkbox">
+                <span>授权前已备份网盘重要数据，并确认当前是可信环境；授权配置不会显示在页面或写入日志。</span>
+              </label>
+            </div>
+            <div class="bdpan-auth-actions">
+              <button id="bdpanLoginStartButton" class="baidu-button" type="button">获取授权链接</button>
+            </div>
+          </div>
+
+          <div id="bdpanLoginPanel" class="bdpan-login-panel" hidden>
+            <a id="bdpanAuthorizationLink" class="button-like bdpan-auth-link" href="#" target="_blank" rel="noopener noreferrer">在百度网盘打开授权页面 ↗</a>
+            <div class="field">
+              <label for="bdpanAuthorizationCodeInput">网页返回的 32 位授权码</label>
+              <input id="bdpanAuthorizationCodeInput" type="password" minlength="32" maxlength="32" placeholder="授权码仅通过标准输入传给 bdpan" autocomplete="off">
+            </div>
+            <button id="bdpanLoginCompleteButton" class="primary" type="button">完成授权</button>
+          </div>
+
+          <div class="bdpan-watch-panel">
+            <div class="bdpan-watch-head">
+              <strong>追更队列</strong>
+              <span id="bdpanRunningHint">等待调度</span>
+            </div>
+            <div id="bdpanWatchList" class="bdpan-watch-list" aria-live="polite"></div>
+          </div>
+          <div id="bdpanError" class="editor-error" role="alert"></div>
+          <div class="page-form-actions">
+            <button id="bdpanResetButton" type="button">恢复已保存配置</button>
+            <button id="bdpanSaveButton" class="primary" type="button">保存并应用</button>
+          </div>
+        </section>
+
+        </div>
       </section>
 
       <section id="settingsView" class="app-view" aria-labelledby="settingsViewTitle" hidden>
@@ -1095,7 +1498,7 @@
           <div class="page-heading">
             <p class="eyebrow">SETTINGS</p>
             <h2 id="settingsViewTitle" class="page-title">系统设置</h2>
-            <p class="muted hero-copy">管理路径映射，以及百度网盘自动追更与同步。</p>
+            <p class="muted hero-copy">管理 STRM 路径与消息通知；媒体增强和自动追更已移至左侧独立工作区。</p>
           </div>
         </header>
         <div class="settings-page">
@@ -1140,142 +1543,6 @@
           </div>
         </section>
 
-        <section class="panel settings-content" aria-labelledby="mediaProbeSettingsTitle">
-          <div class="bdpan-title-row settings-section-title">
-            <div class="bdpan-title-copy">
-              <h3 id="mediaProbeSettingsTitle">媒体信息维护 <span class="bdpan-official-badge">Emby 原生提取</span></h3>
-              <p>每天在指定时间扫描目标 STRM 根目录，只将缺少时长、容器或媒体流信息的项目加入后台队列。</p>
-            </div>
-            <span id="mediaProbeHeaderStatus" class="gateway-status offline">正在读取</span>
-          </div>
-
-          <div class="bdpan-status-grid" aria-label="媒体信息维护状态">
-            <article class="bdpan-status-card"><span>下次扫描</span><strong id="mediaProbeNextScan">—</strong></article>
-            <article class="bdpan-status-card"><span>上次扫描</span><strong id="mediaProbeLastScan">—</strong></article>
-            <article class="bdpan-status-card"><span>上次发现缺失</span><strong id="mediaProbeMissingCount">0 个</strong></article>
-            <article class="bdpan-status-card"><span>等待 / 提取中</span><strong id="mediaProbeQueueCount">0 个</strong></article>
-          </div>
-
-          <label class="gateway-enable-card" for="mediaProbeDailyEnabledInput">
-            <span>
-              <strong>启用每日缺失媒体信息扫描</strong>
-              <small id="mediaProbeTimezoneHint">按 Asia/Hong_Kong 时区执行；已有完整媒体信息的项目会直接跳过。</small>
-            </span>
-            <input id="mediaProbeDailyEnabledInput" type="checkbox">
-            <span class="toggle-switch" aria-hidden="true"></span>
-          </label>
-
-          <div class="notification-settings-grid">
-            <div class="notification-webhook-card">
-              <div class="field">
-                <label for="mediaProbeScanTimeInput">每日扫描时间</label>
-                <input id="mediaProbeScanTimeInput" type="time" value="03:00" step="60">
-                <p class="settings-help">扫描过程只读取 Emby 媒体库；发现缺失项后串行提取，避免同时请求多个网盘视频。</p>
-              </div>
-            </div>
-            <div class="notification-toggle-grid">
-              <div class="notification-option">
-                <span><strong>最近扫描结果</strong><small id="mediaProbeLastResult">尚未执行完整扫描</small></span>
-              </div>
-            </div>
-          </div>
-          <div id="mediaProbeError" class="editor-error" role="alert"></div>
-          <div class="page-form-actions">
-            <button id="mediaProbeScanButton" type="button">立即扫描缺失项</button>
-            <button id="mediaProbeResetButton" type="button">恢复已保存配置</button>
-            <button id="mediaProbeSaveButton" class="primary" type="button">保存扫描设置</button>
-          </div>
-        </section>
-
-        <section class="panel settings-content" aria-labelledby="bdpanSettingsTitle">
-          <div class="bdpan-title-row settings-section-title">
-            <div class="bdpan-title-copy">
-              <h3 id="bdpanSettingsTitle">百度网盘自动追更 <span class="bdpan-official-badge">官方 bdpan CLI</span></h3>
-              <p>定时只读检查分享目录；发现新增视频后选择性转存，并自动扫描、整理和刷新 Emby。</p>
-            </div>
-            <span id="bdpanHeaderStatus" class="gateway-status offline">正在读取</span>
-          </div>
-
-          <div class="bdpan-status-grid" aria-label="百度网盘自动追更状态">
-            <article class="bdpan-status-card"><span>CLI</span><strong id="bdpanCliStatus">检查中…</strong></article>
-            <article class="bdpan-status-card"><span>网盘授权</span><strong id="bdpanLoginStatus">检查中…</strong></article>
-            <article class="bdpan-status-card"><span>追更媒体</span><strong id="bdpanWatchedStatus">0 个</strong></article>
-            <article class="bdpan-status-card"><span>下次检查</span><strong id="bdpanNextCheckStatus">—</strong></article>
-          </div>
-
-          <label class="gateway-enable-card" for="bdpanEnabledInput">
-            <span>
-              <strong>启用百度网盘自动追更</strong>
-              <small>仅处理“更新中”且已填写百度分享链接的媒体；首次检查只建立基线，不会转存历史文件。</small>
-            </span>
-            <input id="bdpanEnabledInput" type="checkbox">
-            <span class="toggle-switch" aria-hidden="true"></span>
-          </label>
-
-          <div class="bdpan-settings-grid">
-            <div class="field bdpan-binary-field">
-              <label for="bdpanBinaryInput">bdpan 二进制</label>
-              <input id="bdpanBinaryInput" type="text" value="bdpan" placeholder="bdpan 或 /usr/local/bin/bdpan" autocomplete="off">
-              <p class="gateway-field-help">Docker 镜像已安装官方 CLI；本机可运行 scripts/install-bdpan.sh。</p>
-            </div>
-            <div class="field bdpan-root-field">
-              <label for="bdpanSaveRootInput">网盘转存根目录</label>
-              <input id="bdpanSaveRootInput" type="text" value="StrmFlow" placeholder="StrmFlow" autocomplete="off">
-              <p class="gateway-field-help">相对于“我的应用数据/bdpan/”；OpenList 请将此目录挂载为上方只读源根目录。</p>
-            </div>
-            <div class="field">
-              <label for="bdpanIntervalInput">检查间隔（分钟）</label>
-              <input id="bdpanIntervalInput" type="number" value="10" min="5" max="1440" inputmode="numeric">
-            </div>
-            <div class="field">
-              <label for="bdpanSettleInput">转存等待（秒）</label>
-              <input id="bdpanSettleInput" type="number" value="90" min="30" max="1800" inputmode="numeric">
-            </div>
-            <div class="field">
-              <label for="bdpanMaxItemsInput">单次最多新增</label>
-              <input id="bdpanMaxItemsInput" type="number" value="20" min="1" max="100" inputmode="numeric">
-            </div>
-          </div>
-
-          <div class="bdpan-callout">
-            <div class="bdpan-callout-copy">
-              <strong>低频、串行、带抖动的检查策略</strong>
-              <span>最短 5 分钟；目录请求串行执行并留出间隔，失败后指数退避，避免重复提交相同文件。</span>
-              <label class="bdpan-consent" for="bdpanDisclaimerInput">
-                <input id="bdpanDisclaimerInput" type="checkbox">
-                <span>授权前已备份网盘重要数据，并确认当前是可信环境；授权配置不会显示在页面或写入日志。</span>
-              </label>
-            </div>
-            <div class="bdpan-auth-actions">
-              <button id="bdpanRefreshButton" type="button">刷新状态</button>
-              <button id="bdpanCheckButton" type="button">立即检查</button>
-              <button id="bdpanLoginStartButton" class="baidu-button" type="button">获取授权链接</button>
-            </div>
-          </div>
-
-          <div id="bdpanLoginPanel" class="bdpan-login-panel" hidden>
-            <a id="bdpanAuthorizationLink" class="button-like bdpan-auth-link" href="#" target="_blank" rel="noopener noreferrer">在百度网盘打开授权页面 ↗</a>
-            <div class="field">
-              <label for="bdpanAuthorizationCodeInput">网页返回的 32 位授权码</label>
-              <input id="bdpanAuthorizationCodeInput" type="password" minlength="32" maxlength="32" placeholder="授权码仅通过标准输入传给 bdpan" autocomplete="off">
-            </div>
-            <button id="bdpanLoginCompleteButton" class="primary" type="button">完成授权</button>
-          </div>
-
-          <div class="bdpan-watch-panel">
-            <div class="bdpan-watch-head">
-              <strong>追更队列</strong>
-              <span id="bdpanRunningHint">等待调度</span>
-            </div>
-            <div id="bdpanWatchList" class="bdpan-watch-list" aria-live="polite"></div>
-          </div>
-          <div id="bdpanError" class="editor-error" role="alert"></div>
-          <div class="page-form-actions">
-            <button id="bdpanResetButton" type="button">恢复已保存配置</button>
-            <button id="bdpanSaveButton" class="primary" type="button">保存并应用</button>
-          </div>
-        </section>
-
         <section class="panel settings-content" aria-labelledby="wecomSettingsTitle">
           <div class="bdpan-title-row settings-section-title">
             <div class="bdpan-title-copy">
@@ -1289,8 +1556,8 @@
             <div class="notification-webhook-card">
               <div class="field">
                 <label for="wecomWebhookInput">机器人 Webhook 地址</label>
-                <input id="wecomWebhookInput" type="password" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..." autocomplete="new-password">
-                <p class="settings-help">Webhook 密钥保存后不再返回页面；输入新地址可直接替换。</p>
+                <input id="wecomWebhookInput" type="text" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..." autocomplete="off" spellcheck="false">
+                <p class="settings-help">已保存时仅显示服务端生成的脱敏地址；浏览器不会收到真实 Key。输入新地址可直接替换。</p>
               </div>
               <p id="wecomWebhookStatus" class="notification-webhook-status">尚未配置 Webhook</p>
             </div>
@@ -1562,6 +1829,7 @@
       mediaProbeData: null,
       mediaProbeSnapshot: '',
       mediaProbeLoading: false,
+      mediaProbeTimer: null,
       statusTimer: null,
       logs: savedLogs,
       serverLogs: [],
@@ -1600,6 +1868,10 @@
       logout: document.querySelector('#logoutButton'),
       mediaNav: document.querySelector('#mediaNavButton'),
       mediaView: document.querySelector('#mediaView'),
+      mediaProbeNav: document.querySelector('#mediaProbeNavButton'),
+      mediaProbeView: document.querySelector('#mediaProbeView'),
+      bdpanNav: document.querySelector('#bdpanNavButton'),
+      bdpanView: document.querySelector('#bdpanView'),
       systemStatus: document.querySelector('#systemStatusButton'),
       systemStatusNavDot: document.querySelector('#systemStatusNavDot'),
       systemStatusView: document.querySelector('#systemStatusView'),
@@ -1658,8 +1930,22 @@
       mediaProbeMissingCount: document.querySelector('#mediaProbeMissingCount'),
       mediaProbeQueueCount: document.querySelector('#mediaProbeQueueCount'),
       mediaProbeTimezoneHint: document.querySelector('#mediaProbeTimezoneHint'),
+      mediaProbeTimezoneValue: document.querySelector('#mediaProbeTimezoneValue'),
+      mediaProbeBatchList: document.querySelector('#mediaProbeBatchList'),
       mediaProbeDailyEnabled: document.querySelector('#mediaProbeDailyEnabledInput'),
+      episodeImageEnabled: document.querySelector('#episodeImageEnabledInput'),
+      episodeImageLibraryList: document.querySelector('#episodeImageLibraryList'),
+      episodeImageLibrarySummary: document.querySelector('#episodeImageLibrarySummary'),
+      episodeImageLibraryRefresh: document.querySelector('#episodeImageLibraryRefreshButton'),
       mediaProbeScanTime: document.querySelector('#mediaProbeScanTimeInput'),
+      mediaProbeScanConcurrency: document.querySelector('#mediaProbeScanConcurrencyInput'),
+      mediaProbeDelay: document.querySelector('#mediaProbeDelayInput'),
+      mediaProbeTimeout: document.querySelector('#mediaProbeTimeoutInput'),
+      episodeImageTimeout: document.querySelector('#episodeImageTimeoutInput'),
+      episodeImageSeekPercent: document.querySelector('#episodeImageSeekPercentInput'),
+      episodeImageMaxWidth: document.querySelector('#episodeImageMaxWidthInput'),
+      episodeImageJpegQuality: document.querySelector('#episodeImageJpegQualityInput'),
+      episodeImageStrategyHint: document.querySelector('#episodeImageStrategyHint'),
       mediaProbeLastResult: document.querySelector('#mediaProbeLastResult'),
       mediaProbeError: document.querySelector('#mediaProbeError'),
       mediaProbeScan: document.querySelector('#mediaProbeScanButton'),
@@ -1671,15 +1957,16 @@
       bdpanWatchedStatus: document.querySelector('#bdpanWatchedStatus'),
       bdpanNextCheckStatus: document.querySelector('#bdpanNextCheckStatus'),
       bdpanEnabled: document.querySelector('#bdpanEnabledInput'),
-      bdpanBinary: document.querySelector('#bdpanBinaryInput'),
       bdpanSaveRoot: document.querySelector('#bdpanSaveRootInput'),
       bdpanInterval: document.querySelector('#bdpanIntervalInput'),
       bdpanSettle: document.querySelector('#bdpanSettleInput'),
       bdpanMaxItems: document.querySelector('#bdpanMaxItemsInput'),
       bdpanRefresh: document.querySelector('#bdpanRefreshButton'),
       bdpanCheck: document.querySelector('#bdpanCheckButton'),
+      bdpanLogout: document.querySelector('#bdpanLogoutButton'),
       bdpanLoginStart: document.querySelector('#bdpanLoginStartButton'),
       bdpanDisclaimer: document.querySelector('#bdpanDisclaimerInput'),
+      bdpanAuthorizationCallout: document.querySelector('#bdpanAuthorizationCallout'),
       bdpanLoginPanel: document.querySelector('#bdpanLoginPanel'),
       bdpanAuthorizationLink: document.querySelector('#bdpanAuthorizationLink'),
       bdpanAuthorizationCode: document.querySelector('#bdpanAuthorizationCodeInput'),
@@ -1813,119 +2100,16 @@
       ).format(date);
     }
 
-    const logCategoryLabels = {
-      http: '页面访问',
-      auth: '登录认证',
-      system: '系统状态',
-      media: '媒体数据',
-      scan: '目录扫描',
-      sync: 'Emby 同步',
-      settings: '系统设置',
-      transfer: '网盘转存',
-      bdpan: '百度网盘',
-      notification: '消息通知',
-      gateway302: '302 网关',
-      activity: '界面操作',
-    };
-
-    function combinedActivityLogs() {
-      const browserLogs = state.logs.map((entry, index) => ({
-        ...entry,
-        id: 'browser-' + index + '-' + entry.time,
-        category: 'activity',
-        level: entry.type || 'info',
-      }));
-      return [...state.serverLogs, ...browserLogs].sort(
-        (left, right) => new Date(right.time).getTime() - new Date(left.time).getTime(),
-      );
-    }
-
     function renderActivityLogs() {
-      const allLogs = combinedActivityLogs();
-      elements.logsList.replaceChildren();
-      elements.logCount.textContent = allLogs.length > 99 ? '99+' : String(allLogs.length);
-      elements.logCount.hidden = allLogs.length === 0;
-      if (allLogs.length === 0) {
-        const row = document.createElement('tr');
-        const cell = document.createElement('td');
-        cell.className = 'log-empty-cell';
-        cell.colSpan = 7;
-        cell.textContent = '还没有运行记录，请点击“立即刷新”获取服务日志。';
-        row.append(cell);
-        elements.logsList.append(row);
-        return;
+      const lines = Array.isArray(state.serverLogs) ? state.serverLogs : [];
+      elements.logsList.textContent = lines.map((line) => String(line.text || '')).join('\n');
+      elements.logCount.textContent = lines.length > 99 ? '99+' : String(lines.length);
+      elements.logCount.hidden = lines.length === 0;
+      if (lines.length === 0) {
+        elements.logsList.textContent = '暂无日志输出，点击“立即刷新”重新读取。';
       }
-
-      for (const entry of allLogs) {
-        const row = document.createElement('tr');
-        const timeCell = document.createElement('td');
-        timeCell.className = 'time-cell';
-        const time = document.createElement('time');
-        time.className = 'log-time';
-        time.dateTime = entry.time;
-        time.title = new Date(entry.time).toLocaleString('zh-CN');
-        time.textContent = formatLogTime(entry.time);
-        timeCell.append(time);
-
-        const categoryCell = document.createElement('td');
-        const category = document.createElement('span');
-        category.className = 'log-category';
-        category.textContent = logCategoryLabels[entry.category] || entry.category || '界面操作';
-        categoryCell.append(category);
-
-        const methodCell = document.createElement('td');
-        methodCell.className = 'method-cell';
-        if (entry.method) {
-          const method = document.createElement('span');
-          method.className = 'log-method';
-          method.textContent = entry.method;
-          methodCell.append(method);
-        } else methodCell.textContent = '—';
-
-        const statusCell = document.createElement('td');
-        statusCell.className = 'status-cell';
-        if (Number.isInteger(entry.statusCode)) {
-          const status = document.createElement('span');
-          status.className = 'log-status-code' + (
-            entry.statusCode >= 500 ? ' error'
-              : entry.statusCode >= 400 ? ' warning'
-                : entry.statusCode >= 300 ? ' redirect' : ''
-          );
-          status.textContent = String(entry.statusCode);
-          statusCell.append(status);
-        } else statusCell.textContent = '—';
-
-        const pathCell = document.createElement('td');
-        pathCell.className = 'path-cell';
-        const primary = document.createElement('div');
-        primary.className = 'log-primary';
-        primary.textContent = entry.eventType ? entry.message : (entry.path || entry.message);
-        pathCell.append(primary);
-        const secondaryParts = [];
-        if (entry.redirectTo) secondaryParts.push('跳转 → ' + entry.redirectTo);
-        if (entry.gatewayAction) secondaryParts.push('动作：' + entry.gatewayAction);
-        if (entry.eventType && entry.path) secondaryParts.push(entry.path);
-        if (entry.errorType) secondaryParts.push('异常：' + entry.errorType);
-        if (entry.protocol) secondaryParts.push(entry.protocol);
-        if (entry.responseSize) secondaryParts.push(entry.responseSize + ' B');
-        if (secondaryParts.length > 0) {
-          const secondary = document.createElement('div');
-          secondary.className = 'log-secondary';
-          secondary.textContent = secondaryParts.join(' · ');
-          pathCell.append(secondary);
-        }
-        if (entry.userAgent) row.title = 'User-Agent: ' + entry.userAgent;
-
-        const durationCell = document.createElement('td');
-        durationCell.className = 'duration-cell';
-        durationCell.textContent = entry.durationMs === undefined ? '—' : entry.durationMs + ' ms';
-        const clientCell = document.createElement('td');
-        clientCell.className = 'client-cell';
-        clientCell.textContent = entry.client || '—';
-
-        row.append(timeCell, categoryCell, methodCell, statusCell, pathCell, durationCell, clientCell);
-        elements.logsList.append(row);
-      }
+      const container = elements.logsList.parentElement;
+      if (container) container.scrollTop = container.scrollHeight;
     }
 
     function addActivityLog(message, type = '') {
@@ -1958,7 +2142,7 @@
       }
       try {
         const data = await api('/api/logs?limit=500');
-        state.serverLogs = Array.isArray(data.items) ? data.items : [];
+        state.serverLogs = Array.isArray(data.lines) ? data.lines : [];
         elements.logsUpdatedAt.textContent = '最后刷新：' + new Date().toLocaleTimeString('zh-CN', { hour12: false });
         renderActivityLogs();
       } catch (error) {
@@ -2051,6 +2235,30 @@
       validateEmby302(false);
     }
 
+    function formatGatewayDuration(value) {
+      const duration = Number(value);
+      if (!Number.isFinite(duration)) return '—';
+      return duration >= 1000 ? (duration / 1000).toFixed(2) + ' 秒' : Math.round(duration) + ' ms';
+    }
+
+    function gatewayTimingTooltip(redirect) {
+      const timings = redirect.timings || {};
+      const stages = [
+        ['总耗时', timings.totalMs ?? redirect.startupMs],
+        ['Emby 权限验证', timings.embyAuthMs],
+        ['直链缓存查询', timings.cacheLookupMs],
+        ['Emby 媒体源查询', timings.mediaSourceMs],
+        ['STRM 文件读取', timings.strmReadMs],
+        ['OpenList 直链解析', timings.openListLinkMs],
+        ['直链解析阶段总计', timings.directLinkResolveMs],
+      ];
+      const lines = stages
+        .filter(([, value]) => Number.isFinite(Number(value)))
+        .map(([label, value]) => label + '：' + formatGatewayDuration(value));
+      if (redirect.cacheHit) lines.push('结果：直链缓存命中');
+      return lines.length ? lines.join('\n') : '暂无分段耗时数据';
+    }
+
     function renderEmby302(data) {
       if (!data) return;
       const config = data.config || {};
@@ -2090,15 +2298,25 @@
         const row = document.createElement('tr');
         const cell = document.createElement('td');
         cell.className = 'compact-empty';
-        cell.colSpan = 5;
+        cell.colSpan = 6;
         cell.textContent = '暂无 302 跳转记录';
         row.append(cell);
         elements.emby302RecentList.append(row);
       } else {
         for (const redirect of redirects) {
           const row = document.createElement('tr');
+          const timeCell = document.createElement('td');
+          timeCell.textContent = formatLogTime(redirect.time);
+          row.append(timeCell);
+
+          const startupCell = document.createElement('td');
+          startupCell.className = 'startup-duration';
+          startupCell.textContent = formatGatewayDuration(redirect.startupMs);
+          startupCell.title = gatewayTimingTooltip(redirect);
+          startupCell.setAttribute('aria-label', startupCell.textContent + '；' + startupCell.title.replaceAll('\n', '；'));
+          row.append(startupCell);
+
           for (const value of [
-            formatLogTime(redirect.time),
             redirect.itemId || '—',
             redirect.path || '缓存记录',
             redirect.cacheHit ? '缓存命中' : '实时解析',
@@ -2181,11 +2399,240 @@
       }
     }
 
+    function selectedEpisodeImageLibraryIds() {
+      return Array.from(elements.episodeImageLibraryList.querySelectorAll('input[data-library-id]:checked'))
+        .map((input) => input.dataset.libraryId || '')
+        .filter(Boolean);
+    }
+
+    function updateEpisodeImageLibrarySummary() {
+      const total = elements.episodeImageLibraryList.querySelectorAll('input[data-library-id]').length;
+      const selected = selectedEpisodeImageLibraryIds().length;
+      if (!total) return;
+      elements.episodeImageLibrarySummary.textContent = selected === total
+        ? '已启用全部 ' + total + ' 个剧集媒体库'
+        : '已选择 ' + selected + ' / ' + total + ' 个剧集媒体库';
+    }
+
+    function renderEpisodeImageLibraries(data, preferredIds = null) {
+      const config = data?.config || {};
+      const runtime = data?.runtime || {};
+      const libraries = Array.isArray(runtime.mediaLibraries) ? runtime.mediaLibraries : [];
+      const configuredIds = Array.isArray(config.episodeImageLibraryIds)
+        ? config.episodeImageLibraryIds.map(String) : [];
+      const selectedIds = new Set(preferredIds === null ? configuredIds : preferredIds.map(String));
+      const selectAll = preferredIds === null && configuredIds.length === 0;
+      elements.episodeImageLibraryList.replaceChildren();
+      if (!libraries.length) {
+        const empty = document.createElement('div');
+        empty.className = 'episode-library-empty';
+        empty.textContent = runtime.mediaLibrariesError
+          ? '媒体库读取失败：' + runtime.mediaLibrariesError
+          : '未发现目标 STRM 根目录下的 Emby 剧集媒体库。';
+        elements.episodeImageLibraryList.append(empty);
+        elements.episodeImageLibrarySummary.textContent = runtime.mediaLibrariesError
+          ? '读取失败，可点击刷新重试' : '暂无可选择的媒体库';
+        validateMediaProbe(false);
+        return;
+      }
+      for (const library of libraries) {
+        const option = document.createElement('label');
+        option.className = 'episode-library-option';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.dataset.libraryId = String(library.id || '');
+        input.checked = selectAll || selectedIds.has(input.dataset.libraryId);
+        input.addEventListener('change', () => {
+          updateEpisodeImageLibrarySummary();
+          validateMediaProbe(false);
+        });
+        const copy = document.createElement('span');
+        copy.className = 'episode-library-copy';
+        const name = document.createElement('strong');
+        name.textContent = library.name || library.id || '未命名媒体库';
+        const location = document.createElement('small');
+        const locations = Array.isArray(library.locations) ? library.locations : [];
+        location.textContent = locations.join(' · ') || '未提供媒体库路径';
+        location.title = location.textContent;
+        copy.append(name, location);
+        option.append(input, copy);
+        elements.episodeImageLibraryList.append(option);
+      }
+      updateEpisodeImageLibrarySummary();
+      validateMediaProbe(false);
+    }
+
     function mediaProbeValues() {
       return {
         dailyEnabled: elements.mediaProbeDailyEnabled.checked,
         scanTime: elements.mediaProbeScanTime.value || '03:00',
+        episodeImageEnabled: elements.episodeImageEnabled.checked,
+        episodeImageLibraryIds: selectedEpisodeImageLibraryIds(),
+        scanConcurrency: Number(elements.mediaProbeScanConcurrency.value),
+        probeDelaySeconds: Number(elements.mediaProbeDelay.value),
+        probeTimeoutSeconds: Number(elements.mediaProbeTimeout.value),
+        episodeImageTimeoutSeconds: Number(elements.episodeImageTimeout.value),
+        episodeImageSeekPercent: Number(elements.episodeImageSeekPercent.value),
+        episodeImageMaxWidth: Number(elements.episodeImageMaxWidth.value),
+        episodeImageJpegQuality: Number(elements.episodeImageJpegQuality.value),
       };
+    }
+
+    function validateMediaProbe(showError = false) {
+      const values = mediaProbeValues();
+      const fields = [
+        [elements.mediaProbeScanConcurrency, Number.isInteger(values.scanConcurrency) && values.scanConcurrency >= 1 && values.scanConcurrency <= 32, 'Emby 检查并发需要在 1 至 32 之间'],
+        [elements.mediaProbeDelay, Number.isInteger(values.probeDelaySeconds) && values.probeDelaySeconds >= 0 && values.probeDelaySeconds <= 300, '新集入队延迟需要在 0 至 300 秒之间'],
+        [elements.mediaProbeTimeout, Number.isInteger(values.probeTimeoutSeconds) && values.probeTimeoutSeconds >= 10 && values.probeTimeoutSeconds <= 600, '媒体探测超时需要在 10 至 600 秒之间'],
+        [elements.episodeImageTimeout, Number.isInteger(values.episodeImageTimeoutSeconds) && values.episodeImageTimeoutSeconds >= 10 && values.episodeImageTimeoutSeconds <= 600, '截图超时需要在 10 至 600 秒之间'],
+        [elements.episodeImageSeekPercent, Number.isInteger(values.episodeImageSeekPercent) && values.episodeImageSeekPercent >= 5 && values.episodeImageSeekPercent <= 90, '截图位置需要在 5% 至 90% 之间'],
+        [elements.episodeImageMaxWidth, Number.isInteger(values.episodeImageMaxWidth) && values.episodeImageMaxWidth >= 320 && values.episodeImageMaxWidth <= 3840, '截图宽度需要在 320 至 3840 像素之间'],
+        [elements.episodeImageJpegQuality, Number.isInteger(values.episodeImageJpegQuality) && values.episodeImageJpegQuality >= 1 && values.episodeImageJpegQuality <= 10, 'JPEG 质量需要在 1 至 10 之间'],
+      ];
+      const availableLibraryCount = elements.episodeImageLibraryList
+        .querySelectorAll('input[data-library-id]').length;
+      const librarySelectionValid = !values.episodeImageEnabled
+        || availableLibraryCount === 0 || values.episodeImageLibraryIds.length > 0;
+      const invalid = fields.find(([, valid]) => !valid) || (!librarySelectionValid
+        ? [elements.episodeImageLibraryRefresh, false, '启用剧集截图时请至少选择一个 Emby 媒体库']
+        : null);
+      fields.forEach(([field, valid]) => field.setAttribute('aria-invalid', valid ? 'false' : 'true'));
+      elements.episodeImageLibraryList.setAttribute('aria-invalid', librarySelectionValid ? 'false' : 'true');
+      elements.mediaProbeSave.disabled = state.busy || Boolean(invalid);
+      elements.episodeImageStrategyHint.textContent = '缺少 Primary 图片时，在全集 '
+        + (Number.isFinite(values.episodeImageSeekPercent) ? values.episodeImageSeekPercent : '—')
+        + '% 位置截取最高 '
+        + (Number.isFinite(values.episodeImageMaxWidth) ? values.episodeImageMaxWidth : '—')
+        + 'px 的 JPEG。';
+      if (showError && invalid) {
+        elements.mediaProbeError.textContent = invalid[2];
+        elements.mediaProbeError.classList.add('show');
+        invalid[0].focus();
+      } else if (!invalid) {
+        elements.mediaProbeError.textContent = '';
+        elements.mediaProbeError.classList.remove('show');
+      }
+      return !invalid;
+    }
+
+    function renderMediaProbeBatches(batches) {
+      elements.mediaProbeBatchList.replaceChildren();
+      if (!Array.isArray(batches) || batches.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'probe-batch-empty';
+        empty.textContent = '暂无扫描批次，点击“立即扫描缺失项”后可在这里查看任务详情。';
+        elements.mediaProbeBatchList.append(empty);
+        return;
+      }
+      const statusLabels = {
+        scanning: '扫描中', running: '处理中', complete: '已完成',
+        complete_with_errors: '部分失败', failed: '失败', queued: '已入队',
+        waiting: '等待中', retry: '等待重试', skipped: '已跳过',
+      };
+      for (const batch of batches) {
+        const details = document.createElement('details');
+        details.className = 'probe-batch';
+        if (batch.status === 'scanning' || batch.status === 'running') details.open = true;
+
+        const summary = document.createElement('summary');
+        const title = document.createElement('span');
+        title.className = 'probe-batch-title';
+        const strong = document.createElement('strong');
+        strong.textContent = formatDate(batch.startedAt || batch.createdAt) || '扫描批次';
+        const small = document.createElement('small');
+        small.textContent = (batch.trigger === 'scheduled' ? '定时扫描' : '手动扫描')
+          + ' · ' + String(batch.id || '').slice(0, 8);
+        title.append(strong, small);
+        summary.append(title);
+
+        const metrics = [
+          '扫描 ' + Number(batch.scannedCount || 0),
+          '媒体缺失 ' + Number(batch.missingMediaInfoCount || 0),
+          '图片缺失 ' + Number(batch.missingImageCount || 0),
+          '入队 ' + Number(batch.queuedCount || 0),
+        ];
+        for (const value of metrics) {
+          const metric = document.createElement('span');
+          metric.className = 'probe-batch-metric';
+          metric.textContent = value;
+          summary.append(metric);
+        }
+        const status = document.createElement('span');
+        const statusClass = batch.status === 'failed' || batch.status === 'complete_with_errors'
+          ? 'failed' : batch.status === 'complete' ? 'complete' : 'running';
+        status.className = 'probe-batch-status ' + statusClass;
+        status.textContent = statusLabels[batch.status] || String(batch.status || '等待中');
+        summary.append(status);
+        details.append(summary);
+
+        const taskList = document.createElement('div');
+        taskList.className = 'probe-task-list';
+        const tasks = Array.isArray(batch.items) ? batch.items : [];
+        if (tasks.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'probe-batch-empty';
+          empty.textContent = batch.error || '本批次没有发现需要处理的项目。';
+          taskList.append(empty);
+        }
+        for (const task of tasks) {
+          const item = document.createElement('article');
+          item.className = 'probe-task';
+          const head = document.createElement('div');
+          head.className = 'probe-task-head';
+          const name = document.createElement('strong');
+          name.textContent = task.fileName || task.name || task.itemId || '未命名剧集';
+          const taskStatus = document.createElement('span');
+          taskStatus.textContent = (statusLabels[task.status] || task.status || '等待中')
+            + (Number(task.attempts || 0) ? ' · 第 ' + Number(task.attempts) + ' 次' : '');
+          head.append(name, taskStatus);
+          item.append(head);
+          if (task.path) {
+            const path = document.createElement('div');
+            path.className = 'probe-task-path';
+            path.textContent = task.path;
+            item.append(path);
+          }
+          const meta = document.createElement('div');
+          meta.className = 'probe-task-meta';
+          if (task.missingMediaInfo) {
+            const tag = document.createElement('span');
+            tag.textContent = '缺媒体信息';
+            meta.append(tag);
+          }
+          if (task.missingImage) {
+            const tag = document.createElement('span');
+            tag.textContent = '缺集图片';
+            meta.append(tag);
+          }
+          if (meta.childElementCount) item.append(meta);
+          if (task.message) {
+            const message = document.createElement('div');
+            message.className = 'probe-task-message';
+            message.textContent = task.message;
+            item.append(message);
+          }
+          const logs = Array.isArray(task.logs) ? task.logs : [];
+          if (logs.length) {
+            const list = document.createElement('ul');
+            list.className = 'probe-task-logs';
+            for (const entry of logs) {
+              const line = document.createElement('li');
+              line.textContent = (entry.time ? formatDate(entry.time) + ' ' : '') + (entry.message || '');
+              list.append(line);
+            }
+            item.append(list);
+          }
+          taskList.append(item);
+        }
+        if (Number(batch.omittedItemCount || 0) > 0) {
+          const omitted = document.createElement('div');
+          omitted.className = 'probe-task-message';
+          omitted.textContent = '另有 ' + Number(batch.omittedItemCount) + ' 个任务未展开显示。';
+          taskList.append(omitted);
+        }
+        details.append(taskList);
+        elements.mediaProbeBatchList.append(details);
+      }
     }
 
     function renderMediaProbe(data) {
@@ -2205,24 +2652,40 @@
         ? formatNextCheck(runtime.lastScanAt) : '尚未扫描';
       elements.mediaProbeMissingCount.textContent = Number(runtime.lastMissingCount || 0) + ' 个';
       elements.mediaProbeQueueCount.textContent = activeCount + ' 个';
-      elements.mediaProbeTimezoneHint.textContent = '按 ' + (config.timezone || 'Asia/Hong_Kong')
-        + ' 时区执行；已有完整媒体信息的项目会直接跳过。';
+      elements.mediaProbeTimezoneValue.textContent = config.timezone || 'Asia/Shanghai';
+      elements.mediaProbeTimezoneHint.textContent = '按 ' + (config.timezone || 'Asia/Shanghai')
+        + ' 时区执行；已有完整信息和集图片的项目会直接跳过。';
+      elements.episodeImageStrategyHint.textContent = '缺少 Primary 图片时，在全集 '
+        + Number(config.episodeImageSeekPercent || 30) + '% 位置截取最高 '
+        + Number(config.episodeImageMaxWidth || 1920) + 'px 的 JPEG。';
       elements.mediaProbeLastResult.textContent = runtime.lastError
         ? runtime.lastError
         : runtime.lastScanAt
-          ? '扫描 ' + Number(runtime.lastScannedCount || 0) + ' 个，发现缺失 '
-            + Number(runtime.lastMissingCount || 0) + ' 个，入队 '
+          ? '扫描 ' + Number(runtime.lastScannedCount || 0) + ' 个，媒体信息缺失 '
+            + Number(runtime.lastMissingMediaInfoCount || 0) + ' 个，集图片缺失 '
+            + Number(runtime.lastMissingImageCount || 0) + ' 个，入队 '
             + Number(runtime.lastQueuedCount || 0) + ' 个。'
           : '尚未执行完整扫描';
+      renderMediaProbeBatches(runtime.scanBatches || []);
       elements.mediaProbeScan.disabled = state.busy || Boolean(runtime.scanning);
     }
 
     function fillMediaProbeForm(data) {
       const config = data?.config || {};
       elements.mediaProbeDailyEnabled.checked = Boolean(config.dailyEnabled);
+      elements.episodeImageEnabled.checked = config.episodeImageEnabled !== false;
       elements.mediaProbeScanTime.value = config.scanTime || '03:00';
+      elements.mediaProbeScanConcurrency.value = String(config.scanConcurrency || 8);
+      elements.mediaProbeDelay.value = String(config.probeDelaySeconds ?? 10);
+      elements.mediaProbeTimeout.value = String(config.probeTimeoutSeconds || 90);
+      elements.episodeImageTimeout.value = String(config.episodeImageTimeoutSeconds || 120);
+      elements.episodeImageSeekPercent.value = String(config.episodeImageSeekPercent || 30);
+      elements.episodeImageMaxWidth.value = String(config.episodeImageMaxWidth || 1920);
+      elements.episodeImageJpegQuality.value = String(config.episodeImageJpegQuality || 2);
+      renderEpisodeImageLibraries(data);
       state.mediaProbeSnapshot = JSON.stringify(mediaProbeValues());
       renderMediaProbe(data);
+      validateMediaProbe(false);
     }
 
     async function loadMediaProbe(populateForm = false) {
@@ -2238,7 +2701,40 @@
         elements.mediaProbeError.classList.add('show');
       } finally {
         state.mediaProbeLoading = false;
+        scheduleMediaProbeRefresh();
       }
+    }
+
+    async function refreshEpisodeImageLibraries() {
+      if (state.busy || state.mediaProbeLoading) return;
+      const selectedIds = selectedEpisodeImageLibraryIds();
+      elements.episodeImageLibraryRefresh.disabled = true;
+      try {
+        const data = await api('/api/media-probe/libraries/refresh', {
+          method: 'POST',
+          body: '{}',
+        });
+        state.mediaProbeData = data;
+        renderEpisodeImageLibraries(data, selectedIds);
+        renderMediaProbe(data);
+        setStatus('Emby 媒体库列表已刷新。', 'success');
+      } catch (error) {
+        setStatus(error.message, 'error');
+      } finally {
+        elements.episodeImageLibraryRefresh.disabled = state.busy;
+      }
+    }
+
+    function scheduleMediaProbeRefresh() {
+      clearTimeout(state.mediaProbeTimer);
+      state.mediaProbeTimer = null;
+      if (elements.mediaProbeView.hidden || !state.mediaProbeData) return;
+      const runtime = state.mediaProbeData.runtime || {};
+      const counts = runtime.queueCounts || {};
+      const activeCount = Number(counts.queued || 0) + Number(counts.retry || 0)
+        + Number(counts.running || 0);
+      if (!runtime.scanning && activeCount === 0) return;
+      state.mediaProbeTimer = setTimeout(() => loadMediaProbe(false), 2500);
     }
 
     function restoreMediaProbe() {
@@ -2246,11 +2742,11 @@
       fillMediaProbeForm(state.mediaProbeData);
       elements.mediaProbeError.textContent = '';
       elements.mediaProbeError.classList.remove('show');
-      setStatus('已恢复当前保存的媒体信息扫描设置。', 'success');
+      setStatus('已恢复当前保存的媒体增强设置。', 'success');
     }
 
     async function saveMediaProbe() {
-      if (state.busy) return;
+      if (state.busy || !validateMediaProbe(true)) return;
       setBusy(true);
       try {
         const data = await api('/api/media-probe', {
@@ -2262,12 +2758,13 @@
         elements.mediaProbeError.textContent = '';
         elements.mediaProbeError.classList.remove('show');
         setStatus(data.config?.dailyEnabled
-          ? '每日媒体信息扫描已启用。' : '媒体信息扫描设置已保存。', 'success');
+          ? '每日媒体增强扫描已启用。' : '媒体增强设置已保存。', 'success');
       } catch (error) {
         elements.mediaProbeError.textContent = error.message;
         elements.mediaProbeError.classList.add('show');
       } finally {
         setBusy(false);
+        validateMediaProbe(false);
       }
     }
 
@@ -2276,7 +2773,7 @@
       elements.mediaProbeScan.disabled = true;
       try {
         await api('/api/media-probe/scan', { method: 'POST', body: '{}' });
-        setStatus('缺失媒体信息扫描已在后台启动。', 'running');
+        setStatus('缺失媒体信息和集图片扫描已在后台启动。', 'running');
         await new Promise((resolve) => setTimeout(resolve, 500));
         await loadMediaProbe(false);
       } catch (error) {
@@ -2287,10 +2784,14 @@
       }
     }
 
+    async function openMediaProbe() {
+      showView('mediaProbe');
+      await loadMediaProbe(!state.mediaProbeData);
+    }
+
     function bdpanValues() {
       return {
         enabled: elements.bdpanEnabled.checked,
-        binary: elements.bdpanBinary.value.trim(),
         checkIntervalMinutes: Number(elements.bdpanInterval.value),
         saveRoot: elements.bdpanSaveRoot.value.trim(),
         settleSeconds: Number(elements.bdpanSettle.value),
@@ -2304,7 +2805,6 @@
         && !values.saveRoot.startsWith('~')
         && !values.saveRoot.split('/').includes('..');
       const fields = [
-        [elements.bdpanBinary, Boolean(values.binary), '请填写 bdpan 二进制名称或路径'],
         [elements.bdpanSaveRoot, safeRoot, '转存根目录需要位于“我的应用数据/bdpan/”内'],
         [elements.bdpanInterval, Number.isInteger(values.checkIntervalMinutes) && values.checkIntervalMinutes >= 5 && values.checkIntervalMinutes <= 1440, '检查间隔需要在 5 至 1440 分钟之间'],
         [elements.bdpanSettle, Number.isInteger(values.settleSeconds) && values.settleSeconds >= 30 && values.settleSeconds <= 1800, '转存等待需要在 30 至 1800 秒之间'],
@@ -2326,8 +2826,7 @@
 
     function fillBdpanForm(config) {
       elements.bdpanEnabled.checked = Boolean(config.enabled);
-      elements.bdpanBinary.value = config.binary || 'bdpan';
-      elements.bdpanSaveRoot.value = config.saveRoot || 'StrmFlow';
+      elements.bdpanSaveRoot.value = config.saveRoot || 'media';
       elements.bdpanInterval.value = String(config.checkIntervalMinutes || 10);
       elements.bdpanSettle.value = String(config.settleSeconds || 90);
       elements.bdpanMaxItems.value = String(config.maxNewItems || 20);
@@ -2360,7 +2859,7 @@
         : broken ? 'CLI 不可用' : !runtime.loggedIn ? '等待授权' : config.enabled ? '自动追更中' : '未启用';
       elements.bdpanCliStatus.textContent = runtime.available
         ? 'bdpan ' + (runtime.version || '已安装') : '未找到';
-      elements.bdpanCliStatus.title = runtime.binary || config.binary || '';
+      elements.bdpanCliStatus.title = runtime.binary || 'bdpan';
       const accountName = String(runtime.username || '').trim();
       elements.bdpanLoginStatus.textContent = runtime.loggedIn
         ? '已授权' + (accountName ? ' · ' + accountName : '')
@@ -2368,6 +2867,9 @@
       elements.bdpanLoginStatus.title = runtime.loggedIn && accountName
         ? '当前账号：' + accountName
         : '';
+      elements.bdpanAuthorizationCallout.hidden = Boolean(runtime.loggedIn);
+      elements.bdpanLogout.hidden = !runtime.loggedIn;
+      if (runtime.loggedIn) elements.bdpanLoginPanel.hidden = true;
       elements.bdpanWatchedStatus.textContent = String(runtime.watchedCount || 0) + ' 个';
       elements.bdpanNextCheckStatus.textContent = config.enabled
         ? formatNextCheck(runtime.nextCheckAt) : '自动检查已关闭';
@@ -2426,7 +2928,7 @@
     function scheduleBdpanRefresh() {
       clearTimeout(state.bdpanTimer);
       state.bdpanTimer = null;
-      if (elements.settingsView.hidden || !state.bdpanData) return;
+      if (elements.bdpanView.hidden || !state.bdpanData) return;
       const runtime = state.bdpanData.runtime || {};
       const watches = Array.isArray(state.bdpanData.watches) ? state.bdpanData.watches : [];
       if (!runtime.checking && !watches.some((watch) => watch.pendingSync)) return;
@@ -2450,6 +2952,11 @@
         elements.bdpanRefresh.disabled = state.busy;
         scheduleBdpanRefresh();
       }
+    }
+
+    async function openBdpan() {
+      showView('bdpan');
+      await loadBdpan(!state.bdpanData, false);
     }
 
     function restoreBdpan() {
@@ -2531,6 +3038,35 @@
       }
     }
 
+    async function logoutBdpan() {
+      if (state.busy || !state.bdpanData?.runtime?.loggedIn) return;
+      const accountName = String(state.bdpanData.runtime.username || '').trim();
+      const confirmed = await confirmAction({
+        title: '退出百度网盘账号？',
+        message: (accountName ? '当前账号：' + accountName + '。' : '')
+          + '退出后将同时关闭自动追更，已保存的媒体与追更记录会保留。',
+        okText: '确认退出',
+      });
+      if (!confirmed) return;
+      setBusy(true);
+      try {
+        const data = await api('/api/bdpan/logout', { method: 'POST', body: '{}' });
+        state.bdpanData = data;
+        elements.bdpanDisclaimer.checked = false;
+        elements.bdpanAuthorizationCode.value = '';
+        elements.bdpanLoginPanel.hidden = true;
+        fillBdpanForm(data.config || {});
+        renderBdpan(data);
+        setStatus('已退出百度网盘账号，自动追更已关闭。', 'success');
+      } catch (error) {
+        elements.bdpanError.textContent = error.message;
+        elements.bdpanError.classList.add('show');
+        setStatus(error.message, 'error');
+      } finally {
+        setBusy(false);
+      }
+    }
+
     async function checkBdpanNow(itemId = '') {
       if (state.busy || state.bdpanData?.runtime?.checking) return;
       elements.bdpanCheck.disabled = true;
@@ -2547,8 +3083,10 @@
     }
 
     function wecomValues() {
+      const value = elements.wecomWebhook.value.trim();
+      const masked = state.wecomData?.config?.maskedWebhookUrl || '';
       return {
-        webhookUrl: elements.wecomWebhook.value.trim() || null,
+        webhookUrl: value && value !== masked ? value : null,
         episodeUpdateEnabled: elements.wecomEpisodeUpdate.checked,
         linkInvalidEnabled: elements.wecomLinkInvalid.checked,
       };
@@ -2561,6 +3099,7 @@
 
     function validWecomWebhook(value) {
       if (!value) return true;
+      if (value === state.wecomData?.config?.maskedWebhookUrl) return true;
       try {
         const url = new URL(value);
         const key = url.searchParams.get('key') || '';
@@ -2608,9 +3147,7 @@
         + (runtime.lastError ? 'error' : enabled ? 'online' : 'offline');
       elements.wecomHeaderStatus.textContent = runtime.lastError
         ? '发送异常' : enabled ? '通知已启用' : configured ? '已配置' : '未配置';
-      elements.wecomWebhook.placeholder = configured
-        ? config.maskedWebhookUrl + '（留空保持不变）'
-        : 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...';
+      elements.wecomWebhook.placeholder = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...';
       elements.wecomWebhookStatus.textContent = configured
         ? '当前地址：' + config.maskedWebhookUrl
           + (runtime.lastSentAt ? ' · 最近发送 ' + formatDate(runtime.lastSentAt) : '')
@@ -2621,7 +3158,7 @@
 
     function fillWecomForm(data) {
       const config = data?.config || {};
-      elements.wecomWebhook.value = '';
+      elements.wecomWebhook.value = config.maskedWebhookUrl || '';
       elements.wecomEpisodeUpdate.checked = Boolean(config.episodeUpdateEnabled);
       elements.wecomLinkInvalid.checked = Boolean(config.linkInvalidEnabled);
       state.wecomSnapshot = JSON.stringify(wecomValues());
@@ -2988,6 +3525,8 @@
     function setActiveNav(name) {
       const navigation = [
         ['media', elements.mediaNav],
+        ['mediaProbe', elements.mediaProbeNav],
+        ['bdpan', elements.bdpanNav],
         ['status', elements.systemStatus],
         ['emby302', elements.emby302],
         ['logs', elements.logs],
@@ -3005,6 +3544,8 @@
     function showView(name) {
       const views = [
         ['media', elements.mediaView],
+        ['mediaProbe', elements.mediaProbeView],
+        ['bdpan', elements.bdpanView],
         ['status', elements.systemStatusView],
         ['emby302', elements.emby302View],
         ['logs', elements.logsView],
@@ -3012,9 +3553,13 @@
         ['about', elements.aboutView],
       ];
       for (const [key, view] of views) view.hidden = key !== name;
-      if (name !== 'settings') {
+      if (name !== 'bdpan') {
         clearTimeout(state.bdpanTimer);
         state.bdpanTimer = null;
+      }
+      if (name !== 'mediaProbe') {
+        clearTimeout(state.mediaProbeTimer);
+        state.mediaProbeTimer = null;
       }
       if (name !== 'status') {
         clearTimeout(state.systemStatusTimer);
@@ -3033,7 +3578,7 @@
     async function clearActivityLogs() {
       const confirmed = await confirmAction({
         title: '清空运行日志？',
-        message: '当前浏览器中保存的操作记录将被清除。',
+        message: '当前内存中的原始日志输出将被清除；Docker 已轮换的历史日志不受影响。',
         okText: '确认清空',
       });
       if (!confirmed) return;
@@ -3108,7 +3653,6 @@
       ].forEach((input) => { input.disabled = value; });
       [
         elements.bdpanEnabled,
-        elements.bdpanBinary,
         elements.bdpanSaveRoot,
         elements.bdpanInterval,
         elements.bdpanSettle,
@@ -3116,7 +3660,15 @@
         elements.bdpanDisclaimer,
         elements.bdpanAuthorizationCode,
         elements.mediaProbeDailyEnabled,
+        elements.episodeImageEnabled,
         elements.mediaProbeScanTime,
+        elements.mediaProbeScanConcurrency,
+        elements.mediaProbeDelay,
+        elements.mediaProbeTimeout,
+        elements.episodeImageTimeout,
+        elements.episodeImageSeekPercent,
+        elements.episodeImageMaxWidth,
+        elements.episodeImageJpegQuality,
         elements.wecomWebhook,
         elements.wecomEpisodeUpdate,
         elements.wecomLinkInvalid,
@@ -3127,7 +3679,10 @@
         validateBdpan(false);
       }
       if (!value && state.wecomData) validateWecom(false);
-      if (!value && state.mediaProbeData) renderMediaProbe(state.mediaProbeData);
+      if (!value && state.mediaProbeData) {
+        renderMediaProbe(state.mediaProbeData);
+        validateMediaProbe(false);
+      }
     }
 
     function formatDate(value) {
@@ -4379,11 +4934,7 @@
     async function openSettings() {
       if (!state.settingsInitialized && !resetSettingsForm()) return;
       showView('settings');
-      await Promise.all([
-        loadMediaProbe(!state.mediaProbeData),
-        loadBdpan(!state.bdpanData, false),
-        loadWecom(!state.wecomData),
-      ]);
+      await loadWecom(!state.wecomData);
     }
 
     function restoreSettings() {
@@ -4736,6 +5287,8 @@
       if (event.target === elements.modal) requestCloseEditor();
     });
     elements.mediaNav.addEventListener('click', () => showView('media'));
+    elements.mediaProbeNav.addEventListener('click', openMediaProbe);
+    elements.bdpanNav.addEventListener('click', openBdpan);
     elements.systemStatus.addEventListener('click', openSystemStatus);
     elements.systemStatusRefresh.addEventListener('click', () => loadSystemStatus(true));
     elements.emby302.addEventListener('click', openEmby302);
@@ -4767,8 +5320,25 @@
     elements.mediaProbeSave.addEventListener('click', saveMediaProbe);
     elements.mediaProbeReset.addEventListener('click', restoreMediaProbe);
     elements.mediaProbeScan.addEventListener('click', scanMissingMediaInfo);
+    elements.episodeImageLibraryRefresh.addEventListener('click', refreshEpisodeImageLibraries);
+    [
+      elements.mediaProbeDailyEnabled,
+      elements.episodeImageEnabled,
+      elements.mediaProbeScanTime,
+      elements.mediaProbeScanConcurrency,
+      elements.mediaProbeDelay,
+      elements.mediaProbeTimeout,
+      elements.episodeImageTimeout,
+      elements.episodeImageSeekPercent,
+      elements.episodeImageMaxWidth,
+      elements.episodeImageJpegQuality,
+    ].forEach((input) => {
+      input.addEventListener('input', () => validateMediaProbe(false));
+      input.addEventListener('change', () => validateMediaProbe(false));
+    });
     elements.bdpanRefresh.addEventListener('click', () => loadBdpan(false, true));
     elements.bdpanCheck.addEventListener('click', () => checkBdpanNow());
+    elements.bdpanLogout.addEventListener('click', logoutBdpan);
     elements.bdpanLoginStart.addEventListener('click', startBdpanLogin);
     elements.bdpanDisclaimer.addEventListener('change', () => {
       renderBdpan(state.bdpanData);
@@ -4778,7 +5348,6 @@
     elements.bdpanReset.addEventListener('click', restoreBdpan);
     [
       elements.bdpanEnabled,
-      elements.bdpanBinary,
       elements.bdpanSaveRoot,
       elements.bdpanInterval,
       elements.bdpanSettle,

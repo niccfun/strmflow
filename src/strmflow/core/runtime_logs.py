@@ -8,13 +8,85 @@ from threading import Lock
 from typing import Any
 
 
-class RuntimeLogStore:
-    """Thread-safe in-memory ring buffer for recent runtime and HTTP events."""
+class _RawLogHandler(logging.Handler):
+    def __init__(self, store: RuntimeLogStore) -> None:
+        super().__init__(level=logging.NOTSET)
+        self.store = store
+        self.setFormatter(
+            logging.Formatter(
+                "%(asctime)s %(levelname)s: %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+        )
 
-    def __init__(self, capacity: int = 1_000) -> None:
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            captured = record.__dict__.setdefault("_strmflow_raw_stores", set())
+            token = id(self.store)
+            if token in captured:
+                return
+            captured.add(token)
+            self.store.capture_raw(
+                self.format(record),
+                level=record.levelname.casefold(),
+                logger=record.name,
+                created=record.created,
+            )
+        except Exception:  # noqa: BLE001  # pragma: no cover - logging must stay isolated
+            self.handleError(record)
+
+
+class RuntimeLogStore:
+    """Bounded structured events plus the unmodified Python logging stream."""
+
+    def __init__(self, capacity: int = 2_000, max_line_chars: int = 16_384) -> None:
         self._entries: deque[dict[str, Any]] = deque(maxlen=capacity)
+        self._raw_lines: deque[dict[str, Any]] = deque(maxlen=capacity)
         self._next_id = 1
+        self._next_raw_id = 1
+        self._max_line_chars = max(1_024, max_line_chars)
         self._lock = Lock()
+        self._handler = _RawLogHandler(self)
+        self._attached_loggers: list[logging.Logger] = []
+
+    def attach(self) -> None:
+        if self._attached_loggers:
+            return
+        for name in ("", "uvicorn.error", "uvicorn.access"):
+            logger = logging.getLogger(name)
+            logger.addHandler(self._handler)
+            self._attached_loggers.append(logger)
+
+    def detach(self) -> None:
+        for logger in self._attached_loggers:
+            logger.removeHandler(self._handler)
+        self._attached_loggers.clear()
+
+    def capture_raw(
+        self,
+        text: str,
+        *,
+        level: str = "info",
+        logger: str = "",
+        created: float | None = None,
+    ) -> dict[str, Any]:
+        value = str(text)
+        if len(value) > self._max_line_chars:
+            value = value[: self._max_line_chars] + " … [单条日志已截断]"
+        timestamp = (
+            datetime.fromtimestamp(created, UTC) if created is not None else datetime.now(UTC)
+        )
+        with self._lock:
+            line = {
+                "id": self._next_raw_id,
+                "time": timestamp.isoformat(),
+                "level": level,
+                "logger": logger,
+                "text": value,
+            }
+            self._next_raw_id += 1
+            self._raw_lines.append(line)
+            return dict(line)
 
     def add(
         self,
@@ -91,10 +163,16 @@ class RuntimeLogStore:
             counts = Counter(entry["category"] for entry in self._entries)
         return dict(sorted(counts.items()))
 
+    def raw_lines(self, *, limit: int = 500) -> list[dict[str, Any]]:
+        with self._lock:
+            lines = list(self._raw_lines)
+        return [dict(line) for line in lines[-limit:]]
+
     def clear(self) -> int:
         with self._lock:
-            count = len(self._entries)
+            count = len(self._raw_lines) or len(self._entries)
             self._entries.clear()
+            self._raw_lines.clear()
         return count
 
 

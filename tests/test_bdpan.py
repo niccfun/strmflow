@@ -121,13 +121,17 @@ class FakeEmby:
 
 class FakeNotifications:
     def __init__(self) -> None:
-        self.episode_updates: list[tuple[str, int, int]] = []
+        self.episode_updates: list[tuple[str, int, int, list[str]]] = []
         self.invalid_links: list[tuple[str, str]] = []
 
     async def notify_episode_update(
-        self, item: dict[str, Any], new_count: int, current_count: int
+        self,
+        item: dict[str, Any],
+        new_count: int,
+        current_count: int,
+        episodes: list[str] | None = None,
     ) -> bool:
-        self.episode_updates.append((item["id"], new_count, current_count))
+        self.episode_updates.append((item["id"], new_count, current_count, episodes or []))
         return True
 
     async def notify_link_invalid(self, item: dict[str, Any], error: Exception) -> bool:
@@ -162,15 +166,22 @@ class FakeBdpanCli(BdpanCli):
     def __init__(self, settings: Settings) -> None:
         super().__init__(settings)
         self.executed: list[list[str]] = []
+        self.logged_in = True
+        self.logout_calls = 0
 
     async def status(self, binary: str | None = None) -> dict[str, Any]:
         return {
             "available": True,
-            "loggedIn": True,
-            "username": "测试账号",
+            "loggedIn": self.logged_in,
+            "username": "测试账号" if self.logged_in else "",
             "version": "3.8.7",
             "binary": binary or "bdpan",
         }
+
+    async def logout(self, binary: str | None = None) -> None:
+        assert binary in {None, "bdpan"}
+        self.logout_calls += 1
+        self.logged_in = False
 
     async def execute(
         self,
@@ -293,6 +304,57 @@ async def test_cli_status_omits_account_name_when_token_is_invalid(monkeypatch) 
 
     assert status["loggedIn"] is False
     assert status["username"] == ""
+
+
+@pytest.mark.asyncio
+async def test_cli_logout_uses_official_logout_command(monkeypatch) -> None:
+    cli = BdpanCli(Settings())
+    commands: list[list[str]] = []
+
+    async def execute(
+        argv: list[str],
+        *,
+        timeout: float | None = None,
+        stdin: str | None = None,
+        require_json: bool = False,
+    ) -> BdpanRunResult:
+        del stdin, require_json
+        commands.append(argv)
+        assert timeout == 30
+        return BdpanRunResult(0, "已退出登录", "")
+
+    monkeypatch.setattr(cli, "execute", execute)
+    await cli.logout("bdpan")
+
+    assert commands == [["bdpan", "logout", "--no-check-update"]]
+
+
+@pytest.mark.asyncio
+async def test_automation_logout_disables_following_and_keeps_watch_state() -> None:
+    settings = Settings(bdpan_binary="bdpan")
+    cli = FakeBdpanCli(settings)
+    repository = FakeRuntimeRepository()
+    service = BdpanAutomationService(
+        settings,
+        cli,
+        repository,  # type: ignore[arg-type]
+        FakeMedia(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        FakePathConfig(),  # type: ignore[arg-type]
+        RuntimeLogStore(),
+    )
+    service.config["enabled"] = True
+    service.states["m1"] = {"initialized": True, "seen": ["episode-1"]}
+
+    result = await service.logout()
+
+    assert cli.logout_calls == 1
+    assert service.config["enabled"] is False
+    assert repository.config == service.config
+    assert service.states["m1"]["seen"] == ["episode-1"]
+    assert result["config"]["enabled"] is False
+    assert result["runtime"]["loggedIn"] is False
 
 
 @pytest.mark.asyncio
@@ -725,12 +787,14 @@ async def test_pending_transfer_sends_episode_update_notification() -> None:
         "pendingSyncAttempts": 0,
         "pendingSyncAt": "now",
         "pendingNotificationNewCount": 2,
+        "pendingNotificationEpisodes": ["S01E02", "S01E03"],
     }
 
     await service._sync_item("m1")
 
-    assert notifications.episode_updates == [("m1", 2, 3)]
+    assert notifications.episode_updates == [("m1", 2, 3, ["S01E02", "S01E03"])]
     assert "pendingNotificationNewCount" not in service.states["m1"]
+    assert "pendingNotificationEpisodes" not in service.states["m1"]
 
 
 @pytest.mark.asyncio

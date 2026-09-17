@@ -44,3 +44,12 @@ def test_application_events_are_mirrored_to_console_without_duplicate_access_log
     assert "[bdpan] 开始检查百度网盘分享：测试剧" in caplog.text
     assert '"fileCount":12' in caplog.text
     assert "GET /api/items" not in caplog.text
+
+
+def test_raw_log_stream_is_bounded_and_keeps_original_text() -> None:
+    store = RuntimeLogStore(capacity=2)
+    store.capture_raw("first")
+    store.capture_raw("second")
+    store.capture_raw("third")
+
+    assert [line["text"] for line in store.raw_lines(limit=10)] == ["second", "third"]

@@ -49,13 +49,11 @@ async def config(request: Request) -> dict[str, Any]:
 async def runtime_logs(
     request: Request,
     limit: Annotated[int, Query(ge=1, le=1_000)] = 300,
-    category: Annotated[str, Query(max_length=32)] = "",
 ) -> dict[str, Any]:
     store = request.app.state.runtime_logs
     return ok(
         {
-            "items": store.list(limit=limit, category=category.strip()),
-            "categories": store.categories(),
+            "lines": store.raw_lines(limit=limit),
         }
     )
 
@@ -103,3 +101,8 @@ async def update_media_probe(body: MediaProbeConfigUpdate, request: Request) -> 
 @router.post("/media-probe/scan", status_code=202)
 async def scan_missing_media_info(request: Request) -> dict[str, Any]:
     return ok(await services(request).media_probe.trigger_scan())
+
+
+@router.post("/media-probe/libraries/refresh")
+async def refresh_media_probe_libraries(request: Request) -> dict[str, Any]:
+    return ok(await services(request).media_probe.refresh_media_libraries())

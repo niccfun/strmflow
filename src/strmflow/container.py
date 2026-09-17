@@ -17,6 +17,7 @@ from strmflow.services.bdpan import BdpanCli
 from strmflow.services.bdpan_automation import BdpanAutomationService
 from strmflow.services.emby import EmbyClient
 from strmflow.services.emby302 import Emby302Gateway
+from strmflow.services.episode_images import EpisodeImageService
 from strmflow.services.legacy_import import LegacyJsonImporter
 from strmflow.services.media import MediaService
 from strmflow.services.media_probe import MediaProbeService
@@ -76,6 +77,7 @@ def build_container(
         runtime_logs,
     )
     emby = EmbyClient(settings, emby_http)
+    episode_images = EpisodeImageService(settings, openlist, emby, runtime_logs)
     media_probe = MediaProbeService(
         settings,
         MediaProbeRepository(database.sessions),
@@ -84,6 +86,7 @@ def build_container(
         emby,
         path_config,
         runtime_logs,
+        episode_images,
     )
     emby302 = Emby302Gateway(
         settings,

@@ -22,6 +22,10 @@
       --danger-border: #fecaca;
       --danger-text: #991b1b;
       --input-bg: #ffffff;
+      --control-height: 42px;
+      --control-radius: 10px;
+      --control-padding-inline: 12px;
+      --field-gap: 6px;
       --shadow: 0 20px 50px rgb(15 23 42 / 12%);
       --ring: 0 0 0 3px rgb(79 70 229 / 15%);
     }
@@ -83,26 +87,32 @@
     h1 { margin: 0; font-size: 24px; letter-spacing: -0.02em; }
     .subtitle { margin: 4px 0 0; color: var(--muted); }
     form { display: grid; gap: 14px; }
-    .field { display: grid; gap: 6px; }
-    label { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    .field { min-width: 0; display: grid; gap: var(--field-gap); }
+    label { color: var(--muted); font-size: 11px; font-weight: 700; line-height: 1.35; text-transform: uppercase; letter-spacing: 0.05em; overflow-wrap: anywhere; }
     input {
+      display: block;
       width: 100%;
+      min-width: 0;
+      height: var(--control-height);
       font: inherit;
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px 14px;
+      border-radius: var(--control-radius);
+      padding: 0 var(--control-padding-inline);
       background: var(--input-bg);
       color: var(--text);
+      line-height: 1.4;
       outline: none;
       transition: border-color .16s ease, box-shadow .16s ease;
     }
     input:focus { border-color: var(--primary); box-shadow: var(--ring); }
+    input:disabled { color: var(--muted); cursor: not-allowed; opacity: .72; }
     button {
+      min-height: var(--control-height);
       font: inherit;
       margin-top: 6px;
       border: 0;
-      border-radius: 12px;
-      padding: 13px 14px;
+      border-radius: var(--control-radius);
+      padding: 0 14px;
       background: linear-gradient(135deg, var(--primary), var(--primary-hover));
       color: #fff;
       font-size: 15px;

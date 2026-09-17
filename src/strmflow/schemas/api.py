@@ -17,9 +17,9 @@ class ApiModel(BaseModel):
 
 
 class LoginRequest(ApiModel):
-    username: str
-    password: str
-    turnstile_token: str | None = None
+    username: str = Field(min_length=1, max_length=128)
+    password: str = Field(min_length=1, max_length=1_024)
+    turnstile_token: str | None = Field(default=None, max_length=4_096)
 
 
 class MediaItemInput(ApiModel):
@@ -124,9 +124,8 @@ class Emby302ConfigUpdate(ApiModel):
 
 class BdpanAutomationConfigUpdate(ApiModel):
     enabled: bool = False
-    binary: str = Field(default="bdpan", min_length=1, max_length=500)
     check_interval_minutes: int = Field(default=10, ge=5, le=1440)
-    save_root: str = Field(default="StrmFlow", min_length=1, max_length=700)
+    save_root: str = Field(default="media", min_length=1, max_length=700)
     settle_seconds: int = Field(default=90, ge=30, le=1800)
     max_new_items: int = Field(default=20, ge=1, le=100)
 
@@ -172,6 +171,15 @@ class WecomWebhookConfigUpdate(ApiModel):
 class MediaProbeConfigUpdate(ApiModel):
     daily_enabled: bool = False
     scan_time: str = Field(default="03:00", pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    episode_image_enabled: bool | None = None
+    episode_image_library_ids: list[str] | None = Field(default=None, max_length=100)
+    scan_concurrency: int | None = Field(default=None, ge=1, le=32)
+    probe_delay_seconds: int | None = Field(default=None, ge=0, le=300)
+    probe_timeout_seconds: int | None = Field(default=None, ge=10, le=600)
+    episode_image_timeout_seconds: int | None = Field(default=None, ge=10, le=600)
+    episode_image_seek_percent: int | None = Field(default=None, ge=5, le=90)
+    episode_image_max_width: int | None = Field(default=None, ge=320, le=3840)
+    episode_image_jpeg_quality: int | None = Field(default=None, ge=1, le=10)
 
 
 class TransferJob(ApiModel):

@@ -429,6 +429,11 @@ class BdpanCli:
         await self.execute(argv, timeout=60, stdin=value + "\n")
         return await self.status(binary)
 
+    async def logout(self, binary: str | None = None) -> None:
+        """Clear the OAuth credentials through the official bdpan CLI."""
+        argv = self.command(["logout"], binary=binary, session=False)
+        await self.execute(argv, timeout=30)
+
     @staticmethod
     def _decode_json(text: str) -> Any:
         decoder = json.JSONDecoder()

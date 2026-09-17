@@ -33,6 +33,8 @@ def test_index_has_unique_element_ids() -> None:
     assert sidebar_start < template.index('id="systemStatusButton"') < sidebar_end
     assert sidebar_start < template.index('id="logsButton"') < sidebar_end
     assert sidebar_start < template.index('id="emby302Button"') < sidebar_end
+    assert sidebar_start < template.index('id="mediaProbeNavButton"') < sidebar_end
+    assert sidebar_start < template.index('id="bdpanNavButton"') < sidebar_end
     assert sidebar_start < template.index('id="aboutButton"') < sidebar_end
     assert 'id="mediaView"' in template
     assert 'id="systemStatusView"' in template
@@ -84,9 +86,8 @@ def test_index_has_unique_element_ids() -> None:
     assert 'id="settingsView"' in template
     assert 'id="logsView"' in template
     assert 'id="logsList"' in template
-    assert 'class="log-table"' in template
-    assert ".log-table th:nth-child(2), .log-table td:nth-child(2)" in template
-    assert "width: 96px; min-width: 96px; white-space: nowrap" in template
+    assert 'class="raw-log-stream"' in template
+    assert "data.lines" in template
     assert 'id="logsCategoryFilter"' not in template
     assert 'id="logsRefreshButton"' in template
     assert 'id="logsRealtimeButton"' in template
@@ -97,6 +98,12 @@ def test_index_has_unique_element_ids() -> None:
     assert 'id="emby302EmbyUrlInput"' in template
     assert 'id="emby302OpenListUrlInput"' in template
     assert 'id="emby302RecentList"' in template
+    assert "起播耗时" in template
+    assert "redirect.startupMs" in template
+    assert "gatewayTimingTooltip" in template
+    assert "Emby 权限验证" in template
+    assert "STRM 文件读取" in template
+    assert "OpenList 直链解析" in template
     assert ".gateway-config-panel { width: 100%" in template
     assert "http://emby:8096" in template
     assert "http://openlist:5244" in template
@@ -109,12 +116,21 @@ def test_index_has_unique_element_ids() -> None:
     assert "showView('logs')" in template
     assert "showView('about')" in template
     assert "strmflow.logs" in template
-    assert 'id="bdpanSettingsTitle"' in template
+    assert 'id="mediaProbeView"' in template
+    assert 'id="mediaProbeViewTitle"' in template
+    assert "showView('mediaProbe')" in template
+    assert 'id="bdpanView"' in template
+    assert 'id="bdpanViewTitle"' in template
+    assert "showView('bdpan')" in template
     assert 'id="bdpanEnabledInput"' in template
-    assert 'id="bdpanBinaryInput"' in template
+    assert 'id="bdpanBinaryInput"' not in template
     assert 'id="bdpanSaveRootInput"' in template
     assert 'id="bdpanIntervalInput"' in template
     assert 'id="bdpanLoginStartButton"' in template
+    assert 'id="bdpanLogoutButton"' in template
+    assert 'id="bdpanAuthorizationCallout"' in template
+    assert "elements.bdpanAuthorizationCallout.hidden = Boolean(runtime.loggedIn)" in template
+    assert "'/api/bdpan/logout'" in template
     assert "'当前账号：' + accountName" in template
     assert "date.getFullYear() + '-'" in template
     assert "分钟后" not in template
@@ -133,7 +149,27 @@ def test_index_has_unique_element_ids() -> None:
     assert 'id="wecomClearButton"' in template
     assert "'/api/notifications/wecom'" in template
     assert "'/api/notifications/wecom/test'" in template
-    assert "Webhook 密钥保存后不再返回页面" in template
+    assert "服务端生成的脱敏地址" in template
+    assert "elements.wecomWebhook.value = config.maskedWebhookUrl || '';" in template
+    assert 'id="mediaProbeTimezoneInput"' not in template
+    assert 'id="mediaProbeTimezoneValue"' in template
+    assert 'class="runtime-context-badge"' in template
+    assert "时区不属于媒体增强保存项" in template
+    assert 'id="mediaProbeBatchList"' in template
+    assert 'id="mediaProbeScanConcurrencyInput"' in template
+    assert 'id="mediaProbeDelayInput"' in template
+    assert 'id="mediaProbeTimeoutInput"' in template
+    assert 'id="episodeImageTimeoutInput"' in template
+    assert 'id="episodeImageSeekPercentInput"' in template
+    assert 'id="episodeImageMaxWidthInput"' in template
+    assert 'id="episodeImageJpegQualityInput"' in template
+    assert 'id="episodeImageLibraryList"' in template
+    assert 'id="episodeImageLibraryRefreshButton"' in template
+    assert "episodeImageLibraryIds" in template
+    assert "'/api/media-probe/libraries/refresh'" in template
+    assert 'class="settings-block-grid"' in template
+    assert "高级执行参数" in template
+    assert "validateMediaProbe" in template
     assert 'id="addModeSwitch"' in template
     assert 'data-add-mode="saved"' in template
     assert 'data-add-mode="share"' in template
@@ -172,3 +208,35 @@ def test_index_has_unique_element_ids() -> None:
     assert "addEventListener('keydown'" not in template
     queried_ids = set(re.findall(r"querySelector\('#([^']+)'\)", template))
     assert queried_ids.difference(parser.ids) == set()
+
+
+def test_form_controls_share_project_layout_tokens() -> None:
+    templates = Path(__file__).parents[1] / "src/strmflow/web/templates"
+    index = (templates / "index.html").read_text(encoding="utf-8")
+    login = (templates / "login.html").read_text(encoding="utf-8")
+
+    for token in (
+        "--control-height: 42px",
+        "--control-radius: 10px",
+        "--control-padding-inline: 12px",
+        "--field-gap: 6px",
+    ):
+        assert token in index
+        assert token in login
+
+    assert "--form-label-height: 32px" in index
+    assert (
+        'input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea'
+        in index
+    )
+    assert 'input[type="checkbox"], input[type="radio"]' in index
+    assert ".source-picker-row > button, .share-check-row > button" in index
+    assert ".target-panel > .field," in index
+    assert ".gateway-config-grid > .field," in index
+    assert ".settings-field-grid > .field," in index
+    assert ".bdpan-settings-grid > .field," in index
+    assert ".path-config-card > .field," in index
+    assert ".notification-webhook-card > .field {" in index
+    assert "grid-template-rows: var(--form-label-height) var(--control-height) auto;" in index
+    assert ".target-panel:not(.detail-mode) input" not in index
+    assert ".target-panel.detail-mode input" not in index

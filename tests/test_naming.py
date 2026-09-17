@@ -144,6 +144,19 @@ def test_episode_count_deduplicates_same_episode_suffixes() -> None:
     )
 
 
+def test_new_episode_identities_exclude_quality_upgrades() -> None:
+    context = {"mediaType": "tv", "name": "示例剧", "season": 1}
+    current = [
+        "S01E12.4KHDR.strm",
+        "S01E13.4KHDR.strm",
+        "S01E13.1080P.strm",
+    ]
+    previous = ["S01E12.1080P.strm"]
+
+    assert MediaService._new_episode_identities(current, previous, context) == [(1, 13)]
+    assert MediaService._new_episode_count(current, previous, context) == 1
+
+
 def test_configured_season_takes_priority_over_filename_season() -> None:
     context = {"mediaType": "tv", "name": "示例剧", "season": 2}
     assert MediaService._normalized_target_name("S03E05.strm", context) == (

@@ -87,11 +87,19 @@ def test_provider_expiry_understands_baidu_duration_and_dstime() -> None:
 
 async def test_emby302_redirects_strm_stream_and_reuses_cache() -> None:
     emby_queries = 0
+    auth_queries = 0
     fs_get_queries = 0
     link_queries: list[str] = []
 
     async def upstream(request: httpx.Request) -> httpx.Response:
-        nonlocal emby_queries, fs_get_queries
+        nonlocal auth_queries, emby_queries, fs_get_queries
+        if (
+            request.url.host == "emby.test"
+            and request.url.path == "/emby/Users/user-1/Items/item-1"
+        ):
+            auth_queries += 1
+            assert request.url.params["api_key"] == "client-token"
+            return httpx.Response(200, json={"Id": "item-1"})
         if request.url.host == "emby.test" and request.url.path == "/emby/Items":
             emby_queries += 1
             return httpx.Response(
@@ -173,11 +181,24 @@ async def test_emby302_redirects_strm_stream_and_reuses_cache() -> None:
             follow_redirects=False,
             headers={"user-agent": "test-player"},
         ) as client:
-            first = await client.get(
+            unauthorized = await client.get(
                 "/emby/Videos/item-1/stream", params={"MediaSourceId": "source-1"}
             )
+            first = await client.get(
+                "/emby/emby/Videos/item-1/stream",
+                params={
+                    "MediaSourceId": "source-1",
+                    "api_key": "client-token",
+                    "UserId": "user-1",
+                },
+            )
             second = await client.get(
-                "/emby/Videos/item-1/stream", params={"MediaSourceId": "source-1"}
+                "/emby/emby/Videos/item-1/stream",
+                params={
+                    "MediaSourceId": "source-1",
+                    "api_key": "client-token",
+                    "UserId": "user-1",
+                },
             )
         await gateway.close()
 
@@ -195,15 +216,22 @@ async def test_emby302_redirects_strm_stream_and_reuses_cache() -> None:
             follow_redirects=False,
         ) as client:
             restored = await client.get(
-                "/emby/Videos/item-1/stream", params={"MediaSourceId": "source-1"}
+                "/emby/Videos/item-1/stream",
+                params={
+                    "MediaSourceId": "source-1",
+                    "api_key": "client-token",
+                    "UserId": "user-1",
+                },
             )
         await restored_gateway.close()
 
+    assert unauthorized.status_code == 401
     assert first.status_code == 302
     assert first.headers["location"] == "https://cdn.test/video.mkv?token=secret"
     assert second.status_code == 302
     assert restored.status_code == 302
     assert emby_queries == 1
+    assert auth_queries == 3
     assert fs_get_queries == 0
     assert len(link_queries) == 2
     assert repository.link_cache
@@ -212,6 +240,19 @@ async def test_emby302_redirects_strm_stream_and_reuses_cache() -> None:
     assert snapshot["stats"]["redirects"] == 2
     assert snapshot["stats"]["cacheHits"] == 1
     assert snapshot["recentRedirects"][0]["targetHost"] == "cdn.test"
+    assert snapshot["recentRedirects"][0]["startupMs"] >= 0
+    assert snapshot["recentRedirects"][0]["timings"]["embyAuthMs"] >= 0
+    assert snapshot["recentRedirects"][0]["timings"]["cacheLookupMs"] >= 0
+    assert snapshot["recentRedirects"][0]["timings"]["totalMs"] >= 0
+    uncached_timings = snapshot["recentRedirects"][1]["timings"]
+    assert uncached_timings["mediaSourceMs"] >= 0
+    assert uncached_timings["strmReadMs"] >= 0
+    assert uncached_timings["openListLinkMs"] >= 0
+    assert uncached_timings["directLinkResolveMs"] >= 0
+    assert all(
+        "_resolutionTimings" not in entry
+        for entry in (repository.link_cache or {}).get("entries", {}).values()
+    )
     assert restored_gateway.snapshot()["stats"]["restoredCacheEntries"] == 2
 
 
@@ -311,7 +352,7 @@ async def test_playback_info_rewrites_openlist_strm_to_gateway_direct_play() -> 
 
     async def upstream(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/emby/Items/item-9/PlaybackInfo"
-        assert request.url.query == b"api_key=client-token&UserId=user-1"
+        assert request.url.query == b"api_key=client-token"
         assert request.content == request_body
         return httpx.Response(
             200,
@@ -356,7 +397,7 @@ async def test_playback_info_rewrites_openlist_strm_to_gateway_direct_play() -> 
             transport=httpx.ASGITransport(app=gateway), base_url="http://gateway.test"
         ) as client:
             response = await client.post(
-                "/emby/Items/item-9/PlaybackInfo?api_key=client-token&UserId=user-1",
+                "/emby/Items/item-9/PlaybackInfo?api_key=client-token",
                 content=request_body,
                 headers={"Content-Type": "application/json"},
             )
@@ -372,7 +413,7 @@ async def test_playback_info_rewrites_openlist_strm_to_gateway_direct_play() -> 
     assert source["Container"] == "strm"
     assert (
         source["DirectStreamUrl"]
-        == "/emby/Videos/item-9/stream?UserId=user-1&MediaSourceId=source-9&Static=true"
+        == "/Videos/item-9/stream?api_key=client-token&UserId=user-1&MediaSourceId=source-9&Static=true"
     )
     assert response.headers["x-test-upstream"] == "keep"
     assert "etag" not in response.headers

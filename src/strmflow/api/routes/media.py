@@ -156,5 +156,6 @@ async def publish(body: PublishRequest, request: Request) -> dict[str, Any]:
             previous,
             new_episodes,
             int(result.get("episodeCount") or 0),
+            [str(value) for value in result.get("newEpisodes") or []],
         )
     return ok(result)

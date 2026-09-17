@@ -1,48 +1,122 @@
-# StrmFlow
+<p align="center">
+  <img src="src/strmflow/web/static/strmflow.svg" alt="StrmFlow" width="88" height="88">
+</p>
 
-StrmFlow 是面向 **OpenList + Emby** 的 STRM 媒体自动化服务。它负责媒体发现、目录整理、百度网盘分享追更、Emby 媒体信息探测，以及不消耗服务器视频流量的 302 直链播放。
+<h1 align="center">StrmFlow</h1>
 
-## 功能
+<p align="center">面向 OpenList 与 Emby 的 STRM 整理、追更和直链播放管理服务。</p>
 
-- FastAPI 管理端，SQLite 持久化，支持登录和运行日志。
-- 按“一级目录 → 二级分类 → 媒体资源”选择已存在的 STRM。
-- 自动生成 Emby 兼容的 `Season XX/片名 - SxxExx.strm` 结构。
-- 自动识别多季资源，同集多文件按 4K、HDR/Dolby Vision、帧率、片源、编码和大小择优。
-- 使用百度网盘官方 `bdpan` CLI 检查分享、增量转存并自动同步新集。
-- 后台调用 Emby 原生能力提取并持久化时长、容器、分辨率、音视频流等媒体信息。
-- 独立 Emby 302 网关：控制请求透明代理，视频请求跳转到 OpenList 解析出的网盘 CDN。
-- 企业微信 Webhook 通知：剧集更新和分享链接失效。
-- 状态面板：OpenList、Emby、百度账号/容量、SQLite、自动追更和 302 网关。
+StrmFlow 通过 Web 管理端连接现有的 OpenList 与 Emby：从指定目录发现媒体，生成 Emby 友好的 STRM 目录结构，并可配合百度网盘官方 `bdpan` CLI 自动追更。启用独立 302 网关后，视频流量会由 OpenList 解析为网盘直链，播放控制请求仍由 Emby 处理。
 
-## 快速部署（Docker Compose）
+> StrmFlow 不提供媒体资源，也不替代 OpenList、Emby 或百度网盘。部署前需要准备可访问的 OpenList 实例；使用 Emby 相关功能时还需要 Emby 实例和 API Key。
 
-发布镜像：
+## 核心功能
+
+- **媒体发现与整理**：按“一级目录 → 二级分类 → 媒体资源”浏览源目录，支持剧集与电影。
+- **Emby 目录规范化**：为剧集生成 `Season XX/片名 - SxxExx.strm` 结构，并处理多季资源。
+- **质量择优**：同一集存在多个文件时，按 4K、HDR/Dolby Vision、帧率、片源、编码和大小选择优先版本；后续质量升级可作为 Emby 多版本保留。
+- **百度网盘自动追更**：检查分享链接、建立初始基线、增量转存新增或更高质量文件，并触发 OpenList 扫描、STRM 发布和 Emby 刷新。
+- **Emby 媒体增强**：串行调用 Emby `PlaybackInfo` 补全媒体信息；剧集缺少主图时，可通过 FFprobe/FFmpeg 截取代表帧并上传到 Emby。
+- **Emby 302 网关**：透明代理 Emby 控制请求，将可直连的视频请求重定向到 OpenList 返回的网盘 CDN，并提供缓存与预热。
+- **运行管理**：提供登录保护、服务状态、运行日志、SQLite 持久化和企业微信机器人通知。
+
+## 工作流程
+
+```text
+OpenList 源 STRM 目录
+        │
+        ├─ 手动选择媒体并发布
+        │
+百度分享 ── bdpan 增量转存 ── OpenList 扫描
+        │
+        ▼
+StrmFlow 规范化目标 STRM 目录
+        │
+        ├─ Emby 刷新与媒体增强
+        └─ Emby 302 网关 ── OpenList /api/fs/link ── 网盘 CDN
+```
+
+运行配置分为两类：
+
+- 登录、服务地址、Token 和数据库地址通过 `.env` 提供；
+- 路径、自动追更、302 网关、媒体增强和通知设置在 Web 管理端保存到 SQLite。
+
+## 环境要求
+
+### Docker 部署
+
+- Docker Engine
+- Docker Compose v2（使用 `docker compose` 命令）
+- 已运行的 OpenList
+- 使用 Emby 功能时：已运行的 Emby 和可用的 API Key
+
+官方镜像由 GitHub Actions 构建，支持 `linux/amd64` 和 `linux/arm64`：
 
 ```text
 ghcr.io/niccfun/strmflow:latest
 ```
 
-镜像同时支持 `linux/amd64` 和 `linux/arm64`。每个 GitHub Release 会发布以下标签：
+### 本地开发
 
-- `latest`
-- 完整版本，例如 `0.3.1`
-- 次版本，例如 `0.3`
-- 主版本，例如 `0`
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/)
+- 使用剧集截图功能时，系统 `PATH` 中需要 `ffmpeg` 和 `ffprobe`；Docker 镜像已内置
 
-### 1. 获取部署文件
+## 快速开始：预构建镜像
+
+### 1. 准备部署文件
 
 ```bash
-git clone https://github.com/niccfun/strmflow.git
+mkdir -p strmflow
 cd strmflow
-cp .env.example .env
 ```
 
-编辑 `.env`，至少设置：
+下载环境变量模板：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/niccfun/strmflow/main/.env.example -o .env
+```
+
+创建 `compose.yaml`：
+
+```yaml
+services:
+  strmflow:
+    image: ghcr.io/niccfun/strmflow:${STRMFLOW_VERSION:-latest}
+    container_name: strmflow
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "18787:8787"
+      - "18096:18096"
+    volumes:
+      - ./data:/app/data
+      - ./data/bdpan:/root/.config/bdpan
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - strmflow
+
+networks:
+  strmflow:
+    name: strmflow
+    external: true
+```
+
+### 2. 配置环境变量
+
+编辑 `.env`，至少替换密码和访问凭据：
 
 ```env
 APP_USER=admin
 APP_PASSWORD=请替换为强密码
-SESSION_SECRET=请替换为稳定随机值
 
 OPENLIST_URL=http://openlist:5244
 OPENLIST_WEB_URL=http://192.168.1.10:5244
@@ -53,15 +127,20 @@ EMBY_WEB_URL=http://192.168.1.10:8096
 EMBY_API_KEY=your-emby-api-key
 ```
 
-生成会话密钥示例：
+`OPENLIST_URL` 和 `EMBY_URL` 的默认值分别为：
 
-```bash
-openssl rand -hex 32
+```env
+OPENLIST_URL=http://openlist:5244
+EMBY_URL=http://emby:8096
 ```
 
-### 2. 创建共享网络并启动
+这两个地址使用 Docker 容器 DNS。对应容器需要名为 `openlist`、`emby`，并与 StrmFlow 加入同一个 `strmflow` 网络；如果容器名不同，请同步修改 URL 中的主机名。
 
-Compose 使用固定外部网络 `strmflow`：
+`OPENLIST_WEB_URL` 和 `EMBY_WEB_URL` 是浏览器可访问的地址，可使用局域网域名、IP 或反向代理地址，不能填写仅容器内部可解析的服务名。
+
+`SESSION_SECRET` 通常无需配置。首次启动时会自动生成会话签名密钥，并以 `0600` 权限保存到 `data/.session_secret`。
+
+### 3. 创建网络并启动
 
 ```bash
 docker network inspect strmflow >/dev/null 2>&1 || docker network create strmflow
@@ -70,34 +149,14 @@ docker compose up -d
 docker compose logs -f strmflow
 ```
 
-访问：
-
-- 管理端：`http://HOST:18787`
-- 302 网关：`http://HOST:18096`
-
-固定部署某个版本：
+让现有的 OpenList 和 Emby 容器加入共享网络：
 
 ```bash
-STRMFLOW_VERSION=0.3.1 docker compose pull
-STRMFLOW_VERSION=0.3.1 docker compose up -d
-```
-
-如果 GHCR 包仍为私有，先登录再拉取：
-
-```bash
-echo 'GITHUB_TOKEN' | docker login ghcr.io -u GITHUB_USER --password-stdin
-```
-
-### 3. 接入 Emby 和 OpenList
-
-让现有容器加入同一网络；容器名需要与 `.env` 中的主机名一致：
-
-```bash
-docker network connect strmflow emby
 docker network connect strmflow openlist
+docker network connect strmflow emby
 ```
 
-如果 Emby/OpenList 的 Compose 也由你维护，可直接声明外部网络：
+容器已在该网络中时，重复执行 `docker network connect` 会报已连接，可忽略该步骤。也可以在 OpenList/Emby 自己的 Compose 文件中声明并使用外部网络：
 
 ```yaml
 networks:
@@ -106,34 +165,206 @@ networks:
     external: true
 ```
 
-然后把对应服务加入 `strmflow` 网络。后端地址使用容器内网地址，例如 `http://emby:8096`；浏览器跳转地址使用局域网或公网地址，不能填写容器 DNS 名称。
+### 4. 访问管理端
 
-### 4. 首次设置
+- 管理端：`http://HOST:18787`
+- 302 网关：`http://HOST:18096`（需要先在管理端启用）
 
-登录后进入“系统设置”：
+使用 `.env` 中的 `APP_USER` 和 `APP_PASSWORD` 登录。
+
+### 5. 完成首次设置
+
+进入“系统设置”，依次完成：
 
 1. 设置**只读源 STRM 根目录**，例如 `/temp_strm`。
-2. 设置**目标 STRM 根目录**，例如 `/local_media/emby_strm`。
-3. 在 OpenList 中确认两个路径均存在，且源、目标不重叠。
-4. 如需自动追更，在“百度网盘自动追更”中完成授权并设置转存根目录。
-5. 如需 302 播放，在“302 管理”中启用网关，并填写 Emby/OpenList 容器内网地址。
+2. 设置**目标 STRM 根目录**；代码默认值为 `/local_media/emby-strm`。
+3. 确认两个目录都能通过 OpenList 访问，且源目录、目标目录及底层原始媒体目录互不重叠。
+4. 在媒体列表中选择资源，核对名称、年份、分类和季号后预览并发布。
+5. 按需启用“自动追更”“媒体增强”“302 管理”和企业微信通知。
+
+## 使用说明
+
+### 发布 STRM
+
+源目录需要按三层结构组织：
+
+```text
+/temp_strm/
+└── TV/
+    └── 国产剧/
+        └── 示例剧 (2026)/
+            ├── S01E01.strm
+            └── S01E02.strm
+```
+
+发布后，目标目录示例：
+
+```text
+/local_media/emby-strm/
+└── tv/
+    └── 国产剧/
+        └── 示例剧 (2026)/
+            └── Season 01/
+                ├── 示例剧 (2026) - S01E01.strm
+                └── 示例剧 (2026) - S01E02.strm
+```
+
+基本操作流程：
+
+1. 在首页依次选择一级目录、分类和媒体资源。
+2. 确认媒体类型、标题、年份、分类、季号和追更状态。
+3. 先生成同步预览，检查目标文件名和重复项。
+4. 执行发布；完成后可触发 Emby 媒体库刷新。
+
+StrmFlow 会检查路径重叠，避免将生成的 STRM 写回源目录或底层原始视频目录。
+
+### 百度网盘自动追更
+
+Docker 镜像通过固定提交及 SHA-256 校验后的百度官方安装脚本安装 `bdpan`，支持镜像对应的 amd64 和 arm64 平台。
+
+`bdpan` 的转存路径位于百度网盘 `/apps/bdpan/` 下。默认转存根目录为 `media`，即实际网盘路径：
+
+```text
+/apps/bdpan/media
+```
+
+典型配置方式：在 OpenList 中将“我的应用数据/bdpan/media”对应的媒体树通过 Strm 存储暴露到只读源目录，例如 `/temp_strm`。
+
+自动追更流程：
+
+1. 在“自动追更”中完成百度网盘授权。
+2. 设置转存根目录；页面填写相对于 `/apps/bdpan/` 的路径，例如 `media`。
+3. 导入或编辑媒体时填写百度网盘分享链接，并将状态设为追更中。
+4. 首次检查只建立基线，不重复转存已存在的全部历史文件。
+5. 后续检查会选择新增、缺失或质量升级的剧集文件，忽略分享中的 `.strm` 文件。
+6. 文件落盘后自动触发 OpenList 扫描、STRM 发布、Emby 刷新和媒体增强队列。
+
+默认检查周期为 10 分钟，允许配置的最短周期为 5 分钟；实际调度带少量随机抖动，失败时会退避重试。自动追更默认关闭。
+
+本地开发环境可使用仓库脚本安装和登录：
+
+```bash
+./scripts/install-bdpan.sh
+./scripts/login-bdpan.sh
+```
+
+### Emby 302 网关
+
+播放链路：
+
+```text
+Emby 客户端
+  → StrmFlow 302 网关
+  → 读取 Emby 中的 STRM 媒体源
+  → OpenList /api/fs/link
+  → HTTP 302 跳转到网盘 CDN
+```
+
+在“302 管理”中配置并启用网关后，将 Emby 客户端的服务器地址改为：
+
+```text
+http://HOST:18096
+```
+
+网关会透明代理登录、图片、字幕、播放进度、停止播放和 WebSocket 等控制请求。对于可识别的 STRM 视频流，它会先校验 Emby 播放凭据，再请求 OpenList 直链并返回 302；播放历史和继续观看仍由 Emby 管理。
+
+直链缓存保存在 SQLite，缓存时间取配置上限与上游过期时间中的较小值。新集发布后会预热最近剧集的直链。302 网关默认关闭。
+
+### 媒体增强
+
+媒体增强由两部分组成：
+
+- 调用 Emby 原生 `PlaybackInfo` 获取时长、容器、分辨率和音视频流等信息；
+- 对没有自身 `Primary` 图片的 `Episode`，读取 STRM 并通过 FFprobe/FFmpeg 生成一张代表帧，再上传到 Emby。
+
+扫描阶段只查询 Emby，并以默认 8 路并发判断缺失项；真正读取网盘视频的任务由单一工作器串行处理，避免同时打开多个远程视频。已有集图片不会被覆盖，零字节或无效 STRM 会被跳过。
+
+管理端支持手动扫描、每日定时扫描、媒体库范围选择、最近扫描批次日志，以及截图位置、宽度、质量和超时设置。默认截图位置为完整时长的 30%，最大宽度为 1920 像素，JPEG 质量参数为 2。
+
+### 企业微信通知
+
+在“系统设置”中填写企业微信群机器人 Webhook，可分别启用：
+
+- 剧集更新通知；
+- 分享链接失效通知。
+
+Webhook 在页面和 API 返回中只显示掩码，运行日志不会记录完整密钥。
+
+## 配置参考
+
+### 环境变量
+
+| 变量 | 必需 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `STRMFLOW_VERSION` | 否 | `latest` | Compose 镜像标签；不是应用内部配置。 |
+| `HOST` | 否 | `0.0.0.0` | 管理服务监听地址。 |
+| `PORT` | 否 | `8787` | 管理服务容器内监听端口。 |
+| `APP_USER` | 否 | `admin` | Web 管理端用户名。 |
+| `APP_PASSWORD` | 是 | 空 | Web 管理端密码；空值会导致服务启动失败。 |
+| `SESSION_SECRET` | 否 | 自动生成 | 显式设置会覆盖 `data/.session_secret` 的自动生成方式。 |
+| `OPENLIST_URL` | 否 | `http://openlist:5244` | StrmFlow 后端访问 OpenList 的地址。 |
+| `OPENLIST_WEB_URL` | 否 | 空 | 浏览器访问 OpenList 的地址。 |
+| `OPENLIST_TOKEN` | 是 | 空 | OpenList API Token；需要支持项目使用的文件及管理接口。 |
+| `OPENLIST_PATH_PASSWORD` | 否 | 空 | OpenList 路径设置了访问密码时填写。 |
+| `EMBY_URL` | 否 | `http://emby:8096` | StrmFlow 后端访问 Emby 的地址。 |
+| `EMBY_WEB_URL` | 否 | 空 | 浏览器访问 Emby 的地址。 |
+| `EMBY_API_KEY` | 按需 | 空 | 使用 Emby 刷新、302 或媒体增强功能时需要。 |
+| `DATABASE_URL` | 否 | `sqlite+aiosqlite:///./data/strmflow.db` | SQLAlchemy 异步数据库地址。默认使用 SQLite。 |
+| `TZ` | 否 | Compose 中为 `Asia/Shanghai` | 定时任务和页面显示使用的运行时区。 |
+| `TURNSTILE_SITE_KEY` | 否 | 空 | Cloudflare Turnstile Site Key，需与 Secret 同时配置。 |
+| `TURNSTILE_SECRET_KEY` | 否 | 空 | Cloudflare Turnstile Secret Key，需与 Site Key 同时配置。 |
+
+完整的推荐模板见 [`.env.example`](.env.example)。
+
+### Web 管理端配置
+
+| 配置 | 默认值 | 保存位置 |
+| --- | --- | --- |
+| 只读源 STRM 根目录 | 未设置 | SQLite |
+| 目标 STRM 根目录 | `/local_media/emby-strm` | SQLite |
+| 百度网盘自动追更 | 关闭 | SQLite |
+| 百度网盘转存根目录 | `media` | SQLite |
+| 自动检查周期 | `10` 分钟 | SQLite |
+| 302 网关 | 关闭 | SQLite |
+| 302 网关端口 | `18096` | SQLite |
+| 直链缓存上限 | `21600` 秒 | SQLite |
+| 每日媒体增强扫描 | 关闭，时间 `03:00` | SQLite |
+| 媒体检查并发 | `8` | SQLite |
+| 媒体增强队列并发 | `1`（固定串行） | 运行逻辑 |
+| 企业微信通知 | 关闭 | SQLite |
+
+Web 页面保存的运行配置会覆盖对应的首次启动默认值。
+
+## 数据目录与安全
+
+持久化数据位于宿主机 `./data`：
+
+```text
+data/
+├── strmflow.db       # 应用数据、任务状态和运行配置
+├── .session_secret   # 自动生成的会话签名密钥，权限为 0600
+└── bdpan/            # bdpan OAuth 配置和本地密钥
+```
+
+建议：
+
+- 不要提交 `.env`、`data/` 或任何 Token。
+- 备份和迁移时完整保留 `data/`，否则登录会话和运行状态会丢失。
+- OpenList Token 应限制在完成文件管理和扫描所需的最小权限范围内。
+- 对公网开放时，在反向代理层启用 HTTPS、访问控制和限流。
+- 除登录接口外，管理 API 默认要求会话或 Basic Auth；生产服务不开放 Swagger、ReDoc 和 OpenAPI 文档入口。
+- Compose 示例将 Docker 日志限制为 `10m × 3`，避免日志无限占用磁盘。
 
 ## 升级与回滚
 
-升级到最新版本：
+升级到最新镜像：
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-固定或回滚版本：
-
-```bash
-STRMFLOW_VERSION=0.3.1 docker compose up -d
-```
-
-数据库迁移会在启动时自动执行。生产升级前建议备份 `data/`：
+数据库迁移会在服务启动时自动执行。升级前建议备份：
 
 ```bash
 docker compose stop strmflow
@@ -141,135 +372,32 @@ cp -a data "data-backup-$(date +%Y%m%d-%H%M%S)"
 docker compose up -d
 ```
 
-## 目录映射
-
-`bdpan` 只能写入百度网盘 `/apps/bdpan/`。假设：
-
-```text
-网盘转存根目录：media
-只读源 STRM 根目录：/temp_strm
-```
-
-应在 OpenList 中把“我的应用数据/bdpan/media”挂载为 `/temp_strm`。典型结构：
-
-```text
-/temp_strm/
-└── TV/
-    └── 国产剧/
-        └── 交锋 (2026)/
-            ├── S01E01 4KHDR60FPS.mp4
-            └── S01E02 4KHDR60FPS.mp4
-```
-
-发布后的目标目录：
-
-```text
-/local_media/emby_strm/
-└── tv/
-    └── 国产剧/
-        └── 交锋 (2026)/
-            └── Season 01/
-                ├── 交锋 (2026) - S01E01.strm
-                └── 交锋 (2026) - S01E02.strm
-```
-
-StrmFlow 会校验源目录、目标目录以及底层网盘源路径，阻止把生成的 STRM 写回原始视频目录。
-
-## 百度网盘自动追更
-
-Docker 镜像会通过固定提交和 SHA-256 校验后的百度官方安装脚本安装 `bdpan`。官方安装器同时提供 Linux amd64 和 arm64 版本。
-
-工作流程：
-
-1. 检查分享中的原始视频文件，忽略分享内已有的 `.strm`。
-2. 首次检查建立基线，不重复转存全部历史文件。
-3. 后续按剧集识别新增、漏存和质量升级，只选择每集最佳文件。
-4. 提交转存后等待网盘落盘，再触发 OpenList 扫描、STRM 发布和 Emby 刷新。
-5. 新集进入串行媒体信息队列，避免并发读取多个网盘视频。
-
-自动检查默认最短周期为 5 分钟并带少量抖动；失败会退避重试。配置、检查状态和待同步状态均保存在 SQLite。
-
-本机开发环境安装和登录：
+固定版本或回滚到指定版本：
 
 ```bash
-./scripts/install-bdpan.sh
-./scripts/login-bdpan.sh
+STRMFLOW_VERSION=0.4.0 docker compose pull
+STRMFLOW_VERSION=0.4.0 docker compose up -d
 ```
 
-## Emby 302 网关
+如需长期固定版本，也可以直接修改 `.env` 中的 `STRMFLOW_VERSION`。
 
-完整播放链路：
+如果 GHCR 包需要认证，可先登录：
 
-```text
-Emby 客户端
-  → StrmFlow 302 网关
-  → 读取 Emby STRM 媒体源
-  → OpenList /api/fs/link
-  → HTTP 302 到网盘 CDN
+```bash
+echo 'GITHUB_TOKEN' | docker login ghcr.io -u GITHUB_USER --password-stdin
 ```
-
-网关仅改写可直连的 `PlaybackInfo` 和视频流地址；播放开始、进度、停止播放、图片、字幕以及 WebSocket 控制流继续透明转发给 Emby，因此播放历史和继续观看仍由 Emby 原生管理。
-
-直链缓存保存在 SQLite。实际缓存时间取配置上限和上游过期时间中的较小值，新集发布后会自动预热。首次媒体探测可能较慢，`PlaybackInfo` 会使用更长的独立超时。
-
-## 媒体信息维护
-
-同步新集后，后台工作器调用 Emby 的 `PlaybackInfo` 探测媒体，并重新读取 Emby 条目确认结果。Emby 的条目查询缓存可能晚于 `PlaybackInfo` 返回；只要原生响应已经包含有效媒体信息，任务即视为成功并等待 Emby 异步落库，避免把正常的短暂延迟误报为失败。真正未返回媒体信息的任务按 30 秒、2 分钟和 5 分钟重试。
-
-系统设置支持：
-
-- 手动“立即扫描缺失项”；
-- 每天指定时间扫描；
-- 按 `APP_TIMEZONE` 计算计划时间；
-- 跳过零字节或无效 STRM。
-
-SQLite 的 `media_probes` 表只保存任务状态，不复制 Emby 的媒体技术信息。
-
-## 配置参考
-
-完整默认值见 [`.env.example`](.env.example)。常用配置：
-
-| 变量 | 说明 | 默认值 |
-| --- | --- | --- |
-| `HOST` / `PORT` | 管理服务监听地址 | `0.0.0.0` / `8787` |
-| `DATABASE_URL` | SQLite 地址 | `sqlite+aiosqlite:///./data/strmflow.db` |
-| `OPENLIST_URL` | 后端访问 OpenList 的地址 | `http://openlist:5244` |
-| `OPENLIST_WEB_URL` | 浏览器访问 OpenList 的地址 | 空 |
-| `EMBY_URL` | 后端访问 Emby 的地址 | `http://emby:8096` |
-| `EMBY_WEB_URL` | 浏览器访问 Emby 的地址 | 空 |
-| `EMBY_302_PORT` | 302 网关端口 | `18096` |
-| `MEDIA_PROBE_ENABLED` | 启用媒体信息队列 | `true` |
-| `APP_TIMEZONE` | 调度时区 | `Asia/Hong_Kong` |
-| `BDPAN_ENABLED` | 默认启用自动追更 | `false` |
-| `BDPAN_SAVE_ROOT` | `/apps/bdpan/` 下的转存根目录 | `StrmFlow` |
-
-路径设置、302、自动追更、媒体信息计划和通知配置可在页面中修改，并保存在 SQLite；页面值优先于对应环境变量默认值。
-
-## 数据与安全
-
-持久化目录：
-
-```text
-data/
-├── strmflow.db       # 应用数据和运行配置
-└── bdpan/            # OAuth 配置和本地密钥
-```
-
-- 不要提交 `.env`、`data/` 或 bdpan Token。
-- `data/bdpan` 建议仅允许容器运行用户读取。
-- OpenList Token 建议使用具备所需路径权限的账户。
-- 对公网开放时应在反向代理中启用 HTTPS、访问控制和限流。
-- 企业微信 Webhook 在 API 和页面中仅显示掩码，日志不会记录密钥。
 
 ## 本地开发
 
-要求 Python 3.12+ 和 [uv](https://docs.astral.sh/uv/)：
+安装依赖并启动：
 
 ```bash
 cp .env.example .env
 uv sync --all-groups
 uv run strmflow
 ```
+
+启动前至少需要设置 `APP_PASSWORD` 和 `OPENLIST_TOKEN`。本地没有容器 DNS 时，请把 `OPENLIST_URL`、`EMBY_URL` 改为本机可访问的地址。
 
 质量检查：
 
@@ -279,38 +407,99 @@ uv run ruff format --check src tests
 uv run pytest
 ```
 
-本地构建镜像：
+仓库中的 `compose.yaml` 用于**源码构建**，会使用本地 `Dockerfile`，并自动创建名为 `strmflow` 的网络：
 
 ```bash
-docker build -t strmflow:local .
+docker compose up -d --build
+docker compose logs -f strmflow
 ```
+
+仅重启现有构建：
+
+```bash
+docker compose up -d
+```
+
+## 常见问题
+
+### 服务启动后立即退出
+
+检查日志：
+
+```bash
+docker compose logs --tail=200 strmflow
+```
+
+`APP_PASSWORD` 或 `OPENLIST_TOKEN` 为空时，运行时配置校验会阻止服务启动。
+
+### OpenList 或 Emby 显示不可用
+
+确认三个容器位于同一网络，并验证容器名与 `.env` 主机名一致：
+
+```bash
+docker network inspect strmflow
+docker exec strmflow getent hosts openlist
+docker exec strmflow getent hosts emby
+```
+
+如果服务运行在宿主机或其他网络，请使用实际可达地址替换默认容器 DNS。
+
+### 页面能打开，但浏览器跳转到 OpenList/Emby 失败
+
+后端地址和浏览器地址用途不同：
+
+- `OPENLIST_URL` / `EMBY_URL`：供 StrmFlow 容器访问；
+- `OPENLIST_WEB_URL` / `EMBY_WEB_URL`：供用户浏览器访问。
+
+浏览器地址不能使用只在 Docker 网络中可解析的 `openlist` 或 `emby` 主机名。
+
+### 302 网关已启用，但无法播放
+
+依次检查：
+
+1. Emby 与 OpenList 地址在 StrmFlow 容器内可访问；
+2. `EMBY_API_KEY` 和 `OPENLIST_TOKEN` 有效；
+3. STRM 内容指向 OpenList 可解析的路径；
+4. 客户端连接的是 `http://HOST:18096`，而不是原 Emby 端口；
+5. 宿主机防火墙和反向代理已放行网关端口。
+
+### 百度网盘自动追更不可用
+
+在“自动追更”页面确认：
+
+- `bdpan` 状态可用且已完成授权；
+- 转存根目录位于 `/apps/bdpan/` 下；
+- 媒体状态为追更中，并已填写有效分享链接；
+- OpenList 中的源目录正确映射到转存目录。
 
 ## 项目结构
 
 ```text
-src/strmflow/
-├── api/                 # FastAPI 路由和鉴权
-├── core/                # 配置、异常、会话和运行日志
-├── infrastructure/      # SQLite、SQLAlchemy 和迁移入口
-├── migrations/          # Alembic 迁移
-├── repositories/        # 媒体、任务和运行配置持久化
-├── services/            # OpenList、Emby、bdpan、302、通知和探测服务
-├── utils/               # 路径与剧集识别工具
-├── web/                 # 管理页面和 SVG 资源
-├── container.py         # 依赖装配
-└── main.py              # FastAPI 应用工厂
+.
+├── src/strmflow/
+│   ├── api/                 # FastAPI 路由与鉴权
+│   ├── core/                # 配置、安全、错误和运行日志
+│   ├── infrastructure/      # SQLite、SQLAlchemy 与迁移入口
+│   ├── migrations/          # Alembic 数据库迁移
+│   ├── repositories/        # 媒体、任务和运行配置持久化
+│   ├── services/            # OpenList、Emby、bdpan、302、通知和媒体增强
+│   ├── utils/               # 路径与剧集命名工具
+│   ├── web/                 # 管理页面与静态资源
+│   ├── container.py         # 依赖装配
+│   └── main.py              # FastAPI 应用工厂
+├── tests/                   # 测试套件
+├── scripts/                 # bdpan 安装与登录脚本
+├── compose.yaml             # 本地源码构建 Compose
+├── Dockerfile
+└── pyproject.toml
 ```
 
-## 发布流程
+## 发布与版本
 
-推送 `v*` 标签后，GitHub Actions 会：
+项目版本来自 `pyproject.toml` 和 `src/strmflow/__init__.py`。推送 `v*` 标签后，GitHub Actions 会执行 Ruff、测试、GitHub Release 创建和 amd64/arm64 镜像发布，并生成 `latest`、完整版本、次版本和主版本标签。
 
-1. 使用 uv 安装锁定依赖；
-2. 执行 Ruff 和完整测试；
-3. 创建 GitHub Release；
-4. 使用 QEMU + Buildx 构建 `linux/amd64`、`linux/arm64`；
-5. 将多架构镜像和版本标签推送到 GHCR。
+## 许可与致谢
 
-## 许可与依赖
+本仓库当前未包含独立的 `LICENSE` 文件；使用或分发前请确认项目作者声明的授权范围。
 
-百度网盘能力来自官方项目 [baidu-netdisk/bdpan-storage](https://github.com/baidu-netdisk/bdpan-storage)。使用自动转存前，请阅读官方提示并妥善保管授权信息。
+百度网盘能力依赖官方项目 [baidu-netdisk/bdpan-storage](https://github.com/baidu-netdisk/bdpan-storage)。启用自动转存前，请阅读其官方说明并妥善保管授权信息。

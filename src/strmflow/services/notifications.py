@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
@@ -101,18 +102,45 @@ class WecomWebhookService:
         item: dict[str, Any],
         new_count: int,
         current_count: int,
+        episodes: Sequence[str] | None = None,
     ) -> bool:
         if not self.config["webhookUrl"] or not self.config["episodeUpdateEnabled"]:
             return False
         name = self._safe_text(item.get("name") or item.get("title") or "未命名媒体")
+        episode_detail = self._format_episode_detail(episodes or [])
+        episode_line = f"🎞️ 新增剧集：{episode_detail}\n" if episode_detail else ""
         content = (
             "🎬 StrmFlow 剧集更新\n"
             f"📺 媒体：{name}\n"
             f"🆕 本次新增：{max(0, int(new_count))} 集\n"
+            f"{episode_line}"
             f"📚 当前已同步：{max(0, int(current_count))} 集\n"
             f"🕒 时间：{self._local_time()}"
         )
         return await self._send("episode_update", content)
+
+    @staticmethod
+    def _format_episode_detail(episodes: Sequence[str]) -> str:
+        identities: set[tuple[int, int]] = set()
+        for value in episodes:
+            match = re.fullmatch(r"(?i)S0*(\d{1,3})E0*(\d{1,4})", str(value).strip())
+            if not match:
+                continue
+            season, episode = (int(part) for part in match.groups())
+            if season > 0 and episode > 0:
+                identities.add((season, episode))
+        if not identities:
+            return ""
+
+        ordered = sorted(identities)
+        labels = [
+            f"第 {episode} 集" if season == 1 else f"S{season:02d}E{episode:02d}"
+            for season, episode in ordered[:12]
+        ]
+        detail = "、".join(labels)
+        if len(ordered) > len(labels):
+            detail += f" 等 {len(ordered)} 集"
+        return detail
 
     async def notify_link_invalid(self, item: dict[str, Any], error: Exception) -> bool:
         if not self.config["webhookUrl"] or not self.config["linkInvalidEnabled"]:
@@ -157,8 +185,11 @@ class WecomWebhookService:
 
     def _normalize_config(self, value: dict[str, Any], *, retain_url: bool) -> dict[str, Any]:
         raw_url = value.get("webhookUrl")
-        if raw_url is None and retain_url:
-            webhook_url = str(self.config.get("webhookUrl") or "")
+        current_url = str(self.config.get("webhookUrl") or "")
+        if retain_url and (
+            raw_url is None or str(raw_url).strip() == self._masked_url(current_url)
+        ):
+            webhook_url = current_url
         else:
             webhook_url = str(raw_url or "").strip()
         if webhook_url:
@@ -216,7 +247,7 @@ class WecomWebhookService:
 
     @staticmethod
     def _local_time() -> str:
-        return datetime.now(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M:%S")
+        return datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
 
     def _log(self, level: str, message: str, **details: Any) -> None:
         self.runtime_logs.add(

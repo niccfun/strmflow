@@ -306,6 +306,8 @@ class Emby302Gateway:
             return
         request = Request(scope, receive)
         started = perf_counter()
+        request.state.gateway_started_at = started
+        request.state.gateway_timings = {}
         self._total_requests += 1
         self._last_request_at = datetime.now(UTC)
         action = "proxy"
@@ -561,7 +563,7 @@ class Emby302Gateway:
         path = request.url.path
         lower_path = path.casefold()
         if path == "/__strmflow302/health":
-            return JSONResponse({"ok": True, "stats": self.snapshot()["stats"]}), "health"
+            return JSONResponse({"ok": True}), "health"
         if request.method == "GET" and VIDEO_PATH.search(lower_path):
             return await self._handle_video_stream(request)
         if request.method == "POST" and PLAYBACK_INFO_PATH.search(lower_path):
@@ -570,6 +572,13 @@ class Emby302Gateway:
 
     async def _handle_playback_info(self, request: Request) -> tuple[Response, str]:
         """Apply demo-compatible direct-play hints while keeping control traffic transparent."""
+        request_user_id = ""
+        try:
+            request_payload = json.loads(await request.body())
+            if isinstance(request_payload, dict):
+                request_user_id = str(request_payload.get("UserId") or "").strip()
+        except (TypeError, ValueError):
+            pass
         upstream, body = await self._proxy_buffered(request)
         if upstream.status_code < 200 or upstream.status_code >= 300:
             return Response(
@@ -593,9 +602,11 @@ class Emby302Gateway:
             ), "playback-info-proxy"
 
         item_id = self._parse_item_id(request.url.path)
-        stream_path = (
-            f"{self._emby_prefix(request.url.path)}/Videos/{item_id}/stream" if item_id else ""
-        )
+        # Emby returns API-relative playback URLs. Prefixing this with `/emby`
+        # makes clients whose configured server URL already ends in `/emby`
+        # request `/emby/emby/Videos/...`, which breaks playback in Hills and
+        # several other native clients.
+        stream_path = f"/Videos/{item_id}/stream" if item_id else ""
         changed = False
         for source in payload["MediaSources"]:
             if not isinstance(source, dict) or not stream_path:
@@ -614,7 +625,14 @@ class Emby302Gateway:
             ):
                 source.pop(key, None)
             params = parse_qs(request.url.query, keep_blank_values=True)
-            params.pop("api_key", None)
+            user_id = self._query_param(params, "UserId") or request_user_id
+            if not user_id:
+                user_id = self._authorization_parameter(request, "UserId")
+            if user_id:
+                self._set_query_param(params, "UserId", user_id)
+            token = self._request_token(request)
+            if token and not self._query_param(params, "api_key"):
+                self._set_query_param(params, "api_key", token)
             params["MediaSourceId"] = [str(source.get("Id") or "")]
             params["Static"] = ["true"]
             query = "&".join(
@@ -654,15 +672,24 @@ class Emby302Gateway:
         item_id = self._parse_item_id(request.url.path)
         if not item_id:
             return PlainTextResponse("Bad Request", status_code=400), "invalid-stream"
+        auth_started = perf_counter()
+        authorization_error = await self._authorize_video_request(request, item_id)
+        self._record_request_timing(request, "embyAuthMs", auth_started)
+        if authorization_error is not None:
+            return authorization_error, "unauthorized-stream"
 
         media_source_id = request.query_params.get("MediaSourceId")
         cache_key = self._request_cache_key(item_id, media_source_id)
+        cache_started = perf_counter()
         cached = self._get_cache(cache_key)
+        self._record_request_timing(request, "cacheLookupMs", cache_started)
         if cached:
             self._cache_hits += 1
-            return self._redirect(str(cached["url"]), item_id, "", True), "cache-hit"
+            return self._redirect(request, str(cached["url"]), item_id, "", True), "cache-hit"
 
+        media_source_started = perf_counter()
         media_source = await self._get_emby_media_source(request.url.path, item_id, media_source_id)
+        self._record_request_timing(request, "mediaSourceMs", media_source_started)
         if not media_source or not media_source.get("Path"):
             return await self._proxy(request), "media-source-missing"
         openlist_path = self._extract_openlist_path(media_source)
@@ -670,24 +697,135 @@ class Emby302Gateway:
             return await self._proxy(request), "non-openlist-source"
 
         path_key = self._path_cache_key(openlist_path)
+        cache_started = perf_counter()
         cached = self._get_cache(path_key)
+        self._record_request_timing(request, "cacheLookupMs", cache_started, accumulate=True)
         if cached:
             self._cache_hits += 1
             self._set_cache_entry(cache_key, cached, prewarmed=False)
             return (
-                self._redirect(str(cached["url"]), item_id, openlist_path, True),
+                self._redirect(request, str(cached["url"]), item_id, openlist_path, True),
                 "path-cache-hit",
             )
 
         try:
+            resolve_started = perf_counter()
             entry = await self._resolve_openlist_target_once(openlist_path)
+            self._record_request_timing(request, "directLinkResolveMs", resolve_started)
         except AppError as exc:
             if exc.status_code == 404:
                 return PlainTextResponse(exc.message, status_code=502), "openlist-error"
             raise
+        resolution_timings = entry.get("_resolutionTimings")
+        if isinstance(resolution_timings, dict):
+            for name in ("strmReadMs", "openListLinkMs"):
+                value = resolution_timings.get(name)
+                if isinstance(value, (int, float)):
+                    self._set_request_timing(request, name, float(value))
         self._set_cache_entry(path_key, entry, prewarmed=False)
         self._set_cache_entry(cache_key, entry, prewarmed=False)
-        return self._redirect(str(entry["url"]), item_id, openlist_path, False), "redirect"
+        return self._redirect(request, str(entry["url"]), item_id, openlist_path, False), "redirect"
+
+    async def _authorize_video_request(
+        self,
+        request: Request,
+        item_id: str,
+    ) -> Response | None:
+        """Require the player's Emby credential before resolving a private CDN URL.
+
+        The gateway uses an administrator API key internally to look up STRM paths.
+        Without this separate check, a caller who guessed an Emby item id could skip
+        Emby's login layer and obtain the cloud-drive redirect directly.
+        """
+        token = self._request_token(request)
+        authorization = request.headers.get("x-emby-authorization") or request.headers.get(
+            "authorization"
+        )
+        if not token and not authorization:
+            return PlainTextResponse("Unauthorized", status_code=401)
+
+        prefix = self._emby_prefix(request.url.path)
+        user_id = request.query_params.get("UserId") or request.query_params.get("userId")
+        user_id = user_id or self._authorization_parameter(request, "UserId")
+        if user_id:
+            validation_path = (
+                f"{prefix}/Users/{quote(user_id, safe='')}/Items/{quote(item_id, safe='')}"
+            )
+        else:
+            # Older clients do not always send UserId on direct stream URLs.
+            # Keep the legacy authenticated item lookup as a compatibility
+            # fallback; newly rewritten PlaybackInfo URLs always include it.
+            validation_path = f"{prefix}/Items/{quote(item_id, safe='')}"
+        url = self._upstream_url(validation_path, "")
+        params: dict[str, str] = {}
+        if token:
+            params["api_key"] = token
+        user_id = request.query_params.get("UserId")
+        if user_id:
+            params["UserId"] = user_id
+        headers: dict[str, str] = {"accept": "application/json"}
+        if request.headers.get("x-emby-token"):
+            headers["x-emby-token"] = request.headers["x-emby-token"]
+        if request.headers.get("x-emby-authorization"):
+            headers["x-emby-authorization"] = request.headers["x-emby-authorization"]
+        if request.headers.get("authorization"):
+            headers["authorization"] = request.headers["authorization"]
+        try:
+            response = await self.emby_http.get(
+                url,
+                params=params,
+                headers=headers,
+                timeout=self.config.timeout_ms / 1_000,
+            )
+        except httpx.HTTPError as exc:
+            raise AppError(502, "无法验证 Emby 播放凭据") from exc
+        if response.status_code in {401, 403}:
+            return PlainTextResponse("Unauthorized", status_code=response.status_code)
+        if response.status_code == 404:
+            return PlainTextResponse("Not Found", status_code=404)
+        if response.status_code < 200 or response.status_code >= 300:
+            raise AppError(502, "Emby 播放凭据验证失败")
+        return None
+
+    @staticmethod
+    def _query_param(params: dict[str, list[str]], name: str) -> str:
+        return next(
+            (
+                str(values[0]).strip()
+                for key, values in params.items()
+                if key.casefold() == name.casefold() and values and str(values[0]).strip()
+            ),
+            "",
+        )
+
+    @staticmethod
+    def _set_query_param(params: dict[str, list[str]], name: str, value: str) -> None:
+        for key in tuple(params):
+            if key.casefold() == name.casefold():
+                params[key] = [value]
+                return
+        params[name] = [value]
+
+    @staticmethod
+    def _authorization_parameter(request: Request, name: str) -> str:
+        authorization = request.headers.get("x-emby-authorization") or request.headers.get(
+            "authorization", ""
+        )
+        match = re.search(
+            rf"(?:^|[,\s]){re.escape(name)}\s*=\s*\"([^\"]+)\"",
+            authorization,
+            re.IGNORECASE,
+        )
+        return match.group(1).strip() if match else ""
+
+    @classmethod
+    def _request_token(cls, request: Request) -> str:
+        return (
+            request.query_params.get("api_key")
+            or request.query_params.get("X-Emby-Token")
+            or request.headers.get("x-emby-token")
+            or cls._authorization_parameter(request, "Token")
+        )
 
     async def _resolve_openlist_target(self, openlist_path: str) -> LinkCacheEntry:
         """Resolve one Emby/OpenList media source with the shortest uncached chain."""
@@ -695,17 +833,20 @@ class Emby302Gateway:
         raw_url = ""
         provider_path = ""
         expiration: object = None
+        resolution_timings: dict[str, float] = {}
 
         if urlsplit(openlist_path).path.casefold().endswith(".strm"):
             # The Emby media source already proves that this path exists. Calling
             # fs/get before fs/link duplicates the slowest OpenList lookup, so the
             # playback path reads the one-line manifest directly.
+            strm_started = perf_counter()
             manifest = await self.openlist.read_text(
                 openlist_path,
                 base_url=self.config.openlist_url,
                 timeout=timeout,
                 verify_exists=False,
             )
+            resolution_timings["strmReadMs"] = self._elapsed_ms(strm_started)
             raw_url = next(
                 (
                     line.strip()
@@ -722,11 +863,13 @@ class Emby302Gateway:
             provider_path = openlist_path
 
         if provider_path:
+            link_started = perf_counter()
             link = await self.openlist.direct_link_info(
                 provider_path,
                 base_url=self.config.openlist_url,
                 timeout=timeout,
             )
+            resolution_timings["openListLinkMs"] = self._elapsed_ms(link_started)
             raw_url = str(link["url"])
             expiration = link.get("expiration")
 
@@ -738,6 +881,7 @@ class Emby302Gateway:
             provider_path=provider_path,
             expiration=expiration,
         )
+        entry["_resolutionTimings"] = resolution_timings
         self.runtime_logs.add(
             category="gateway302",
             level="info",
@@ -845,13 +989,37 @@ class Emby302Gateway:
         return season or 0, episode if episode is not None else -1, path.casefold()
 
     def _redirect(
-        self, raw_url: str, item_id: str, openlist_path: str, cache_hit: bool
+        self,
+        request: Request,
+        raw_url: str,
+        item_id: str,
+        openlist_path: str,
+        cache_hit: bool,
     ) -> RedirectResponse:
         self._redirects += 1
         self._last_redirect_at = datetime.now(UTC)
+        started_at = getattr(request.state, "gateway_started_at", None)
+        startup_ms = (
+            round((perf_counter() - float(started_at)) * 1_000, 2)
+            if isinstance(started_at, (int, float))
+            else None
+        )
+        timings = getattr(request.state, "gateway_timings", {})
+        timing_detail = {
+            key: round(float(value), 2)
+            for key, value in timings.items()
+            if isinstance(key, str)
+            and isinstance(value, (int, float))
+            and math.isfinite(float(value))
+            and float(value) >= 0
+        }
+        if startup_ms is not None:
+            timing_detail["totalMs"] = startup_ms
         self._recent_redirects.appendleft(
             {
                 "time": self._last_redirect_at.isoformat(),
+                "startupMs": startup_ms,
+                "timings": timing_detail,
                 "itemId": item_id,
                 "path": openlist_path,
                 "cacheHit": cache_hit,
@@ -1113,6 +1281,7 @@ class Emby302Gateway:
         if time() >= float(entry.get("expiresAt") or 0):
             return
         value = dict(entry)
+        value.pop("_resolutionTimings", None)
         value["prewarmed"] = prewarmed
         self._cache[key] = value
         self._cache.move_to_end(key)
@@ -1120,6 +1289,40 @@ class Emby302Gateway:
         while len(self._cache) > self.config.cache_max:
             self._cache.popitem(last=False)
         self._mark_cache_dirty()
+
+    @staticmethod
+    def _elapsed_ms(started: float) -> float:
+        return round((perf_counter() - started) * 1_000, 2)
+
+    @classmethod
+    def _record_request_timing(
+        cls,
+        request: Request,
+        name: str,
+        started: float,
+        *,
+        accumulate: bool = False,
+    ) -> None:
+        cls._set_request_timing(
+            request,
+            name,
+            cls._elapsed_ms(started),
+            accumulate=accumulate,
+        )
+
+    @staticmethod
+    def _set_request_timing(
+        request: Request,
+        name: str,
+        value: float,
+        *,
+        accumulate: bool = False,
+    ) -> None:
+        timings = getattr(request.state, "gateway_timings", None)
+        if not isinstance(timings, dict):
+            timings = {}
+            request.state.gateway_timings = timings
+        timings[name] = round(float(timings.get(name, 0)) + value, 2) if accumulate else value
 
     def _cleanup_cache(self) -> None:
         now = time()

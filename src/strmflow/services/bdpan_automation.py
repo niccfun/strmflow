@@ -193,7 +193,7 @@ class BdpanAutomationService:
     async def quota(self, *, refresh: bool = False) -> dict[str, Any]:
         """Return a short-lived account-capacity snapshot from bdpan CLI."""
         loop_time = asyncio.get_running_loop().time()
-        selected = str(self.config["binary"])
+        selected = self.settings.bdpan_binary
         if (
             not refresh
             and self._quota_cache
@@ -222,9 +222,9 @@ class BdpanAutomationService:
     async def update_config(self, value: BdpanAutomationConfigUpdate) -> dict[str, Any]:
         config = self._normalize_config(value.model_dump(by_alias=True))
         if config["enabled"]:
-            status = await self._cli_status(binary=config["binary"], refresh=True)
+            status = await self._cli_status(refresh=True)
             if not status["available"]:
-                raise AppError(409, f"未找到 bdpan 二进制：{config['binary']}")
+                raise AppError(409, "镜像内未找到 bdpan CLI")
             if not status["loggedIn"]:
                 raise AppError(409, "bdpan 尚未完成百度网盘授权")
         self.config = config
@@ -251,7 +251,7 @@ class BdpanAutomationService:
         if not accepted:
             raise AppError(400, "请先阅读并确认百度网盘安全提示")
         try:
-            url = await self.cli.start_login(self.config["binary"])
+            url = await self.cli.start_login(self.settings.bdpan_binary)
         except BdpanCliError as exc:
             raise AppError(502, str(exc)) from exc
         self._log("info", "百度网盘授权链接已生成")
@@ -259,7 +259,7 @@ class BdpanAutomationService:
 
     async def complete_login(self, code: str) -> dict[str, Any]:
         try:
-            result = await self.cli.complete_login(code, self.config["binary"])
+            result = await self.cli.complete_login(code, self.settings.bdpan_binary)
         except BdpanCliError as exc:
             raise AppError(502, str(exc)) from exc
         self._status_cache = None
@@ -268,13 +268,29 @@ class BdpanAutomationService:
         self._log("success", "百度网盘授权已完成")
         return result
 
+    async def logout(self) -> dict[str, Any]:
+        if self._operation_lock.locked() or self._manual_check_pending:
+            raise AppError(409, "百度网盘任务正在运行，请完成后再退出账号")
+        try:
+            await self.cli.logout(self.settings.bdpan_binary)
+        except BdpanCliError as exc:
+            raise AppError(502, str(exc)) from exc
+        self.config["enabled"] = False
+        self._status_cache = None
+        self._quota_cache = None
+        self._share_previews.clear()
+        await self.repository.save_bdpan(self.config)
+        self._wake.set()
+        self._log("success", "百度网盘账号已退出，自动追更已关闭")
+        return await self.status(refresh=True)
+
     async def inspect_share(self, value: str, extract_code: str = "") -> dict[str, Any]:
         """Inspect a share once and keep its file identifiers only in short-lived memory."""
         cli_status = await self._cli_status()
         if not cli_status["available"]:
             raise AppError(503, "bdpan CLI 未安装或配置路径不正确")
         if not cli_status["loggedIn"]:
-            raise AppError(409, "请先在系统设置中完成百度网盘授权")
+            raise AppError(409, "请先在“自动追更”中完成百度网盘授权")
         if self._operation_lock.locked():
             raise AppError(409, "已有百度网盘任务正在运行，请稍后重试")
 
@@ -418,7 +434,7 @@ class BdpanAutomationService:
                             [file.fsid for file in group],
                             destination,
                             code,
-                            binary=self.config["binary"],
+                            binary=self.settings.bdpan_binary,
                             session_id=session_id,
                         ),
                         timeout=self.settings.bdpan_timeout,
@@ -694,7 +710,7 @@ class BdpanAutomationService:
                     [file.fsid for file in group],
                     destination,
                     extract_code,
-                    binary=self.config["binary"],
+                    binary=self.settings.bdpan_binary,
                     session_id=session_id,
                 )
                 result = await self.cli.execute(
@@ -735,6 +751,14 @@ class BdpanAutomationService:
                             state.get("pendingNotificationNewCount") or 0
                         )
                         + notification_count,
+                        "pendingNotificationEpisodes": (
+                            self._merge_pending_notification_episodes(
+                                state,
+                                transferred,
+                                notification_fingerprints,
+                                default_season=int(item.get("season") or 1),
+                            )
+                        ),
                         "submittedTasks": self._merge_submitted_tasks(state, submitted_tasks),
                     }
                 )
@@ -768,6 +792,12 @@ class BdpanAutomationService:
                 "pendingFiles": self._merge_pending_files(state, transferred),
                 "pendingNotificationNewCount": int(state.get("pendingNotificationNewCount") or 0)
                 + notification_count,
+                "pendingNotificationEpisodes": self._merge_pending_notification_episodes(
+                    state,
+                    transferred,
+                    notification_fingerprints,
+                    default_season=int(item.get("season") or 1),
+                ),
                 "submittedTasks": self._merge_submitted_tasks(state, submitted_tasks),
             }
         )
@@ -822,7 +852,7 @@ class BdpanAutomationService:
                     extract_code=extract_code,
                     source_dir=source_dir,
                     page=page,
-                    binary=self.config["binary"],
+                    binary=self.settings.bdpan_binary,
                     session_id=session_id,
                 )
                 result = await self.cli.execute(argv, timeout=90, require_json=True)
@@ -1016,6 +1046,7 @@ class BdpanAutomationService:
                     )
                     state["lastError"] = "等待补齐：" + "、".join(missing_after_sync[:8])
                     state.pop("pendingNotificationNewCount", None)
+                    state.pop("pendingNotificationEpisodes", None)
                     await self._save_states()
                     self._log(
                         "warning",
@@ -1029,6 +1060,16 @@ class BdpanAutomationService:
                     return
                 current_count = episode_count or total_files
                 notification_count = int(state.pop("pendingNotificationNewCount", 0) or 0)
+                notification_episodes = list(
+                    dict.fromkeys(
+                        [
+                            *(str(value) for value in state.pop("pendingNotificationEpisodes", [])),
+                            *(str(value) for value in result.get("newEpisodes") or []),
+                        ]
+                    )
+                )
+                if notification_episodes:
+                    notification_count = len(notification_episodes)
                 state["lastResult"] = (
                     f"转存落盘并同步完成，当前 {current_count} 集"
                     if episode_count
@@ -1049,6 +1090,7 @@ class BdpanAutomationService:
                         item,
                         notification_count,
                         current_count,
+                        notification_episodes,
                     )
             except Exception as exc:  # noqa: BLE001 - scheduler must retain failure state
                 attempts = int(state.get("pendingSyncAttempts") or 0) + 1
@@ -1216,11 +1258,9 @@ class BdpanAutomationService:
                     self._log("warning", f"百度网盘定时检查已延后：{str(exc)[:300]}")
                 return
 
-    async def _cli_status(
-        self, *, binary: str | None = None, refresh: bool = False
-    ) -> dict[str, Any]:
+    async def _cli_status(self, *, refresh: bool = False) -> dict[str, Any]:
         loop_time = asyncio.get_running_loop().time()
-        selected = str(binary or self.config["binary"])
+        selected = self.settings.bdpan_binary
         if (
             not refresh
             and self._status_cache
@@ -1271,7 +1311,6 @@ class BdpanAutomationService:
     def _default_config(self) -> dict[str, Any]:
         return {
             "enabled": self.settings.bdpan_enabled,
-            "binary": self.settings.bdpan_binary,
             "checkIntervalMinutes": self.settings.bdpan_check_interval_minutes,
             "saveRoot": self.cli.normalize_destination(self.settings.bdpan_save_root),
             "settleSeconds": self.settings.bdpan_settle_seconds,
@@ -1279,9 +1318,6 @@ class BdpanAutomationService:
         }
 
     def _normalize_config(self, value: dict[str, Any]) -> dict[str, Any]:
-        binary = str(value.get("binary") or self.settings.bdpan_binary).strip()
-        if not binary or len(binary) > 500 or "\x00" in binary:
-            raise AppError(400, "bdpan 二进制路径格式不正确")
         save_root = self.cli.normalize_destination(
             str(value.get("saveRoot") or self.settings.bdpan_save_root)
         )
@@ -1289,7 +1325,6 @@ class BdpanAutomationService:
             raise AppError(400, "请设置百度网盘转存根目录")
         return {
             "enabled": bool(value.get("enabled", False)),
-            "binary": binary,
             "checkIntervalMinutes": max(5, min(1440, int(value.get("checkIntervalMinutes") or 10))),
             "saveRoot": save_root,
             "settleSeconds": max(30, min(1800, int(value.get("settleSeconds") or 90))),
@@ -1621,6 +1656,27 @@ class BdpanAutomationService:
                 ]
             )
         )
+
+    @staticmethod
+    def _merge_pending_notification_episodes(
+        state: dict[str, Any],
+        submitted: list[ShareMediaFile],
+        notification_fingerprints: set[str],
+        *,
+        default_season: int,
+    ) -> list[str]:
+        episodes = {
+            str(value).upper()
+            for value in state.get("pendingNotificationEpisodes") or []
+            if re.fullmatch(r"(?i)S\d{1,3}E\d{1,4}", str(value).strip())
+        }
+        for file in submitted:
+            if file.fingerprint not in notification_fingerprints:
+                continue
+            season, episode = source_season_episode("/".join(file.relative_parts))
+            if episode is not None:
+                episodes.add(f"S{season or max(1, default_season):02d}E{episode:02d}")
+        return sorted(episodes)
 
     @staticmethod
     def _pending_missing_files(

@@ -11,7 +11,7 @@ ENV UV_COMPILE_BYTECODE=1 \
 WORKDIR /app
 COPY scripts/install-bdpan.sh ./scripts/install-bdpan.sh
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends ca-certificates curl \
+    && apt-get install --yes --no-install-recommends ca-certificates curl ffmpeg tzdata \
     && ./scripts/install-bdpan.sh --yes \
     && bdpan version --no-check-update \
     && apt-get purge --yes --auto-remove curl \

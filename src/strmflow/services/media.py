@@ -303,7 +303,8 @@ class MediaService:
             }.values()
         )
         new_files = [name for name in files if name not in synced]
-        new_episode_count = self._new_episode_count(files, list(synced), context)
+        new_episode_identities = self._new_episode_identities(files, list(synced), context)
+        new_episode_count = len(new_episode_identities)
         missing_target_files = [entry["sourceRel"] for entry in missing]
         warmup_sources = (
             set(new_files)
@@ -368,6 +369,9 @@ class MediaService:
             "copied": copied,
             "newFiles": new_files,
             "newEpisodeCount": new_episode_count,
+            "newEpisodes": [
+                f"S{season:02d}E{episode:02d}" for season, episode in new_episode_identities
+            ],
             "missingTargetFiles": missing_target_files,
             "warmupPaths": warmup_paths,
             "totalFiles": len(files),
@@ -706,6 +710,12 @@ class MediaService:
     def _new_episode_count(
         cls, files: list[str], previous: list[str], context: dict[str, Any]
     ) -> int:
+        return len(cls._new_episode_identities(files, previous, context))
+
+    @classmethod
+    def _new_episode_identities(
+        cls, files: list[str], previous: list[str], context: dict[str, Any]
+    ) -> list[tuple[int, int]]:
         identity_context = {
             **context,
             "autoMultiSeason": len(cls._explicit_seasons([*files, *previous])) > 1,
@@ -730,7 +740,7 @@ class MediaService:
                 )
             )
         }
-        return len(current_ids - previous_ids)
+        return sorted(current_ids - previous_ids)
 
     @staticmethod
     def _target_episode_identity(target: str, context: dict[str, Any]) -> tuple[int, int] | None:

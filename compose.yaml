@@ -1,9 +1,13 @@
 services:
   strmflow:
-    image: ghcr.io/niccfun/strmflow:${STRMFLOW_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: strmflow
     restart: unless-stopped
     env_file: .env
+    environment:
+      TZ: Asia/Shanghai
     ports:
       - "18787:8787"
       - "18096:18096"
@@ -13,6 +17,11 @@ services:
       - ./data/bdpan:/root/.config/bdpan
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       # Emby、OpenList 也加入该网络后，可在 302 管理中使用
       # http://emby:8096 与 http://openlist:5244 这类容器 DNS 地址。
@@ -21,4 +30,3 @@ services:
 networks:
   strmflow:
     name: strmflow
-    external: true
