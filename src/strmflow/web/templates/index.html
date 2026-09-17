@@ -422,6 +422,7 @@
     .bdpan-status-card span { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .04em; }
     .bdpan-status-card strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
     .bdpan-settings-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: start; gap: var(--form-row-gap) var(--form-column-gap); }
+    .telegram-tracker-panel { width: 100%; box-sizing: border-box; }
     .bdpan-root-field { grid-column: 1 / -1; }
     .bdpan-root-field input { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     .bdpan-metric-field { grid-column: span 2; }
@@ -1441,8 +1442,16 @@
               <p class="gateway-field-help">默认为“我的应用数据/bdpan/media”；镜像内固定使用已安装的 bdpan CLI。</p>
             </div>
             <div class="field bdpan-metric-field">
-              <label for="bdpanIntervalInput">检查间隔（分钟）</label>
+              <label for="bdpanTrackingModeInput">追更模式</label>
+              <select id="bdpanTrackingModeInput">
+                <option value="polling">仅百度定时检查</option>
+                <option value="hybrid">Telegram 实时 + 百度兜底</option>
+              </select>
+            </div>
+            <div class="field bdpan-metric-field">
+              <label for="bdpanIntervalInput">百度兜底检查（分钟）</label>
               <input id="bdpanIntervalInput" type="number" value="10" min="5" max="1440" inputmode="numeric">
+              <p class="gateway-field-help">Telegram 负责实时发现；该间隔用于消息遗漏时的兜底检查。</p>
             </div>
             <div class="field bdpan-metric-field">
               <label for="bdpanSettleInput">转存等待（秒）</label>
@@ -1476,6 +1485,58 @@
             </div>
             <button id="bdpanLoginCompleteButton" class="primary" type="button">完成授权</button>
           </div>
+
+          <section class="settings-block telegram-tracker-panel" aria-labelledby="telegramTrackerTitle">
+            <div class="settings-block-heading-row">
+              <div class="settings-block-heading">
+                <strong id="telegramTrackerTitle">Telegram 实时追更</strong>
+                <span>使用 MTProto 用户账号监听已加入的频道或群组，匹配媒体标题后更新百度链接。</span>
+              </div>
+              <span id="telegramStatus" class="gateway-status offline">未配置</span>
+            </div>
+            <p id="telegramRuntimeHint" class="settings-help">尚未连接 Telegram。</p>
+            <label class="gateway-enable-card" for="telegramEnabledInput">
+              <span><strong>启用 Telegram 消息采集</strong><small>仅在“Telegram 实时 + 百度兜底”模式下消费消息。</small></span>
+              <input id="telegramEnabledInput" type="checkbox">
+              <span class="toggle-switch" aria-hidden="true"></span>
+            </label>
+            <div class="settings-field-grid">
+              <div class="field">
+                <label for="telegramApiIdInput">api_id</label>
+                <input id="telegramApiIdInput" type="number" min="1" max="2147483647" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="telegramApiHashInput">api_hash</label>
+                <input id="telegramApiHashInput" type="password" placeholder="留空则保留已保存值" autocomplete="new-password">
+              </div>
+              <div class="field">
+                <label for="telegramPhoneInput">登录手机号</label>
+                <input id="telegramPhoneInput" type="tel" placeholder="+8613800000000" autocomplete="tel">
+              </div>
+              <div class="field">
+                <label for="telegramSourcesInput">监听来源</label>
+                <textarea id="telegramSourcesInput" rows="3" placeholder="@WFYSFX03&#10;@WFYSFX01"></textarea>
+                <p class="settings-help">每行一个频道用户名、t.me 地址或数字 Chat ID；账号需要先加入对应来源。</p>
+              </div>
+            </div>
+            <div id="telegramLoginPanel" class="bdpan-login-panel" hidden>
+              <div class="field">
+                <label for="telegramCodeInput">Telegram 验证码</label>
+                <input id="telegramCodeInput" type="text" inputmode="numeric" autocomplete="one-time-code">
+              </div>
+              <div class="field">
+                <label for="telegramPasswordInput">两步验证密码（如启用）</label>
+                <input id="telegramPasswordInput" type="password" autocomplete="current-password">
+              </div>
+              <button id="telegramLoginCompleteButton" class="primary" type="button">完成 Telegram 登录</button>
+            </div>
+            <div id="telegramError" class="editor-error" role="alert"></div>
+            <div class="page-form-actions">
+              <button id="telegramLogoutButton" class="danger-button" type="button" hidden>退出 Telegram</button>
+              <button id="telegramLoginStartButton" type="button">发送登录验证码</button>
+              <button id="telegramSaveButton" class="primary" type="button">保存 Telegram 配置</button>
+            </div>
+          </section>
 
           <div class="bdpan-watch-panel">
             <div class="bdpan-watch-head">
@@ -1844,6 +1905,8 @@
       bdpanSnapshot: '',
       bdpanLoading: false,
       bdpanTimer: null,
+      telegramData: null,
+      telegramSnapshot: '',
       wecomData: null,
       wecomSnapshot: '',
       wecomLoading: false,
@@ -1958,6 +2021,7 @@
       bdpanWatchedStatus: document.querySelector('#bdpanWatchedStatus'),
       bdpanNextCheckStatus: document.querySelector('#bdpanNextCheckStatus'),
       bdpanEnabled: document.querySelector('#bdpanEnabledInput'),
+      bdpanTrackingMode: document.querySelector('#bdpanTrackingModeInput'),
       bdpanSaveRoot: document.querySelector('#bdpanSaveRootInput'),
       bdpanInterval: document.querySelector('#bdpanIntervalInput'),
       bdpanSettle: document.querySelector('#bdpanSettleInput'),
@@ -1977,6 +2041,21 @@
       bdpanError: document.querySelector('#bdpanError'),
       bdpanReset: document.querySelector('#bdpanResetButton'),
       bdpanSave: document.querySelector('#bdpanSaveButton'),
+      telegramStatus: document.querySelector('#telegramStatus'),
+      telegramRuntimeHint: document.querySelector('#telegramRuntimeHint'),
+      telegramEnabled: document.querySelector('#telegramEnabledInput'),
+      telegramApiId: document.querySelector('#telegramApiIdInput'),
+      telegramApiHash: document.querySelector('#telegramApiHashInput'),
+      telegramPhone: document.querySelector('#telegramPhoneInput'),
+      telegramSources: document.querySelector('#telegramSourcesInput'),
+      telegramLoginPanel: document.querySelector('#telegramLoginPanel'),
+      telegramCode: document.querySelector('#telegramCodeInput'),
+      telegramPassword: document.querySelector('#telegramPasswordInput'),
+      telegramLoginStart: document.querySelector('#telegramLoginStartButton'),
+      telegramLoginComplete: document.querySelector('#telegramLoginCompleteButton'),
+      telegramLogout: document.querySelector('#telegramLogoutButton'),
+      telegramError: document.querySelector('#telegramError'),
+      telegramSave: document.querySelector('#telegramSaveButton'),
       wecomHeaderStatus: document.querySelector('#wecomHeaderStatus'),
       wecomWebhook: document.querySelector('#wecomWebhookInput'),
       wecomWebhookStatus: document.querySelector('#wecomWebhookStatus'),
@@ -2793,6 +2872,7 @@
     function bdpanValues() {
       return {
         enabled: elements.bdpanEnabled.checked,
+        trackingMode: elements.bdpanTrackingMode.value,
         checkIntervalMinutes: Number(elements.bdpanInterval.value),
         saveRoot: elements.bdpanSaveRoot.value.trim(),
         settleSeconds: Number(elements.bdpanSettle.value),
@@ -2827,6 +2907,7 @@
 
     function fillBdpanForm(config) {
       elements.bdpanEnabled.checked = Boolean(config.enabled);
+      elements.bdpanTrackingMode.value = config.trackingMode === 'hybrid' ? 'hybrid' : 'polling';
       elements.bdpanSaveRoot.value = config.saveRoot || 'video';
       elements.bdpanInterval.value = String(config.checkIntervalMinutes || 10);
       elements.bdpanSettle.value = String(config.settleSeconds || 90);
@@ -2912,14 +2993,16 @@
         resultText.textContent = watch.lastError || watch.lastResult || '等待检查';
         if (watch.lastError) resultText.classList.add('bdpan-watch-error');
         const timing = document.createElement('small');
-        timing.textContent = watch.pendingSync
-          ? '等待自动扫描同步' : watch.lastCheckedAt ? '检查于 ' + formatDate(watch.lastCheckedAt) : '尚未检查';
+        timing.textContent = watch.suspended
+          ? '追更已暂停 · 更新分享链接后恢复'
+          : watch.pendingSync
+            ? '等待自动扫描同步' : watch.lastCheckedAt ? '检查于 ' + formatDate(watch.lastCheckedAt) : '尚未检查';
         result.append(resultText, timing);
 
         const button = document.createElement('button');
         button.type = 'button';
         button.textContent = runtime.runningItemId === watch.itemId ? '检查中…' : '检查';
-        button.disabled = state.busy || running || !ready;
+        button.disabled = state.busy || running || !ready || Boolean(watch.suspended);
         button.addEventListener('click', () => checkBdpanNow(watch.itemId));
         row.append(main, path, result, button);
         elements.bdpanWatchList.append(row);
@@ -2957,7 +3040,158 @@
 
     async function openBdpan() {
       showView('bdpan');
-      await loadBdpan(!state.bdpanData, false);
+      await Promise.all([
+        loadBdpan(!state.bdpanData, false),
+        loadTelegram(!state.telegramData),
+      ]);
+    }
+
+    function telegramValues() {
+      return {
+        enabled: elements.telegramEnabled.checked,
+        apiId: Number(elements.telegramApiId.value || 0),
+        apiHash: elements.telegramApiHash.value.trim(),
+        phone: elements.telegramPhone.value.trim(),
+        sources: elements.telegramSources.value.split(/[\n,]+/).map((value) => value.trim()).filter(Boolean),
+      };
+    }
+
+    function renderTelegramStatus(data) {
+      const config = data?.config || {};
+      const runtime = data?.runtime || {};
+      elements.telegramStatus.className = 'gateway-status '
+        + (runtime.lastError ? 'error' : runtime.listening ? 'online' : runtime.authorized ? 'offline' : 'pending');
+      elements.telegramStatus.textContent = runtime.listening
+        ? '实时监听中'
+        : runtime.lastError ? '连接异常'
+          : runtime.authorized ? (config.enabled ? '已授权，等待连接' : '已授权，当前未启用') : '等待登录';
+      elements.telegramRuntimeHint.textContent = runtime.lastError
+        ? '最近错误：' + runtime.lastError
+        : runtime.lastMatch
+          ? '最近匹配：' + runtime.lastMatch + (runtime.lastReceivedAt ? ' · ' + formatDate(runtime.lastReceivedAt) : '')
+          : runtime.lastReceivedAt ? '最近收到消息：' + formatDate(runtime.lastReceivedAt) : '尚未收到已配置来源的消息。';
+      elements.telegramLogout.hidden = !runtime.authorized;
+      elements.telegramLoginStart.hidden = Boolean(runtime.authorized);
+    }
+
+    function fillTelegramForm(data) {
+      const config = data?.config || {};
+      const enteredPhone = elements.telegramPhone.value.trim();
+      elements.telegramEnabled.checked = Boolean(config.enabled);
+      elements.telegramApiId.value = config.apiId ? String(config.apiId) : '';
+      elements.telegramApiHash.value = '';
+      elements.telegramApiHash.placeholder = config.apiHashConfigured
+        ? '已保存，留空保持不变' : '填写 my.telegram.org 提供的 api_hash';
+      elements.telegramPhone.value = config.phoneConfigured ? enteredPhone : '';
+      elements.telegramPhone.placeholder = config.phoneMasked
+        ? '已保存 ' + config.phoneMasked + '；重新登录时填写完整号码'
+        : '+8613800000000';
+      elements.telegramSources.value = (config.sources || []).join('\n');
+      renderTelegramStatus(data);
+      state.telegramSnapshot = JSON.stringify(telegramValues());
+    }
+
+    async function loadTelegram(populateForm = false) {
+      try {
+        const data = await api('/api/telegram');
+        state.telegramData = data;
+        if (populateForm || !state.telegramSnapshot) fillTelegramForm(data);
+        else renderTelegramStatus(data);
+      } catch (error) {
+        elements.telegramError.textContent = error.message;
+        elements.telegramError.classList.add('show');
+      }
+    }
+
+    async function saveTelegram() {
+      const values = telegramValues();
+      if (!Number.isInteger(values.apiId) || values.apiId < 1 || (!values.apiHash && !state.telegramData?.config?.apiHashConfigured)) {
+        elements.telegramError.textContent = '请填写有效的 Telegram api_id 和 api_hash';
+        elements.telegramError.classList.add('show');
+        return;
+      }
+      setBusy(true);
+      try {
+        const data = await api('/api/telegram', {
+          method: 'PUT',
+          body: JSON.stringify(values),
+        });
+        state.telegramData = data;
+        fillTelegramForm(data);
+        elements.telegramError.classList.remove('show');
+        setStatus('Telegram 实时追更配置已保存。', 'success');
+      } catch (error) {
+        elements.telegramError.textContent = error.message;
+        elements.telegramError.classList.add('show');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function startTelegramLogin() {
+      if (!elements.telegramPhone.value.trim()) {
+        elements.telegramError.textContent = '请填写 Telegram 登录手机号';
+        elements.telegramError.classList.add('show');
+        elements.telegramPhone.focus();
+        return;
+      }
+      setBusy(true);
+      try {
+        await api('/api/telegram/login/start', {
+          method: 'POST',
+          body: JSON.stringify({ phone: elements.telegramPhone.value.trim() }),
+        });
+        elements.telegramLoginPanel.hidden = false;
+        elements.telegramCode.focus();
+        setStatus('Telegram 验证码已发送。', 'success');
+      } catch (error) {
+        elements.telegramError.textContent = error.message;
+        elements.telegramError.classList.add('show');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function completeTelegramLogin() {
+      setBusy(true);
+      try {
+        const data = await api('/api/telegram/login/complete', {
+          method: 'POST',
+          body: JSON.stringify({
+            code: elements.telegramCode.value.trim(),
+            password: elements.telegramPassword.value,
+          }),
+        });
+        if (data.passwordRequired) {
+          elements.telegramPassword.focus();
+          setStatus('该账号已启用两步验证，请输入密码后再次提交。', 'running');
+          return;
+        }
+        elements.telegramCode.value = '';
+        elements.telegramPassword.value = '';
+        elements.telegramLoginPanel.hidden = true;
+        await loadTelegram(true);
+        setStatus('Telegram 用户账号授权完成。', 'success');
+      } catch (error) {
+        elements.telegramError.textContent = error.message;
+        elements.telegramError.classList.add('show');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function logoutTelegram() {
+      setBusy(true);
+      try {
+        state.telegramData = await api('/api/telegram/logout', { method: 'POST', body: '{}' });
+        fillTelegramForm(state.telegramData);
+        setStatus('Telegram 用户账号已退出。', 'success');
+      } catch (error) {
+        elements.telegramError.textContent = error.message;
+        elements.telegramError.classList.add('show');
+      } finally {
+        setBusy(false);
+      }
     }
 
     function restoreBdpan() {
@@ -3654,6 +3888,7 @@
       ].forEach((input) => { input.disabled = value; });
       [
         elements.bdpanEnabled,
+        elements.bdpanTrackingMode,
         elements.bdpanSaveRoot,
         elements.bdpanInterval,
         elements.bdpanSettle,
@@ -3673,6 +3908,13 @@
         elements.wecomWebhook,
         elements.wecomEpisodeUpdate,
         elements.wecomLinkInvalid,
+        elements.telegramEnabled,
+        elements.telegramApiId,
+        elements.telegramApiHash,
+        elements.telegramPhone,
+        elements.telegramSources,
+        elements.telegramCode,
+        elements.telegramPassword,
       ].forEach((input) => { input.disabled = value; });
       updateTargetPreview();
       if (!value && state.bdpanData) {
@@ -5354,7 +5596,10 @@
       input.addEventListener('input', () => validateMediaProbe(false));
       input.addEventListener('change', () => validateMediaProbe(false));
     });
-    elements.bdpanRefresh.addEventListener('click', () => loadBdpan(false, true));
+    elements.bdpanRefresh.addEventListener('click', () => Promise.all([
+      loadBdpan(false, true),
+      loadTelegram(false),
+    ]));
     elements.bdpanCheck.addEventListener('click', () => checkBdpanNow());
     elements.bdpanLogout.addEventListener('click', logoutBdpan);
     elements.bdpanLoginStart.addEventListener('click', startBdpanLogin);
@@ -5364,8 +5609,13 @@
     elements.bdpanLoginComplete.addEventListener('click', completeBdpanLogin);
     elements.bdpanSave.addEventListener('click', saveBdpan);
     elements.bdpanReset.addEventListener('click', restoreBdpan);
+    elements.telegramSave.addEventListener('click', saveTelegram);
+    elements.telegramLoginStart.addEventListener('click', startTelegramLogin);
+    elements.telegramLoginComplete.addEventListener('click', completeTelegramLogin);
+    elements.telegramLogout.addEventListener('click', logoutTelegram);
     [
       elements.bdpanEnabled,
+      elements.bdpanTrackingMode,
       elements.bdpanSaveRoot,
       elements.bdpanInterval,
       elements.bdpanSettle,
@@ -5373,6 +5623,17 @@
     ].forEach((input) => {
       input.addEventListener('input', () => validateBdpan(false));
       input.addEventListener('change', () => validateBdpan(false));
+    });
+    [
+      elements.telegramEnabled,
+      elements.telegramApiId,
+      elements.telegramApiHash,
+      elements.telegramPhone,
+      elements.telegramSources,
+    ].forEach((input) => {
+      const clearTelegramError = () => elements.telegramError.classList.remove('show');
+      input.addEventListener('input', clearTelegramError);
+      input.addEventListener('change', clearTelegramError);
     });
     elements.wecomSave.addEventListener('click', saveWecom);
     elements.wecomReset.addEventListener('click', restoreWecom);
@@ -5400,10 +5661,12 @@
         && state.emby302Snapshot !== JSON.stringify(emby302Values());
       const bdpanDirty = Boolean(state.bdpanSnapshot)
         && state.bdpanSnapshot !== JSON.stringify(bdpanValues());
+      const telegramDirty = Boolean(state.telegramSnapshot)
+        && state.telegramSnapshot !== JSON.stringify(telegramValues());
       const wecomDirty = wecomIsDirty();
       const mediaProbeDirty = Boolean(state.mediaProbeSnapshot)
         && state.mediaProbeSnapshot !== JSON.stringify(mediaProbeValues());
-      if (!editorIsDirty() && !settingsDirty && !emby302Dirty && !bdpanDirty && !wecomDirty && !mediaProbeDirty) return;
+      if (!editorIsDirty() && !settingsDirty && !emby302Dirty && !bdpanDirty && !telegramDirty && !wecomDirty && !mediaProbeDirty) return;
       event.preventDefault();
       event.returnValue = '';
     });

@@ -26,6 +26,7 @@ from strmflow.services.openlist import OpenListClient
 from strmflow.services.path_config import PathConfigService
 from strmflow.services.storage import StorageService
 from strmflow.services.system_status import SystemStatusService
+from strmflow.services.telegram_tracker import TelegramTrackerService
 from strmflow.services.transfers import BdpanTransferProvider, TransferManager
 
 
@@ -42,6 +43,7 @@ class ServiceContainer:
     emby302: Emby302Gateway
     media_probe: MediaProbeService
     bdpan: BdpanAutomationService
+    telegram: TelegramTrackerService
     notifications: WecomWebhookService
     system_status: SystemStatusService
 
@@ -110,6 +112,7 @@ def build_container(
         media_probe,
         storage=storage,
     )
+    telegram = TelegramTrackerService(runtime_repository, media, bdpan, runtime_logs)
     system_status = SystemStatusService(
         settings,
         database,
@@ -133,6 +136,7 @@ def build_container(
         emby302=emby302,
         media_probe=media_probe,
         bdpan=bdpan,
+        telegram=telegram,
         notifications=notifications,
         system_status=system_status,
     )

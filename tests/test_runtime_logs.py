@@ -21,6 +21,7 @@ def test_request_log_classification_and_status_levels() -> None:
     assert request_category("/api/login") == "auth"
     assert request_category("/api/items/scan/start") == "scan"
     assert request_category("/api/emby/publish") == "sync"
+    assert request_category("/api/telegram") == "telegram"
     assert status_level(200) == "success"
     assert status_level(302) == "redirect"
     assert status_level(404) == "warning"

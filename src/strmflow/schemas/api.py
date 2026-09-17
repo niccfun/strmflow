@@ -124,6 +124,7 @@ class Emby302ConfigUpdate(ApiModel):
 
 class BdpanAutomationConfigUpdate(ApiModel):
     enabled: bool = False
+    tracking_mode: Literal["polling", "hybrid"] = "polling"
     check_interval_minutes: int = Field(default=10, ge=5, le=1440)
     save_root: str = Field(default="video", min_length=1, max_length=700)
     settle_seconds: int = Field(default=90, ge=30, le=1800)
@@ -136,6 +137,23 @@ class BdpanLoginCompleteRequest(ApiModel):
 
 class BdpanLoginStartRequest(ApiModel):
     accepted: bool = False
+
+
+class TelegramConfigUpdate(ApiModel):
+    enabled: bool = False
+    api_id: int = Field(default=0, ge=0, le=2_147_483_647)
+    api_hash: str = Field(default="", max_length=128)
+    phone: str = Field(default="", max_length=40)
+    sources: list[str] = Field(default_factory=list, max_length=100)
+
+
+class TelegramLoginStartRequest(ApiModel):
+    phone: str = Field(min_length=5, max_length=40)
+
+
+class TelegramLoginCompleteRequest(ApiModel):
+    code: str = Field(default="", max_length=20)
+    password: str = Field(default="", max_length=256)
 
 
 class BdpanShareInspectRequest(ApiModel):

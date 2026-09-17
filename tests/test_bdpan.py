@@ -905,8 +905,128 @@ async def test_invalid_share_link_notifies_only_once_until_it_recovers() -> None
         raise BdpanCliError("分享链接已失效、已取消或不存在", code="13004")
 
     service._list_share_media = invalid_share  # type: ignore[method-assign]
-    for _ in range(2):
-        with pytest.raises(BdpanCliError):
-            await service.check_item("m1")
+    with pytest.raises(BdpanCliError):
+        await service.check_item("m1")
+    skipped = await service.check_item("m1")
 
     assert notifications.invalid_links == [("m1", "分享链接已失效、已取消或不存在")]
+    assert skipped == {
+        "itemId": "m1",
+        "skipped": True,
+        "reason": "分享链接失效，等待更新",
+    }
+    assert service.states["m1"]["nextCheckAt"] is None
+    assert service.states["m1"]["invalidShareKey"]
+    assert service._public_watch(service.media.item)["suspended"] is True
+
+
+@pytest.mark.asyncio
+async def test_updating_invalid_share_link_resumes_automatic_tracking() -> None:
+    settings = Settings(bdpan_binary="bdpan")
+    media = FakeMedia()
+    repository = FakeRuntimeRepository()
+    service = BdpanAutomationService(
+        settings,
+        FakeBdpanCli(settings),
+        repository,  # type: ignore[arg-type]
+        media,  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        FakePathConfig(),  # type: ignore[arg-type]
+        RuntimeLogStore(),
+    )
+    original_key = service._share_link_key(media.item)
+    service.states["m1"] = {
+        "invalidShareKey": original_key,
+        "invalidShareAt": "2026-09-17T00:00:00+00:00",
+        "linkInvalidNotificationKey": original_key,
+        "nextCheckAt": None,
+        "failureCount": 3,
+        "lastError": "share link status is abnormal",
+    }
+    media.item["baiduLink"] = "https://pan.baidu.com/s/new-link?pwd=xy12"
+
+    await service.media_updated(media.item)
+
+    state = service.states["m1"]
+    assert "invalidShareKey" not in state
+    assert "invalidShareAt" not in state
+    assert "linkInvalidNotificationKey" not in state
+    assert state["failureCount"] == 0
+    assert state["lastError"] == ""
+    assert state["nextCheckAt"]
+    assert state["lastResult"] == "分享链接已更新，自动追更已恢复"
+    assert repository.states == service.states
+
+
+@pytest.mark.asyncio
+async def test_telegram_does_not_resume_suspended_watch_with_same_link() -> None:
+    settings = Settings(bdpan_binary="bdpan")
+    media = FakeMedia()
+    repository = FakeRuntimeRepository()
+    service = BdpanAutomationService(
+        settings,
+        FakeBdpanCli(settings),
+        repository,  # type: ignore[arg-type]
+        media,  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        FakePathConfig(),  # type: ignore[arg-type]
+        RuntimeLogStore(),
+    )
+    original_key = service._share_link_key(media.item)
+    service.states["m1"] = {
+        "invalidShareKey": original_key,
+        "invalidShareAt": "2026-09-17T00:00:00+00:00",
+        "nextCheckAt": None,
+        "failureCount": 3,
+    }
+
+    await service.telegram_update(
+        media.item,
+        link_changed=False,
+        source="@wfysfx03",
+        episode=24,
+    )
+
+    state = service.states["m1"]
+    assert state["invalidShareKey"] == original_key
+    assert state["nextCheckAt"] is None
+    assert "继续暂停追更" in state["lastResult"]
+
+
+@pytest.mark.asyncio
+async def test_abnormal_share_status_13001_sends_link_invalid_notification() -> None:
+    settings = Settings(bdpan_binary="bdpan")
+    notifications = FakeNotifications()
+    service = BdpanAutomationService(
+        settings,
+        FakeBdpanCli(settings),
+        FakeRuntimeRepository(),  # type: ignore[arg-type]
+        FakeMedia(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        FakePathConfig(),  # type: ignore[arg-type]
+        RuntimeLogStore(),
+        notifications,  # type: ignore[arg-type]
+    )
+    message = "查询分享目录失败: 分享接口失败: errno=13001, msg=share link status is abnormal"
+
+    async def abnormal_share(*_args: Any, **_kwargs: Any) -> list[ShareMediaFile]:
+        raise BdpanCliError(message, code="13001")
+
+    service._list_share_media = abnormal_share  # type: ignore[method-assign]
+
+    with pytest.raises(BdpanCliError):
+        await service.check_item("m1")
+
+    assert notifications.invalid_links == [("m1", message)]
+
+
+def test_embedded_13001_is_recognized_when_error_code_is_not_preserved() -> None:
+    error = AppError(
+        502,
+        "查询分享目录失败: 分享接口失败: errno=13001, msg=share link status is abnormal",
+    )
+
+    assert BdpanAutomationService._is_invalid_share_error(error) is True

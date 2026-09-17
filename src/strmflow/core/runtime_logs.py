@@ -185,6 +185,8 @@ def request_category(path: str) -> str:
         return "gateway302"
     if path.startswith("/api/bdpan"):
         return "bdpan"
+    if path.startswith("/api/telegram"):
+        return "telegram"
     if path.startswith("/api/notifications"):
         return "notification"
     if path.startswith("/api/emby"):

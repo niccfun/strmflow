@@ -14,6 +14,7 @@ BDPAN_CONFIG_KEY = "runtime_bdpan_config_v1"
 BDPAN_WATCH_STATE_KEY = "runtime_bdpan_watch_state_v1"
 WECOM_WEBHOOK_CONFIG_KEY = "runtime_wecom_webhook_config_v1"
 MEDIA_PROBE_CONFIG_KEY = "runtime_media_probe_config_v1"
+TELEGRAM_CONFIG_KEY = "runtime_telegram_config_v1"
 
 
 class RuntimeSettingsRepository:
@@ -61,6 +62,12 @@ class RuntimeSettingsRepository:
 
     async def save_media_probe(self, value: dict[str, Any]) -> None:
         await self._save(MEDIA_PROBE_CONFIG_KEY, value)
+
+    async def load_telegram(self) -> dict[str, Any] | None:
+        return await self._load(TELEGRAM_CONFIG_KEY)
+
+    async def save_telegram(self, value: dict[str, Any]) -> None:
+        await self._save(TELEGRAM_CONFIG_KEY, value)
 
     async def _load(self, key: str) -> dict[str, Any] | None:
         async with self.sessions() as session:

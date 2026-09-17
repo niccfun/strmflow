@@ -134,6 +134,7 @@ def test_index_has_unique_element_ids() -> None:
     assert 'id="bdpanSaveRootInput"' in template
     assert 'id="bdpanSaveRootInput" type="text" value="video"' in template
     assert 'id="bdpanIntervalInput"' in template
+    assert 'id="bdpanTrackingModeInput"' in template
     assert 'id="bdpanLoginStartButton"' in template
     assert 'id="bdpanLogoutButton"' in template
     assert 'id="bdpanAuthorizationCallout"' in template
@@ -147,6 +148,12 @@ def test_index_has_unique_element_ids() -> None:
     assert 'id="bdpanWatchList"' in template
     assert "'/api/bdpan'" in template
     assert "'/api/bdpan/check'" in template
+    assert 'id="telegramApiIdInput"' in template
+    assert 'id="telegramApiHashInput"' in template
+    assert 'id="telegramSourcesInput"' in template
+    assert 'id="telegramLoginStartButton"' in template
+    assert "'/api/telegram'" in template
+    assert "'/api/telegram/login/start'" in template
     assert "首次检查只建立基线" in template
     assert "百度网盘分享链接（用于自动追更）" in template
     assert 'id="wecomSettingsTitle"' in template
@@ -192,6 +199,8 @@ def test_index_has_unique_element_ids() -> None:
     assert "function configureAddMode(mode)" in template
     assert "function inspectShare()" in template
     assert "转存已提交，正在立即执行首次扫描同步" in template
+    assert "追更已暂停 · 更新分享链接后恢复" in template
+    assert "Boolean(watch.suspended)" in template
     assert "v__STRMFLOW_VERSION__" in template
     assert 'id="sourceFolderInput"' in template
     assert 'id="sourceTypeInput"' in template

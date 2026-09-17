@@ -109,6 +109,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await app.state.services.notifications.initialize()
                 runtime_logs.add(category="system", message="正在初始化百度网盘自动追更服务")
                 await app.state.services.bdpan.initialize()
+                runtime_logs.add(category="system", message="正在初始化 Telegram 实时追更服务")
+                await app.state.services.telegram.initialize()
                 runtime_logs.add(
                     category="system",
                     level="success",
@@ -118,6 +120,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     yield
                 finally:
                     runtime_logs.add(category="system", message="StrmFlow 正在停止后台任务")
+                    await app.state.services.telegram.close()
                     await app.state.services.bdpan.close()
                     await app.state.services.emby302.close()
                     await app.state.services.media_probe.close()

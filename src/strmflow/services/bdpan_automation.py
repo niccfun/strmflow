@@ -247,6 +247,7 @@ class BdpanAutomationService:
             "success",
             "百度网盘自动追更配置已更新",
             enabled=config["enabled"],
+            trackingMode=config["trackingMode"],
             intervalMinutes=config["checkIntervalMinutes"],
             maxNewItems=config["maxNewItems"],
         )
@@ -554,7 +555,24 @@ class BdpanAutomationService:
     async def media_updated(self, item: dict[str, Any]) -> None:
         """Wake the scheduler when a watchable media record is saved."""
         if item.get("status") == "ongoing" and item.get("baiduLink"):
-            self.states.setdefault(str(item["id"]), {})["nextCheckAt"] = self._iso_now()
+            state = self.states.setdefault(str(item["id"]), {})
+            current_key = self._share_link_key(item)
+            suspended_key = str(state.get("invalidShareKey") or "")
+            if suspended_key and suspended_key != current_key:
+                state.pop("invalidShareKey", None)
+                state.pop("invalidShareAt", None)
+                state.pop("linkInvalidNotificationKey", None)
+                state["failureCount"] = 0
+                state["lastError"] = ""
+                state["lastResult"] = "分享链接已更新，自动追更已恢复"
+                state["nextCheckAt"] = self._iso_now()
+                self._log(
+                    "success",
+                    f"百度网盘分享链接已更新，恢复自动追更：{item['name']}",
+                    itemId=item["id"],
+                )
+            elif not suspended_key:
+                state["nextCheckAt"] = self._iso_now()
             await self._save_states()
         self._wake.set()
 
@@ -580,6 +598,13 @@ class BdpanAutomationService:
             self._log("info", f"跳过百度网盘检查：{item['name']} 未配置分享链接", itemId=item_id)
             return {"itemId": item_id, "skipped": True, "reason": "未配置分享链接"}
         state = self.states.setdefault(item_id, {})
+        if self._link_is_suspended(item, state):
+            self._log(
+                "info",
+                f"跳过百度网盘检查：{item['name']} 的分享链接已失效，等待用户更新",
+                itemId=item_id,
+            )
+            return {"itemId": item_id, "skipped": True, "reason": "分享链接失效，等待更新"}
         self._log(
             "info",
             f"开始检查百度网盘分享：{item['name']}",
@@ -608,6 +633,7 @@ class BdpanAutomationService:
                 files = await self._list_share_media(share_url, extract_code, session_id)
         except (BdpanCliError, AppError) as exc:
             await self._record_failure(item, exc)
+            await self._suspend_invalid_link(item, exc)
             await self._notify_invalid_link_once(item, exc)
             raise
 
@@ -632,7 +658,10 @@ class BdpanAutomationService:
         fingerprints = {file.fingerprint for file in files}
         previous = set(state.get("seen") or [])
         now = self._iso_now()
-        if state.get("shareKey") != share_key or not state.get("initialized"):
+        share_changed = state.get("shareKey") != share_key
+        was_initialized = bool(state.get("initialized"))
+        reconcile = bool(state.pop("reconcileOnNextCheck", False))
+        if share_changed or not was_initialized:
             state.update(
                 {
                     "initialized": True,
@@ -642,18 +671,30 @@ class BdpanAutomationService:
                     "nextCheckAt": self._next_check_at(),
                     "lastError": "",
                     "failureCount": 0,
-                    "lastResult": f"已建立基线，共 {len(files)} 个媒体文件",
+                    "lastResult": (
+                        f"Telegram 新链接已读取，共 {len(files)} 个媒体文件，正在核对本地缺集"
+                        if reconcile and was_initialized
+                        else f"已建立基线，共 {len(files)} 个媒体文件"
+                    ),
                 }
             )
             await self._save_states()
-            self._log(
-                "success",
-                f"百度网盘追更基线已建立：{item['name']}",
-                itemId=item_id,
-                fileCount=len(files),
-                nextCheckAt=state["nextCheckAt"],
-            )
-            return {"itemId": item_id, "baseline": True, "fileCount": len(files), "newCount": 0}
+            if reconcile and was_initialized:
+                previous = set(fingerprints)
+            else:
+                self._log(
+                    "success",
+                    f"百度网盘追更基线已建立：{item['name']}",
+                    itemId=item_id,
+                    fileCount=len(files),
+                    nextCheckAt=state["nextCheckAt"],
+                )
+                return {
+                    "itemId": item_id,
+                    "baseline": True,
+                    "fileCount": len(files),
+                    "newCount": 0,
+                }
 
         additions = [file for file in files if file.fingerprint not in previous]
         missing_files, quality_upgrades, inventory_checked = await self._saved_episode_repairs(
@@ -1195,25 +1236,60 @@ class BdpanAutomationService:
         if not self.notifications or not self._is_invalid_share_error(error):
             return
         state = self.states.setdefault(str(item["id"]), {})
-        notification_key = hashlib.sha256(str(item.get("baiduLink") or "").encode()).hexdigest()
+        notification_key = self._share_link_key(item)
         if state.get("linkInvalidNotificationKey") == notification_key:
             return
         if await self.notifications.notify_link_invalid(item, error):
             state["linkInvalidNotificationKey"] = notification_key
             await self._save_states()
 
+    async def _suspend_invalid_link(self, item: dict[str, Any], error: Exception) -> bool:
+        if not self._is_invalid_share_error(error):
+            return False
+        state = self.states.setdefault(str(item["id"]), {})
+        invalid_key = self._share_link_key(item)
+        newly_suspended = state.get("invalidShareKey") != invalid_key
+        state.update(
+            {
+                "invalidShareKey": invalid_key,
+                "invalidShareAt": self._iso_now(),
+                "nextCheckAt": None,
+                "lastResult": "分享链接已失效，自动追更已暂停；更新链接后自动恢复",
+                "lastError": str(error)[:500],
+            }
+        )
+        await self._save_states()
+        if newly_suspended:
+            self._log(
+                "warning",
+                f"百度网盘分享链接失效，已暂停自动追更：{item['name']}",
+                itemId=item["id"],
+            )
+        return True
+
+    @staticmethod
+    def _share_link_key(item: dict[str, Any]) -> str:
+        return hashlib.sha256(str(item.get("baiduLink") or "").strip().encode()).hexdigest()
+
+    @classmethod
+    def _link_is_suspended(cls, item: dict[str, Any], state: dict[str, Any]) -> bool:
+        invalid_key = str(state.get("invalidShareKey") or "")
+        return bool(invalid_key and invalid_key == cls._share_link_key(item))
+
     @staticmethod
     def _is_invalid_share_error(error: Exception) -> bool:
-        if isinstance(error, BdpanCliError) and error.code == "13004":
+        if isinstance(error, BdpanCliError) and error.code in {"13001", "13004"}:
             return True
         message = str(error).casefold()
         return any(
             phrase in message
             for phrase in (
+                "errno=13001",
                 "分享链接已失效",
                 "链接已失效",
                 "分享已取消",
                 "分享链接不存在",
+                "share link status is abnormal",
             )
         )
 
@@ -1295,6 +1371,8 @@ class BdpanAutomationService:
         ]
         for item in items:
             state = self.states.setdefault(item["id"], {})
+            if self._link_is_suspended(item, state):
+                continue
             due = self._parse_time(state.get("nextCheckAt"))
             if due is None or due <= now:
                 self._log(
@@ -1350,6 +1428,7 @@ class BdpanAutomationService:
             "lastTransferAt": state.get("lastTransferAt"),
             "lastSyncedAt": state.get("lastSyncedAt"),
             "pendingSync": bool(state.get("pendingSyncAt")),
+            "suspended": self._link_is_suspended(item, state),
             "submittedTaskCount": len(state.get("submittedTasks") or []),
             "lastResult": state.get("lastResult") or "等待首次检查",
             "lastError": state.get("lastError") or "",
@@ -1362,6 +1441,7 @@ class BdpanAutomationService:
     def _default_config(self) -> dict[str, Any]:
         return {
             "enabled": self.settings.bdpan_enabled,
+            "trackingMode": "polling",
             "checkIntervalMinutes": self.settings.bdpan_check_interval_minutes,
             "saveRoot": self.cli.normalize_destination(self.settings.bdpan_save_root),
             "settleSeconds": self.settings.bdpan_settle_seconds,
@@ -1376,11 +1456,55 @@ class BdpanAutomationService:
             raise AppError(400, "请设置百度网盘转存根目录")
         return {
             "enabled": bool(value.get("enabled", False)),
+            "trackingMode": "hybrid" if value.get("trackingMode") == "hybrid" else "polling",
             "checkIntervalMinutes": max(5, min(1440, int(value.get("checkIntervalMinutes") or 10))),
             "saveRoot": save_root,
             "settleSeconds": max(30, min(1800, int(value.get("settleSeconds") or 90))),
             "maxNewItems": max(1, min(100, int(value.get("maxNewItems") or 20))),
         }
+
+    async def telegram_update(
+        self,
+        item: dict[str, Any],
+        *,
+        link_changed: bool,
+        source: str,
+        episode: int | None,
+    ) -> None:
+        """Resume and prioritize one watch after a matched Telegram announcement."""
+        state = self.states.setdefault(str(item["id"]), {})
+        if link_changed:
+            state.pop("invalidShareKey", None)
+            state.pop("invalidShareAt", None)
+            state.pop("linkInvalidNotificationKey", None)
+        elif self._link_is_suspended(item, state):
+            state["lastResult"] = f"Telegram 已匹配 {source}，但分享链接未变更，继续暂停追更"
+            await self._save_states()
+            self._log(
+                "warning",
+                f"Telegram 更新仍为已失效链接：{item['name']}",
+                itemId=item["id"],
+                source=source,
+                episode=episode,
+            )
+            return
+        state["failureCount"] = 0
+        state["lastError"] = ""
+        state["nextCheckAt"] = self._iso_now()
+        if link_changed and state.get("initialized"):
+            state["reconcileOnNextCheck"] = True
+        suffix = f"，消息提示更新至 {episode} 集" if episode else ""
+        state["lastResult"] = f"Telegram 已匹配更新：{source}{suffix}"
+        await self._save_states()
+        self._wake.set()
+        self._log(
+            "success",
+            f"Telegram 更新已匹配：{item['name']}",
+            itemId=item["id"],
+            source=source,
+            episode=episode,
+            linkChanged=link_changed,
+        )
 
     def _next_check_at(self) -> str:
         interval = int(self.config["checkIntervalMinutes"]) * 60
