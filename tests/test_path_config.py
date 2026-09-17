@@ -4,6 +4,12 @@ from strmflow.repositories.runtime_settings import RuntimeSettingsRepository
 from strmflow.services.path_config import PathConfigService
 
 
+def test_default_path_config_uses_standard_openlist_roots() -> None:
+    settings = Settings(_env_file=None)
+    assert settings.list_root == "/temp_strm"
+    assert settings.emby_strm_root == "/local_media/emby_strm"
+
+
 async def test_runtime_path_config_is_persisted(tmp_path) -> None:
     settings = Settings(database_url=f"sqlite+aiosqlite:///{tmp_path}/app.db")
     database = Database(settings)

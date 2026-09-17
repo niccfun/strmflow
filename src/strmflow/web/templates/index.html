@@ -1531,7 +1531,7 @@
               </div>
               <div class="field">
                 <label for="settingsEmbyRootInput">目标 STRM 根目录</label>
-                <input id="settingsEmbyRootInput" type="text" placeholder="/local_media/emby-strm" autocomplete="off" required>
+                <input id="settingsEmbyRootInput" type="text" placeholder="/local_media/emby_strm" autocomplete="off" required>
                 <p class="settings-help">整理后的 STRM 将同步到这里，供 Emby 媒体库读取。</p>
               </div>
             </div>
@@ -4679,7 +4679,7 @@
       const year = elements.year.value.trim();
       const category = elements.category.value.trim() || '未分类';
       const mediaType = elements.mediaType.value || 'tv';
-      const root = state.config?.embyStrmRoot || '/local_media/emby-strm';
+      const root = state.config?.embyStrmRoot || '/local_media/emby_strm';
       const folderName = title ? title + (year ? ' (' + year + ')' : '') : '未填写名称';
       const autoSeasonHint = mediaType === 'tv' ? '（同步时自动生成 Season XX）' : '';
       elements.targetPreview.textContent = '目标目录：' + root + '/' + mediaType + '/' + category + '/' + folderName + autoSeasonHint;
@@ -4923,7 +4923,7 @@
       }
       const paths = state.config?.pathSettings || {};
       elements.settingsListRoot.value = paths.listRoot || '';
-      elements.settingsEmbyRoot.value = paths.embyStrmRoot || state.config?.embyStrmRoot || '/local_media/emby-strm';
+      elements.settingsEmbyRoot.value = paths.embyStrmRoot || state.config?.embyStrmRoot || '/local_media/emby_strm';
       elements.settingsError.textContent = '';
       elements.settingsError.classList.remove('show');
       state.settingsSnapshot = JSON.stringify(settingsValues());

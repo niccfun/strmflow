@@ -176,8 +176,8 @@ networks:
 
 进入“系统设置”，依次完成：
 
-1. 设置**只读源 STRM 根目录**，例如 `/temp_strm`。
-2. 设置**目标 STRM 根目录**；代码默认值为 `/local_media/emby-strm`。
+1. 确认**只读源 STRM 根目录**，默认值为 `/temp_strm`。
+2. 确认**目标 STRM 根目录**，默认值为 `/local_media/emby_strm`。
 3. 确认两个目录都能通过 OpenList 访问，且源目录、目标目录及底层原始媒体目录互不重叠。
 4. 在媒体列表中选择资源，核对名称、年份、分类和季号后预览并发布。
 5. 按需启用“自动追更”“媒体增强”“302 管理”和企业微信通知。
@@ -200,7 +200,7 @@ networks:
 发布后，目标目录示例：
 
 ```text
-/local_media/emby-strm/
+/local_media/emby_strm/
 └── tv/
     └── 国产剧/
         └── 示例剧 (2026)/
@@ -309,6 +309,8 @@ Webhook 在页面和 API 返回中只显示掩码，运行日志不会记录完�
 | `EMBY_URL` | 否 | `http://emby:8096` | StrmFlow 后端访问 Emby 的地址。 |
 | `EMBY_WEB_URL` | 否 | 空 | 浏览器访问 Emby 的地址。 |
 | `EMBY_API_KEY` | 按需 | 空 | 使用 Emby 刷新、302 或媒体增强功能时需要。 |
+| `LIST_ROOT` | 否 | `/temp_strm` | 只读源 STRM 根目录的首次启动默认值。 |
+| `EMBY_STRM_ROOT` | 否 | `/local_media/emby_strm` | 目标 STRM 根目录的首次启动默认值。 |
 | `DATABASE_URL` | 否 | `sqlite+aiosqlite:///./data/strmflow.db` | SQLAlchemy 异步数据库地址。默认使用 SQLite。 |
 | `TZ` | 否 | Compose 中为 `Asia/Shanghai` | 定时任务和页面显示使用的运行时区。 |
 | `TURNSTILE_SITE_KEY` | 否 | 空 | Cloudflare Turnstile Site Key，需与 Secret 同时配置。 |
@@ -320,8 +322,8 @@ Webhook 在页面和 API 返回中只显示掩码，运行日志不会记录完�
 
 | 配置 | 默认值 | 保存位置 |
 | --- | --- | --- |
-| 只读源 STRM 根目录 | 未设置 | SQLite |
-| 目标 STRM 根目录 | `/local_media/emby-strm` | SQLite |
+| 只读源 STRM 根目录 | `/temp_strm` | SQLite |
+| 目标 STRM 根目录 | `/local_media/emby_strm` | SQLite |
 | 百度网盘自动追更 | 关闭 | SQLite |
 | 百度网盘转存根目录 | `media` | SQLite |
 | 自动检查周期 | `10` 分钟 | SQLite |

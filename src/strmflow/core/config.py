@@ -28,10 +28,10 @@ class Settings(BaseSettings):
     openlist_token: str = ""
     openlist_path_password: str = ""
     openlist_timeout: float = 30.0
-    list_root: str = ""
+    list_root: str = "/temp_strm"
     scan_limit: float = Field(default=2, gt=0)
 
-    emby_strm_root: str = "/local_media/emby-strm"
+    emby_strm_root: str = "/local_media/emby_strm"
     media_db_path: str = ""
     emby_url: str = "http://emby:8096"
     emby_web_url: str = ""
