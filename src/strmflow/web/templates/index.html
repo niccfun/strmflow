@@ -328,7 +328,7 @@
     .spinner { display: inline-block; width: 13px; height: 13px; margin-right: 8px; border: 2px solid rgb(100 116 139 / 25%); border-top-color: currentColor; border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .modal { position: fixed; inset: 0; z-index: 20; display: none; place-items: center; padding: 18px; background: var(--overlay); backdrop-filter: blur(3px); }
+    .modal { position: fixed; inset: 0; z-index: 20; display: none; place-items: center; padding: 18px; overflow-y: auto; overscroll-behavior: contain; background: var(--overlay); backdrop-filter: blur(3px); }
     .modal.show { display: grid; }
     .target-panel, .confirm-panel, .preview-panel {
       background: var(--panel);
@@ -338,7 +338,7 @@
       animation: modal-in .18s ease;
     }
     @keyframes modal-in { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
-    .target-panel { width: min(1180px, calc(100vw - 32px)); max-height: calc(100dvh - 28px); overflow: hidden; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 12px; padding: 22px; isolation: isolate; }
+    .target-panel { width: min(1180px, calc(100vw - 32px)); max-height: calc(100dvh - 28px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 12px; padding: 22px; isolation: isolate; }
     .target-panel { row-gap: var(--form-row-gap); column-gap: var(--form-column-gap); }
     .target-panel:not(.detail-mode) .source-resource-field { grid-column: span 2; }
     .target-panel:not(.detail-mode) .baidu-link-field { grid-column: span 2; }
@@ -370,8 +370,8 @@
     .share-import-panel { grid-column: 1 / -1; display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-soft); }
     .share-check-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 8px; }
     .share-check-button { min-width: 116px; min-height: var(--control-height); }
-    .share-inspection-result { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .7fr); gap: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
-    .share-result-copy { display: grid; align-content: start; gap: 6px; }
+    .share-inspection-result { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .7fr); gap: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+    .share-result-copy { min-width: 0; display: grid; align-content: start; gap: 6px; }
     .share-result-copy strong { font-size: 14px; }
     .share-result-copy p { color: var(--muted); font-size: 12px; line-height: 1.55; }
     .share-sample-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 12px; margin: 0; padding: 0; list-style: none; }
@@ -687,7 +687,7 @@
     .editor-error.show { display: block; }
     .editor-actions { grid-template-columns: auto 1fr 1fr; position: static; margin: 4px -22px -22px; padding: 13px 22px 20px; border-top: 1px solid var(--border); border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: var(--panel); }
     .editor-actions .danger-button { justify-self: start; }
-    .target-panel:not(.detail-mode) .editor-actions { grid-template-columns: repeat(2, minmax(140px, 180px)); justify-content: end; }
+    .target-panel:not(.detail-mode) .editor-actions { grid-template-columns: repeat(2, minmax(140px, 180px)); justify-content: end; position: sticky; bottom: -22px; z-index: 5; box-shadow: 0 -12px 24px rgb(15 23 42 / 8%); }
     .target-panel:not(.detail-mode) .editor-actions .danger-button { display: none; }
     .confirm-panel { width: min(420px, calc(100vw - 36px)); padding: 24px; }
     .confirm-panel p { color: var(--muted); margin-top: 8px; }
@@ -745,7 +745,7 @@
       .share-import-panel { gap: 7px; padding: 9px 11px; }
       .share-inspection-result { padding-top: 7px; }
       .settings-help { font-size: 10px; line-height: 1.35; }
-      .target-panel:not(.detail-mode) .editor-actions { margin: 2px -18px -16px; padding: 10px 18px 14px; }
+      .target-panel:not(.detail-mode) .editor-actions { bottom: -16px; margin: 2px -18px -16px; padding: 10px 18px 14px; }
       #targetPreview { margin-top: 2px; padding-top: 6px; padding-bottom: 6px; }
     }
     @media (max-width: 980px) {
@@ -776,7 +776,7 @@
       .modal { place-items: start center; overflow: auto; }
       .page-header { align-items: flex-start; flex-direction: column; }
       .controls, .target-panel { grid-template-columns: 1fr; }
-      .target-panel { width: min(880px, calc(100vw - 28px)); max-height: none; padding: 18px; overflow: hidden; }
+      .target-panel { width: min(880px, calc(100vw - 28px)); max-height: none; padding: 18px; overflow: visible; scrollbar-gutter: auto; }
       .target-panel:not(.detail-mode) .source-resource-field,
       .target-panel:not(.detail-mode) .baidu-link-field,
       .target-panel.share-mode #sourceTypeField,
@@ -792,6 +792,7 @@
       .summary { align-items: flex-start; flex-direction: column; }
       .modal-actions, .confirm-actions { grid-template-columns: 1fr; }
       .editor-actions { grid-template-columns: 1fr 1fr; }
+      .target-panel:not(.detail-mode) .editor-actions { bottom: -18px; margin-right: -18px; margin-left: -18px; }
       .editor-actions .danger-button { grid-column: 1 / -1; justify-self: stretch; order: 3; }
       .sync-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .sync-result { grid-template-columns: 1fr; }
@@ -1436,7 +1437,7 @@
           <div class="bdpan-settings-grid">
             <div class="field bdpan-root-field">
               <label for="bdpanSaveRootInput">网盘转存根目录</label>
-              <input id="bdpanSaveRootInput" type="text" value="media" placeholder="media" autocomplete="off">
+              <input id="bdpanSaveRootInput" type="text" value="video" placeholder="video" autocomplete="off">
               <p class="gateway-field-help">默认为“我的应用数据/bdpan/media”；镜像内固定使用已安装的 bdpan CLI。</p>
             </div>
             <div class="field bdpan-metric-field">
@@ -1531,7 +1532,7 @@
               </div>
               <div class="field">
                 <label for="settingsEmbyRootInput">目标 STRM 根目录</label>
-                <input id="settingsEmbyRootInput" type="text" placeholder="/local_media/emby_strm" autocomplete="off" required>
+                <input id="settingsEmbyRootInput" type="text" placeholder="/local_media/emby-strm" autocomplete="off" required>
                 <p class="settings-help">整理后的 STRM 将同步到这里，供 Emby 媒体库读取。</p>
               </div>
             </div>
@@ -1617,7 +1618,7 @@
       <div class="target-head">
         <div>
           <h2 id="editorTitle">添加媒体</h2>
-          <p class="muted" id="selectedHint">依次选择类型、分类和媒体目录，系统会自动完成映射。</p>
+          <p class="muted" id="selectedHint">选择系统内置媒体类型和分类，再选择具体媒体目录。</p>
         </div>
         <button id="cancelButton" type="button" aria-label="关闭">关闭</button>
       </div>
@@ -1665,16 +1666,16 @@
           </div>
         </div>
       </section>
-      <p id="shareDestinationHint" class="share-destination-hint" hidden>有效媒体已提取，请选择保存到只读源 STRM 根目录下的一级目录和二级分类。</p>
+      <p id="shareDestinationHint" class="share-destination-hint" hidden>有效媒体已提取，请选择系统内置的媒体类型和分类。</p>
       <div id="sourceTypeField" class="field source-hierarchy-field">
-        <label id="sourceTypeLabel" for="sourceTypeInput">1. 一级目录</label>
+        <label id="sourceTypeLabel" for="sourceTypeInput">1. 媒体类型</label>
         <select id="sourceTypeInput">
           <option value="">等待读取源目录…</option>
         </select>
         <input id="mediaTypeInput" type="hidden" value="tv">
       </div>
       <div id="categoryField" class="field source-hierarchy-field">
-        <label id="categoryLabel" for="categoryInput">2. 二级分类</label>
+        <label id="categoryLabel" for="categoryInput">2. 内置分类</label>
         <select id="categoryInput">
           <option value="">等待读取源目录…</option>
         </select>
@@ -1687,7 +1688,7 @@
           </select>
           <button id="refreshSourcesButton" type="button">重新扫描</button>
         </div>
-        <p class="settings-help">从设置中的只读源 STRM 根目录自动读取，无需为每个媒体手动填写路径。</p>
+        <p class="settings-help">媒体类型和分类由系统内置，仅在选定分类后读取具体媒体目录。</p>
         <input id="sourcePathInput" type="hidden">
       </div>
       <div class="media-detail-edit-heading">
@@ -2826,7 +2827,7 @@
 
     function fillBdpanForm(config) {
       elements.bdpanEnabled.checked = Boolean(config.enabled);
-      elements.bdpanSaveRoot.value = config.saveRoot || 'media';
+      elements.bdpanSaveRoot.value = config.saveRoot || 'video';
       elements.bdpanInterval.value = String(config.checkIntervalMinutes || 10);
       elements.bdpanSettle.value = String(config.settleSeconds || 90);
       elements.bdpanMaxItems.value = String(config.maxNewItems || 20);
@@ -4141,6 +4142,13 @@
         : 'tv';
     }
 
+    function canonicalTypeDirectory(value, mediaType = 'tv') {
+      const normalized = String(value || '').toLocaleLowerCase('zh-CN');
+      if (['movie', 'movies', '电影', '影片'].includes(normalized)) return '电影';
+      if (['other', 'others', '其它', '其他'].includes(normalized)) return '其它';
+      return mediaType === 'movie' ? '电影' : '电视剧';
+    }
+
     function sourceFolderTypeDir(folder) {
       if (folder?.typeDir) return folder.typeDir;
       const sourcePath = sourceFolderPath(folder);
@@ -4148,7 +4156,7 @@
       if (root && sourcePath.startsWith(root + '/')) {
         return sourcePath.slice(root.length + 1).split('/').filter(Boolean)[0] || '';
       }
-      return sourceFolderType(folder) === 'movie' ? 'Movies' : 'TV';
+      return sourceFolderType(folder) === 'movie' ? '电影' : '电视剧';
     }
 
     function replaceSelectOptions(
@@ -4228,8 +4236,8 @@
       elements.sourceResourceField.hidden = shareMode;
       elements.shareDestinationHint.hidden = !shareMode || !inspected;
       elements.baiduLinkField.hidden = shareMode;
-      elements.sourceTypeLabel.textContent = shareMode ? '1. 保存一级目录' : '1. 一级目录';
-      elements.categoryLabel.textContent = shareMode ? '2. 保存二级分类' : '2. 二级分类';
+      elements.sourceTypeLabel.textContent = shareMode ? '1. 保存类型' : '1. 媒体类型';
+      elements.categoryLabel.textContent = shareMode ? '2. 保存分类' : '2. 内置分类';
       elements.sourceFolderLabel.textContent = '3. 媒体资源';
       elements.save.textContent = shareMode ? '保存并同步' : '保存配置';
       if (shareMode && !inspected) {
@@ -4246,14 +4254,14 @@
       state.sourceTypes = [];
       state.sourceCategories = [];
       state.sourceFolders = [];
-      replaceSelectOptions(elements.sourceType, [], '', '等待读取一级目录…');
-      replaceSelectOptions(elements.category, [], '', '请先选择一级目录');
-      replaceSelectOptions(elements.sourceFolder, [], '', '请先选择二级分类');
+      replaceSelectOptions(elements.sourceType, [], '', '等待加载内置类型…');
+      replaceSelectOptions(elements.category, [], '', '请先选择媒体类型');
+      replaceSelectOptions(elements.sourceFolder, [], '', '请先选择内置分类');
       elements.title.value = '';
       elements.year.value = '';
       configureAddMode(mode);
       if (state.addMode === 'saved') {
-        elements.selectedHint.textContent = '正在读取设置的只读源 STRM 根目录…';
+        elements.selectedHint.textContent = '正在加载系统内置媒体类型…';
         await loadSourceFolders(true, '', '', '', true);
         elements.sourceType.focus();
       } else {
@@ -4297,7 +4305,7 @@
         await loadSourceFolders(false, '', '', '', false);
         elements.sourceResourceField.hidden = true;
         renderShareCandidate(true);
-        elements.selectedHint.textContent = '分享检查完成，请选择一级目录和二级分类。';
+        elements.selectedHint.textContent = '分享检查完成，请选择媒体类型和内置分类。';
         elements.editorError.textContent = '';
         elements.editorError.classList.remove('show');
         setStatus('分享检查完成，请确认媒体并选择保存分类。', 'success');
@@ -4379,13 +4387,13 @@
         elements.sourceType,
         [{ value: typeDir, label: typeDir }],
         typeDir,
-        '未保存一级目录',
+        '未保存媒体类型',
       );
       replaceSelectOptions(
         elements.category,
         [{ value: category, label: category }],
         category,
-        '未保存二级分类',
+        '未保存内置分类',
       );
       replaceSelectOptions(
         elements.sourceFolder,
@@ -4478,8 +4486,8 @@
       state.sourceCategories = [];
       state.sourceFolders = [];
       clearSelectedSource(overwriteMetadata);
-      replaceSelectOptions(elements.category, [], '', '正在读取二级分类…');
-      replaceSelectOptions(elements.sourceFolder, [], '', '请先选择二级分类');
+      replaceSelectOptions(elements.category, [], '', '正在加载内置分类…');
+      replaceSelectOptions(elements.sourceFolder, [], '', '请先选择内置分类');
       try {
         const query = new URLSearchParams({ typeDir });
         if (refresh) query.set('refresh', '1');
@@ -4487,17 +4495,23 @@
         state.sourceCategories = Array.isArray(data.entries) ? data.entries : [];
         replaceSelectOptions(
           elements.category,
-          state.sourceCategories.map((entry) => ({ value: entry.name, label: entry.name })),
-          preferredCategory,
-          '此一级目录下未发现二级分类',
-          '请选择二级分类',
+          state.sourceCategories.map((entry) => ({
+            value: entry.name,
+            label: entry.label || entry.name,
+          })),
+          preferredCategory || (state.sourceCategories.length === 1 ? state.sourceCategories[0].name : ''),
+          '此媒体类型没有可用分类',
+          '请选择内置分类',
         );
+        const selectedCategory = elements.category.value;
         const root = String(state.config?.pathSettings?.listRoot || '').replace(/\/+$/, '');
-        if (!preferredCategory) {
-          elements.selectedHint.textContent = '已进入：' + root + '/' + typeDir + '，请选择二级分类。';
+        if (!selectedCategory) {
+          elements.selectedHint.textContent = '已选择：' + typeDir + '，请选择内置分类。';
           updateTargetPreview();
           return true;
         }
+        elements.selectedHint.textContent = '正在读取：' + root + '/' + typeDir
+          + (typeDir === '其它' ? '' : '/' + selectedCategory);
         return await loadResourceOptions(preferredPath, overwriteMetadata, refresh);
       } catch (error) {
         showSourcePickerError(error);
@@ -4518,9 +4532,9 @@
       state.sourceCategories = [];
       state.sourceFolders = [];
       clearSelectedSource(overwriteMetadata && !preferredPath);
-      replaceSelectOptions(elements.sourceType, [], '', '正在读取一级目录…');
-      replaceSelectOptions(elements.category, [], '', '请先选择一级目录');
-      replaceSelectOptions(elements.sourceFolder, [], '', '请先选择二级分类');
+      replaceSelectOptions(elements.sourceType, [], '', '正在加载内置类型…');
+      replaceSelectOptions(elements.category, [], '', '请先选择媒体类型');
+      replaceSelectOptions(elements.sourceFolder, [], '', '请先选择内置分类');
       try {
         const data = await api('/api/media/options' + (refresh ? '?refresh=1' : ''));
         state.sourceTypes = (Array.isArray(data.entries) ? data.entries : []).map((entry) => ({
@@ -4535,12 +4549,11 @@
             label: entry.name,
           })),
           preferredTypeDir,
-          '只读源 STRM 根目录下未发现一级目录',
-          '请选择一级目录',
+          '系统内置媒体类型加载失败',
+          '请选择媒体类型',
         );
         if (!preferredTypeDir) {
-          const root = state.config?.pathSettings?.listRoot || '只读源 STRM 根目录';
-          elements.selectedHint.textContent = '已读取：' + root + '，请选择一级目录。';
+          elements.selectedHint.textContent = '请选择电影、电视剧或其它。';
           updateTargetPreview();
           return true;
         }
@@ -4606,8 +4619,8 @@
       if (invalid.shareLink) errors.push('请粘贴百度网盘分享链接');
       if (invalid.sharePreview) errors.push('请先检查分享链接并提取有效媒体');
       if (invalid.shareCandidate) errors.push('请选择要保存的媒体资源');
-      if (invalid.typeDir) errors.push('请选择保存一级目录');
-      if (invalid.category) errors.push('请选择保存二级分类');
+      if (invalid.typeDir) errors.push('请选择保存媒体类型');
+      if (invalid.category) errors.push('请选择保存分类');
       if (invalid.sourcePath) errors.push('请选择 STRM 媒体目录');
       if (invalid.title) errors.push('请填写剧名或片名');
       if (invalid.year) errors.push('年份需要填写 4 位数字');
@@ -4646,8 +4659,8 @@
       state.sharePreview = null;
       elements.editorPanel.classList.add('detail-mode');
       configureAddMode('saved');
-      elements.sourceTypeLabel.textContent = '一级目录';
-      elements.categoryLabel.textContent = '二级分类';
+      elements.sourceTypeLabel.textContent = '媒体类型';
+      elements.categoryLabel.textContent = '内置分类';
       elements.sourceFolderLabel.textContent = '媒体资源';
       const parsed = parseTitleYear(folder.name);
       const sourcePath = folder.sourcePath || folder.scanPath;
@@ -4679,10 +4692,14 @@
       const year = elements.year.value.trim();
       const category = elements.category.value.trim() || '未分类';
       const mediaType = elements.mediaType.value || 'tv';
-      const root = state.config?.embyStrmRoot || '/local_media/emby_strm';
+      const typeDir = canonicalTypeDirectory(elements.sourceType.value.trim(), mediaType);
+      const root = state.config?.embyStrmRoot || '/local_media/emby-strm';
       const folderName = title ? title + (year ? ' (' + year + ')' : '') : '未填写名称';
       const autoSeasonHint = mediaType === 'tv' ? '（同步时自动生成 Season XX）' : '';
-      elements.targetPreview.textContent = '目标目录：' + root + '/' + mediaType + '/' + category + '/' + folderName + autoSeasonHint;
+      const targetParts = [root, typeDir];
+      if (typeDir !== '其它') targetParts.push(category);
+      targetParts.push(folderName);
+      elements.targetPreview.textContent = '目标目录：' + targetParts.join('/') + autoSeasonHint;
       elements.delete.disabled = state.busy || !state.selected;
       validateEditor(false);
     }
@@ -4713,7 +4730,7 @@
       elements.mediaStatus.value = 'ongoing';
       elements.baiduLink.value = '';
       elements.editorTitle.textContent = '添加媒体';
-      elements.selectedHint.textContent = '正在读取设置的只读源 STRM 根目录…';
+      elements.selectedHint.textContent = '正在加载系统内置媒体类型…';
       elements.modal.classList.add('show');
       updateTargetPreview();
       const loaded = await loadSourceFolders(true, '', '', '', true);
@@ -4923,7 +4940,7 @@
       }
       const paths = state.config?.pathSettings || {};
       elements.settingsListRoot.value = paths.listRoot || '';
-      elements.settingsEmbyRoot.value = paths.embyStrmRoot || state.config?.embyStrmRoot || '/local_media/emby_strm';
+      elements.settingsEmbyRoot.value = paths.embyStrmRoot || state.config?.embyStrmRoot || '/local_media/emby-strm';
       elements.settingsError.textContent = '';
       elements.settingsError.classList.remove('show');
       state.settingsSnapshot = JSON.stringify(settingsValues());
@@ -5160,7 +5177,7 @@
         closeEditor();
         setStatus(
           isShareImport
-            ? (data.message || '转存已提交，文件落盘后将自动扫描同步。')
+            ? (data.message || '转存已提交，正在立即执行首次扫描同步。')
             : isFirstSave ? '媒体已添加，正在自动扫描同步…' : '媒体配置已保存。',
           isFirstSave ? 'running' : 'success',
         );
@@ -5244,8 +5261,9 @@
       if (state.addMode === 'share' && !state.selected) {
         elements.sourcePath.value = '';
         elements.selectedHint.textContent = elements.category.value
-          ? '将保存到：' + elements.sourceType.value + ' / ' + elements.category.value
-          : '请选择保存二级分类。';
+          ? '将保存到：' + elements.sourceType.value
+            + (elements.sourceType.value === '其它' ? '' : ' / ' + elements.category.value)
+          : '请选择保存分类。';
         updateTargetPreview();
         return;
       }

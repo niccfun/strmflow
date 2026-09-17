@@ -13,6 +13,10 @@ class DummyOpenList:
 class DiscoveryOpenList:
     def __init__(self) -> None:
         self.listed_paths: list[str] = []
+        self.created_paths: list[str] = []
+
+    async def mkdir(self, path: str) -> None:
+        self.created_paths.append(path)
 
     async def request(self, method: str, path: str) -> dict[str, object]:
         assert method == "GET"
@@ -31,10 +35,9 @@ class DiscoveryOpenList:
         assert refresh is False
         self.listed_paths.append(path)
         return {
-            "/strm": [{"name": "tv", "is_dir": True}],
-            "/strm/tv": [{"name": "国产剧", "is_dir": True}],
-            "/strm/tv/国产剧": [{"name": "百花杀 (2026)", "is_dir": True}],
-            "/strm/tv/国产剧/百花杀 (2026)": [{"name": "百花杀.S01E01.strm", "is_dir": False}],
+            "/strm/电视剧/国产剧": [{"name": "百花杀 (2026)", "is_dir": True}],
+            "/strm/其它": [{"name": "演唱会 (2026)", "is_dir": True}],
+            "/strm/电视剧/国产剧/百花杀 (2026)": [{"name": "百花杀.S01E01.strm", "is_dir": False}],
         }.get(path, [])
 
 
@@ -52,7 +55,7 @@ class SourceMappingOpenList(DiscoveryOpenList):
                     "id": 1,
                     "driver": "Strm",
                     "mount_path": "/temp_strm",
-                    "addition": {"paths": "/bdpan/apps/bdpan/media"},
+                    "addition": {"paths": "/bdpan/apps/bdpan/video"},
                 }
             ]
         }
@@ -88,7 +91,7 @@ async def test_resolve_underlying_source_path_from_strm_mount() -> None:
 
     result = await service.resolve_underlying_source_path("/temp_strm/TV/国产剧/交锋 (2026)")
 
-    assert result == "/bdpan/apps/bdpan/media/TV/国产剧/交锋 (2026)"
+    assert result == "/bdpan/apps/bdpan/video/TV/国产剧/交锋 (2026)"
 
 
 @pytest.mark.anyio
@@ -101,7 +104,7 @@ async def test_publish_target_cannot_overlap_underlying_media_source() -> None:
     with pytest.raises(AppError, match="网盘原始媒体目录重叠"):
         await service.assert_publish_target_isolated(
             "/temp_strm/TV/国产剧/交锋 (2026)",
-            "/bdpan/apps/bdpan/media/TV/国产剧/交锋 (2026)",
+            "/bdpan/apps/bdpan/video/TV/国产剧/交锋 (2026)",
         )
 
 
@@ -145,10 +148,13 @@ async def test_configured_root_recursively_discovers_media_folders() -> None:
 
     folders = await service.list_media_folders()
 
-    assert len(folders) == 1
-    assert folders[0]["sourcePath"] == "/strm/tv/国产剧/百花杀 (2026)"
-    assert folders[0]["typeDir"] == "tv"
-    assert folders[0]["category"] == "国产剧"
+    assert len(folders) == 2
+    assert folders[0]["sourcePath"] == "/strm/其它/演唱会 (2026)"
+    assert folders[0]["typeDir"] == "其它"
+    assert folders[0]["category"] == "未分类"
+    assert folders[1]["sourcePath"] == "/strm/电视剧/国产剧/百花杀 (2026)"
+    assert folders[1]["typeDir"] == "电视剧"
+    assert folders[1]["category"] == "国产剧"
 
 
 @pytest.mark.anyio
@@ -159,20 +165,49 @@ async def test_media_options_follow_two_level_directory_structure() -> None:
         openlist,  # type: ignore[arg-type]
     )
 
+    created = await service.ensure_builtin_layout()
     types = await service.list_media_options()
-    assert openlist.listed_paths == ["/strm"]
+    assert openlist.listed_paths == []
+    assert created
+    assert "/strm/电影/动画电影" in openlist.created_paths
+    assert "/strm/电视剧/国产剧" in openlist.created_paths
+    assert "/strm/其它" in openlist.created_paths
+    assert "/local_media/emby-strm/电视剧/未分类" in openlist.created_paths
 
     openlist.listed_paths.clear()
-    categories = await service.list_media_options("tv")
-    assert openlist.listed_paths == ["/strm/tv"]
+    categories = await service.list_media_options("电视剧")
+    assert openlist.listed_paths == []
 
     openlist.listed_paths.clear()
-    resources = await service.list_media_options("tv", "国产剧")
-    assert openlist.listed_paths == ["/strm/tv/国产剧"]
+    resources = await service.list_media_options("电视剧", "国产剧")
+    assert openlist.listed_paths == ["/strm/电视剧/国产剧"]
 
-    assert [entry["name"] for entry in types["entries"]] == ["tv"]
-    assert [entry["name"] for entry in categories["entries"]] == ["国产剧"]
-    assert resources["folders"][0]["sourcePath"] == "/strm/tv/国产剧/百花杀 (2026)"
+    assert [entry["name"] for entry in types["entries"]] == ["电影", "电视剧", "其它"]
+    assert [entry["name"] for entry in categories["entries"]] == [
+        "国漫",
+        "日番",
+        "纪录片",
+        "儿童",
+        "综艺",
+        "国产剧",
+        "欧美剧",
+        "日韩剧",
+        "未分类",
+    ]
+    assert resources["folders"][0]["sourcePath"] == "/strm/电视剧/国产剧/百花杀 (2026)"
+
+
+@pytest.mark.anyio
+async def test_other_media_uses_a_flat_directory_without_real_category() -> None:
+    openlist = DiscoveryOpenList()
+    service = StorageService(Settings(list_root="/strm"), openlist)  # type: ignore[arg-type]
+
+    categories = await service.list_media_options("其它")
+    resources = await service.list_media_options("其它", "未分类")
+
+    assert categories["entries"] == [{"name": "未分类", "label": "无二级分类", "virtual": True}]
+    assert resources["parent"] == "/strm/其它"
+    assert resources["folders"][0]["sourcePath"] == "/strm/其它/演唱会 (2026)"
 
 
 @pytest.mark.anyio

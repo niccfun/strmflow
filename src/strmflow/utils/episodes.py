@@ -55,9 +55,18 @@ def media_quality_rank(source: str, size: int = 0) -> tuple[int, ...]:
     resolution = _highest_match(
         name,
         (
-            (4320, (r"(?<![a-z0-9])(?:8k|4320p?)(?=$|[^a-z0-9]|hdr|dovi|dv|\d+fps)",)),
-            (2160, (r"(?<![a-z0-9])(?:4k|uhd|2160p?)(?=$|[^a-z0-9]|hdr|dovi|dv|\d+fps)",)),
-            (1440, (r"(?<![a-z0-9])(?:2k|1440p?)(?=$|[^a-z0-9]|hdr|dovi|dv|\d+fps)",)),
+            (
+                4320,
+                (r"(?<![a-z0-9])(?:8k|4320p?)(?=$|[^a-z0-9]|hq|hdr|dovi|dv|\d+fps)",),
+            ),
+            (
+                2160,
+                (r"(?<![a-z0-9])(?:4k|uhd|2160p?)(?=$|[^a-z0-9]|hq|hdr|dovi|dv|\d+fps)",),
+            ),
+            (
+                1440,
+                (r"(?<![a-z0-9])(?:2k|1440p?)(?=$|[^a-z0-9]|hq|hdr|dovi|dv|\d+fps)",),
+            ),
             (1080, (r"\b1080[pi]?\b",)),
             (720, (r"\b720p?\b",)),
             (576, (r"\b576p?\b",)),
@@ -113,9 +122,9 @@ def media_quality_label(source: str) -> str:
     labels: list[str] = []
 
     resolution_rules = (
-        (r"(?<![a-z0-9])(?:8k|4320p?)(?=$|[^a-z0-9]|hdr|dovi|dv|\d+fps)", "8K"),
-        (r"(?<![a-z0-9])(?:4k|uhd|2160p?)(?=$|[^a-z0-9]|hdr|dovi|dv|\d+fps)", "4K"),
-        (r"(?<![a-z0-9])(?:2k|1440p?)(?=$|[^a-z0-9]|hdr|dovi|dv|\d+fps)", "1440P"),
+        (r"(?<![a-z0-9])(?:8k|4320p?)(?=$|[^a-z0-9]|hq|hdr|dovi|dv|\d+fps)", "8K"),
+        (r"(?<![a-z0-9])(?:4k|uhd|2160p?)(?=$|[^a-z0-9]|hq|hdr|dovi|dv|\d+fps)", "4K"),
+        (r"(?<![a-z0-9])(?:2k|1440p?)(?=$|[^a-z0-9]|hq|hdr|dovi|dv|\d+fps)", "1440P"),
         (r"\b1080[pi]?\b", "1080P"),
         (r"\b720p?\b", "720P"),
     )

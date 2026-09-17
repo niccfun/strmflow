@@ -9,6 +9,12 @@ from urllib.parse import unquote
 
 from strmflow.core.config import Settings
 from strmflow.core.errors import AppError
+from strmflow.core.media_layout import (
+    canonical_type_dir,
+    media_resource_path,
+    normalize_category,
+    type_dir_from_source,
+)
 from strmflow.core.runtime_logs import RuntimeLogStore
 from strmflow.repositories.media import MediaRepository
 from strmflow.schemas.api import MediaItemInput, PublishRequest
@@ -138,6 +144,7 @@ class MediaService:
                 item.get("mediaType") or "tv",
                 item.get("category") or "未分类",
                 item.get("name") or item.get("title") or "Media",
+                source_path=str(item.get("sourcePath") or ""),
             )
             if target_dir == item.get("targetDir"):
                 continue
@@ -160,6 +167,7 @@ class MediaService:
             str(item.get("mediaType") or "tv"),
             str(item.get("category") or "未分类"),
             str(item.get("name") or item.get("title") or "Media"),
+            source_path=str(item.get("sourcePath") or ""),
         )
         if normalize_virtual_path(item.get("targetDir")) == expected:
             return item
@@ -875,6 +883,13 @@ class MediaService:
             body.get("media_type") or body.get("mediaType") or "tv", "媒体类型", 50
         )
         category = self._validate_segment(body.get("category") or "未分类", "分类", 50)
+        source_path = str(body.get("source_path") or body.get("sourcePath") or "")
+        source_root = str(getattr(self.path_config, "list_root", self.settings.list_root))
+        type_dir = type_dir_from_source(source_root, source_path, media_type)
+        normalized_category = normalize_category(type_dir, category)
+        if normalized_category is None:
+            raise AppError(400, "分类不在系统内置媒体目录中")
+        category = normalized_category
         folder_name = f"{title} ({year})" if year else title
         season = int(body.get("season") or 1)
         return {
@@ -883,6 +898,7 @@ class MediaService:
                 media_type,
                 category,
                 folder_name,
+                source_path=source_path,
             ),
             "folderName": folder_name,
             "mediaType": media_type,
@@ -892,14 +908,25 @@ class MediaService:
             "season": season,
         }
 
-    @staticmethod
     def _target_directory(
+        self,
         root: str,
         media_type: str,
         category: str,
         folder_name: str,
+        *,
+        source_path: str = "",
     ) -> str:
-        return join_virtual_path(root, media_type, category, folder_name)
+        type_dir = (
+            type_dir_from_source(
+                str(getattr(self.path_config, "list_root", self.settings.list_root)),
+                source_path,
+                media_type,
+            )
+            if source_path
+            else canonical_type_dir("", media_type)
+        )
+        return media_resource_path(root, type_dir, category, folder_name)
 
     @staticmethod
     def _validate_segment(value: object, label: str, limit: int) -> str:

@@ -74,6 +74,15 @@ async def update_paths(body: PathConfigUpdate, request: Request) -> dict[str, An
         # while OpenList is temporarily unavailable; publish validates again.
         pass
     value = await container.path_config.update(body.model_dump(by_alias=True))
+    created_paths: list[str] = []
+    try:
+        created_paths = await container.storage.ensure_builtin_layout(force=True)
+    except UpstreamError as exc:
+        request.app.state.runtime_logs.add(
+            category="settings",
+            level="warning",
+            message=f"路径已保存，但内置媒体目录暂未创建：{exc.message}",
+        )
     updated_items = 0
     if value["embyStrmRoot"] != previous_root:
         updated_items = await container.media.rebase_target_root(value["embyStrmRoot"])
@@ -84,6 +93,7 @@ async def update_paths(body: PathConfigUpdate, request: Request) -> dict[str, An
         sourceRoot=value["listRoot"],
         targetRoot=value["embyStrmRoot"],
         updatedItemCount=updated_items,
+        builtinDirectoryCount=len(created_paths),
     )
     return ok({**value, "updatedItems": updated_items})
 

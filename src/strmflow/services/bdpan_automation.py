@@ -14,6 +14,11 @@ from typing import TYPE_CHECKING, Any
 
 from strmflow.core.config import Settings
 from strmflow.core.errors import AppError
+from strmflow.core.media_layout import (
+    media_resource_path,
+    media_type_for_type,
+    normalize_category,
+)
 from strmflow.core.runtime_logs import RuntimeLogStore
 from strmflow.repositories.runtime_settings import RuntimeSettingsRepository
 from strmflow.schemas.api import (
@@ -349,7 +354,7 @@ class BdpanAutomationService:
         }
 
     async def import_share(self, body: BdpanShareImportRequest) -> dict[str, Any]:
-        """Transfer an inspected share into the selected two-level media directory."""
+        """Transfer an inspected share into the selected built-in media directory."""
         preview = self._get_share_preview(body.preview_id)
         candidate = next(
             (
@@ -363,6 +368,11 @@ class BdpanAutomationService:
             raise AppError(404, "选择的分享媒体已过期，请重新检查分享链接")
         type_dir = validate_folder_name(body.type_dir)
         category = validate_folder_name(body.category)
+        normalized_category = normalize_category(type_dir, category)
+        if normalized_category is None:
+            raise AppError(400, "保存目录不在系统内置媒体分类中")
+        category = normalized_category
+        media_type = media_type_for_type(type_dir)
         title = validate_folder_name(body.title)
         year = str(body.year or "").strip()
         if year and not re.fullmatch(r"\d{4}", year):
@@ -370,7 +380,7 @@ class BdpanAutomationService:
         folder_name = validate_folder_name(f"{title} ({year})" if year else title)
         if not self.path_config.list_root:
             raise AppError(409, "请先设置只读源 STRM 根目录")
-        source_path = join_virtual_path(
+        source_path = media_resource_path(
             self.path_config.list_root,
             type_dir,
             category,
@@ -396,8 +406,13 @@ class BdpanAutomationService:
 
         share_url = str(preview["shareUrl"])
         code = str(preview["extractCode"])
-        base_destination = "/".join(
-            filter(None, [self.config["saveRoot"], type_dir, category, folder_name])
+        base_destination = self.cli.normalize_destination(
+            media_resource_path(
+                self.config["saveRoot"],
+                type_dir,
+                category,
+                folder_name,
+            )
         )
         groups: dict[str, list[ShareMediaFile]] = {}
         for file in files:
@@ -469,13 +484,15 @@ class BdpanAutomationService:
                     season=body.season,
                     update_schedule=body.update_schedule,
                     category=category,
-                    media_type=body.media_type,
+                    media_type=media_type,
                     status=body.status,
                     baidu_link=baidu_link,
                 )
             )
-            pending_at = (
-                datetime.now(UTC) + timedelta(seconds=int(self.config["settleSeconds"]))
+            submitted_at = datetime.now(UTC)
+            pending_at = submitted_at.isoformat()
+            first_retry_at = (
+                submitted_at + timedelta(seconds=int(self.config["settleSeconds"]))
             ).isoformat()
             self.states[item["id"]] = {
                 "initialized": True,
@@ -491,6 +508,8 @@ class BdpanAutomationService:
                 "failureCount": 0,
                 "lastResult": f"已提交初始转存，共 {len(files)} 个媒体文件",
                 "pendingSyncAt": pending_at,
+                "firstRetrySyncAt": first_retry_at,
+                "discoverParentBeforeSync": True,
                 "pendingSyncAttempts": 0,
                 "pendingFiles": ["/".join(file.relative_parts) for file in files],
                 "submittedTasks": submitted_tasks,
@@ -509,7 +528,7 @@ class BdpanAutomationService:
             "submittedCount": len(files),
             "taskCount": len(submitted_tasks),
             "pendingSyncAt": pending_at,
-            "message": "转存已提交，文件落盘后将自动扫描并同步到 Emby",
+            "message": "转存已提交，正在立即执行首次扫描同步",
         }
 
     async def trigger_check(self, item_id: str = "") -> dict[str, Any]:
@@ -949,23 +968,21 @@ class BdpanAutomationService:
                     attempt=attempt,
                     sourcePath=item["sourcePath"],
                 )
-                removed_source_manifests = await self._cleanup_shadowed_source_manifests(item)
-                if removed_source_manifests:
-                    # Existing target manifests may still point at the old,
-                    # unclassified source location. Force a one-time rewrite
-                    # after the real videos replace those source references.
-                    await self.media.update_item(item_id, {"manifestVersion": 0})
+                scan_path = str(item["sourcePath"])
+                if state.get("discoverParentBeforeSync"):
+                    scan_path = PurePosixPath(scan_path).parent.as_posix()
                 await self.openlist.request(
                     "POST",
                     "/api/admin/scan/start",
-                    {"path": item["sourcePath"], "limit": self.settings.scan_limit},
+                    {"path": scan_path, "limit": self.settings.scan_limit},
                 )
                 self._log(
                     "info",
                     f"OpenList STRM 扫描已启动：{item['name']}",
                     itemId=item_id,
-                    scanPath=item["sourcePath"],
+                    scanPath=scan_path,
                     scanLimit=self.settings.scan_limit,
+                    discoveringNewDirectory=bool(state.get("discoverParentBeforeSync")),
                 )
                 started = asyncio.get_running_loop().time()
                 object_count = 0
@@ -984,6 +1001,12 @@ class BdpanAutomationService:
                     objectCount=object_count,
                     durationSeconds=round(asyncio.get_running_loop().time() - started, 1),
                 )
+                removed_source_manifests = await self._cleanup_shadowed_source_manifests(item)
+                if removed_source_manifests:
+                    # Existing target manifests may still point at the old,
+                    # unclassified source location. Force a one-time rewrite
+                    # after the real videos replace those source references.
+                    await self.media.update_item(item_id, {"manifestVersion": 0})
                 self._log(
                     "info",
                     f"开始整理并发布 STRM：{item['name']}",
@@ -1016,7 +1039,6 @@ class BdpanAutomationService:
                 # marking the operation complete. The virtual Strm view is not proof:
                 # a stale source .strm can expose the same episode name.
                 state["pendingSyncAt"] = None
-                state["pendingSyncAttempts"] = 0
                 expected_files = [str(value) for value in state.get("pendingFiles") or []]
                 verification_files = [str(value) for value in current_item.get("syncedFiles") or []]
                 verification_path = str(current_item.get("sourcePath") or "")
@@ -1038,12 +1060,19 @@ class BdpanAutomationService:
                     default_season=int(current_item.get("season") or 1),
                     media_type=str(current_item.get("mediaType") or "tv"),
                 )
-                state.pop("pendingFiles", None)
                 if missing_after_sync:
-                    state["nextCheckAt"] = (datetime.now(UTC) + timedelta(minutes=5)).isoformat()
-                    state["lastResult"] = (
-                        f"转存落盘不完整，仍缺 {len(missing_after_sync)} 集，已安排自动补齐"
-                    )
+                    state["pendingSyncAttempts"] = attempt
+                    if attempt >= 6:
+                        state["pendingSyncAt"] = None
+                        state.pop("firstRetrySyncAt", None)
+                        state["lastResult"] = (
+                            f"转存落盘不完整，仍缺 {len(missing_after_sync)} 集，自动同步已停止重试"
+                        )
+                    else:
+                        state["pendingSyncAt"] = self._next_sync_retry_at(state, attempt)
+                        state["lastResult"] = (
+                            f"同步后仍缺 {len(missing_after_sync)} 集，已安排落盘后重试"
+                        )
                     state["lastError"] = "等待补齐：" + "、".join(missing_after_sync[:8])
                     state.pop("pendingNotificationNewCount", None)
                     state.pop("pendingNotificationEpisodes", None)
@@ -1054,10 +1083,14 @@ class BdpanAutomationService:
                         itemId=item_id,
                         missingFiles=missing_after_sync[:20],
                         verificationPath=verification_path,
-                        nextCheckAt=state["nextCheckAt"],
+                        nextRetryAt=state.get("pendingSyncAt") or "已停止重试",
                     )
                     self._wake.set()
                     return
+                state.pop("pendingFiles", None)
+                state.pop("firstRetrySyncAt", None)
+                state.pop("discoverParentBeforeSync", None)
+                state["pendingSyncAttempts"] = 0
                 current_count = episode_count or total_files
                 notification_count = int(state.pop("pendingNotificationNewCount", 0) or 0)
                 notification_episodes = list(
@@ -1093,15 +1126,33 @@ class BdpanAutomationService:
                         notification_episodes,
                     )
             except Exception as exc:  # noqa: BLE001 - scheduler must retain failure state
+                if state.get("firstRetrySyncAt") and self._is_source_not_ready_error(exc):
+                    retry_at = self._next_sync_retry_at(state, 0)
+                    state.update(
+                        {
+                            "pendingSyncAt": retry_at,
+                            "pendingSyncAttempts": 0,
+                            "lastResult": "转存目录尚未落盘，已安排自动重试同步",
+                            "lastError": "",
+                        }
+                    )
+                    await self._save_states()
+                    self._log(
+                        "info",
+                        f"百度网盘转存目录尚未落盘，等待后重试同步：{item['name']}",
+                        itemId=item_id,
+                        nextRetryAt=retry_at,
+                    )
+                    self._wake.set()
+                    return
                 attempts = int(state.get("pendingSyncAttempts") or 0) + 1
                 state["pendingSyncAttempts"] = attempts
                 if attempts >= 6:
                     state["pendingSyncAt"] = None
+                    state.pop("firstRetrySyncAt", None)
                     state["lastResult"] = "自动同步多次失败，等待下次发现更新后再试"
                 else:
-                    state["pendingSyncAt"] = (
-                        datetime.now(UTC) + timedelta(minutes=min(60, 5 * (2 ** min(attempts, 3))))
-                    ).isoformat()
+                    state["pendingSyncAt"] = self._next_sync_retry_at(state, attempts)
                 state["lastError"] = str(exc)[:500]
                 await self._save_states()
                 self._log(
@@ -1755,6 +1806,30 @@ class BdpanAutomationService:
         except ValueError:
             return None
         return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+
+    def _next_sync_retry_at(self, state: dict[str, Any], attempts: int) -> str:
+        """Keep the configured settle delay as fallback after the immediate first sync."""
+        current = datetime.now(UTC)
+        first_retry = self._parse_time(state.pop("firstRetrySyncAt", None))
+        if first_retry and first_retry > current:
+            return first_retry.isoformat()
+        delay = min(60, 5 * (2 ** min(attempts, 3)))
+        return (current + timedelta(minutes=delay)).isoformat()
+
+    @staticmethod
+    def _is_source_not_ready_error(error: Exception) -> bool:
+        message = str(error).casefold()
+        return any(
+            phrase in message
+            for phrase in (
+                "object not found",
+                "failed get dir",
+                "directory not found",
+                "path not found",
+                "目录不存在",
+                "对象不存在",
+            )
+        )
 
     @staticmethod
     def _iso_now() -> str:

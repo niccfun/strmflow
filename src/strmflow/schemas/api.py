@@ -125,7 +125,7 @@ class Emby302ConfigUpdate(ApiModel):
 class BdpanAutomationConfigUpdate(ApiModel):
     enabled: bool = False
     check_interval_minutes: int = Field(default=10, ge=5, le=1440)
-    save_root: str = Field(default="media", min_length=1, max_length=700)
+    save_root: str = Field(default="video", min_length=1, max_length=700)
     settle_seconds: int = Field(default=90, ge=30, le=1800)
     max_new_items: int = Field(default=20, ge=1, le=100)
 

@@ -79,6 +79,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 app.state.turnstile_http = turnstile_http
                 runtime_logs.add(category="system", message="正在加载路径与转存配置")
                 await app.state.services.path_config.initialize()
+                try:
+                    layout_paths = await app.state.services.storage.ensure_builtin_layout()
+                    runtime_logs.add(
+                        category="settings",
+                        level="success",
+                        message="内置媒体目录结构已就绪",
+                        directoryCount=len(layout_paths),
+                    )
+                except AppError as exc:
+                    runtime_logs.add(
+                        category="settings",
+                        level="warning",
+                        message=f"内置媒体目录暂未创建：{exc.message}",
+                    )
                 await app.state.services.transfers.initialize()
                 await app.state.services.legacy_importer.run_once()
                 runtime_logs.add(

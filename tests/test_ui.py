@@ -60,7 +60,10 @@ def test_index_has_unique_element_ids() -> None:
     assert "media-details-button" in template
     assert "媒体详情" in template
     assert ".target-panel { width: min(1180px" in template
-    assert "overflow: hidden; display: grid; grid-template-columns: repeat(4" in template
+    assert "overflow-x: hidden; overflow-y: auto;" in template
+    assert "scrollbar-gutter: stable; display: grid; grid-template-columns: repeat(4" in template
+    assert ".modal { position: fixed;" in template
+    assert "overflow-y: auto; overscroll-behavior: contain;" in template
     assert (
         ".target-panel:not(.detail-mode) .source-resource-field { grid-column: span 2; }"
         in template
@@ -68,6 +71,10 @@ def test_index_has_unique_element_ids() -> None:
     assert (
         ".target-panel:not(.detail-mode) .editor-actions .danger-button { display: none; }"
         in template
+    )
+    assert (
+        ".target-panel:not(.detail-mode) .editor-actions { grid-template-columns: "
+        "repeat(2, minmax(140px, 180px)); justify-content: end; position: sticky;" in template
     )
     assert ".target-panel.detail-mode { width: min(1180px" in template
     assert "elements.editorPanel.classList.add('detail-mode')" in template
@@ -125,6 +132,7 @@ def test_index_has_unique_element_ids() -> None:
     assert 'id="bdpanEnabledInput"' in template
     assert 'id="bdpanBinaryInput"' not in template
     assert 'id="bdpanSaveRootInput"' in template
+    assert 'id="bdpanSaveRootInput" type="text" value="video"' in template
     assert 'id="bdpanIntervalInput"' in template
     assert 'id="bdpanLoginStartButton"' in template
     assert 'id="bdpanLogoutButton"' in template
@@ -183,15 +191,17 @@ def test_index_has_unique_element_ids() -> None:
     assert "'/api/bdpan/share/import'" in template
     assert "function configureAddMode(mode)" in template
     assert "function inspectShare()" in template
-    assert "转存已提交，文件落盘后将自动扫描同步" in template
+    assert "转存已提交，正在立即执行首次扫描同步" in template
     assert "v__STRMFLOW_VERSION__" in template
     assert 'id="sourceFolderInput"' in template
     assert 'id="sourceTypeInput"' in template
     assert 'id="refreshSourcesButton"' in template
     assert 'id="sourcePathInput" type="hidden"' in template
     assert "/api/media/options" in template
-    assert "'请选择一级目录'" in template
-    assert "'请选择二级分类'" in template
+    assert "'请选择媒体类型'" in template
+    assert "系统内置媒体类型" in template
+    assert "typeDir !== '其它'" in template
+    assert "'请选择内置分类'" in template
     assert "'请选择媒体资源'" in template
     assert "loadSourceFolders(true, '', '', '', true)" in template
     assert "· 已添加" in template

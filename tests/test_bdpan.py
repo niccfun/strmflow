@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ import pytest
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from strmflow.core.config import Settings
+from strmflow.core.errors import AppError
 from strmflow.core.runtime_logs import RuntimeLogStore
 from strmflow.schemas.api import BdpanShareImportRequest
 from strmflow.services.bdpan import BdpanCli, BdpanCliError, BdpanRunResult
@@ -529,14 +531,19 @@ async def test_inspect_and_import_share_creates_media_and_pending_sync() -> None
 
     assert result["submittedCount"] == 2
     assert result["taskCount"] == 1
-    assert result["item"]["sourcePath"] == "/temp_strm/TV/国产剧/交锋 (2026)"
-    assert media.saved.source_path == "/temp_strm/TV/国产剧/交锋 (2026)"
+    assert result["item"]["sourcePath"] == "/temp_strm/电视剧/国产剧/交锋 (2026)"
+    assert media.saved.source_path == "/temp_strm/电视剧/国产剧/交锋 (2026)"
     assert media.saved.baidu_link == "https://pan.baidu.com/s/example?pwd=ab12"
     command = cli.executed[0]
     assert command[command.index("--fsid") + 1] == "1001,1002"
-    assert command[command.index("-d") + 1] == ("StrmFlow/TV/国产剧/交锋 (2026)/Season 01")
+    assert command[command.index("-d") + 1] == ("StrmFlow/电视剧/国产剧/交锋 (2026)/Season 01")
     assert service.states["m2"]["watchPrefix"] == "Jiao.锋 (2026)"
     assert service.states["m2"]["pendingSyncAt"]
+    assert service.states["m2"]["discoverParentBeforeSync"] is True
+    pending_at = datetime.fromisoformat(service.states["m2"]["pendingSyncAt"])
+    first_retry_at = datetime.fromisoformat(service.states["m2"]["firstRetrySyncAt"])
+    assert abs((datetime.now(UTC) - pending_at).total_seconds()) < 5
+    assert first_retry_at > pending_at
     assert repository.states == service.states
 
 
@@ -735,6 +742,87 @@ async def test_pending_transfer_triggers_openlist_publish_and_emby_refresh() -> 
     assert emby.refreshes == 1
     assert service.states["m1"]["pendingSyncAt"] is None
     assert service.states["m1"]["lastSyncedAt"]
+
+
+@pytest.mark.asyncio
+async def test_immediate_share_sync_waits_without_error_when_transfer_directory_is_not_ready() -> (
+    None
+):
+    settings = Settings(bdpan_binary="bdpan")
+    media = FakeMedia()
+    openlist = FakeOpenList()
+    logs = RuntimeLogStore()
+    repository = FakeRuntimeRepository()
+    service = BdpanAutomationService(
+        settings,
+        FakeBdpanCli(settings),
+        repository,  # type: ignore[arg-type]
+        media,  # type: ignore[arg-type]
+        openlist,  # type: ignore[arg-type]
+        FakeEmby(),  # type: ignore[arg-type]
+        FakePathConfig(),  # type: ignore[arg-type]
+        logs,
+    )
+    retry_at = (datetime.now(UTC) + timedelta(seconds=90)).isoformat()
+    service.states["m1"] = {
+        "pendingSyncAttempts": 0,
+        "pendingSyncAt": datetime.now(UTC).isoformat(),
+        "firstRetrySyncAt": retry_at,
+        "discoverParentBeforeSync": True,
+        "pendingFiles": ["S01E01 4K.mp4"],
+    }
+
+    async def missing_directory(
+        _method: str, _path: str, _body: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        raise AppError(502, "OpenList 请求失败：failed get objs: failed get dir: object not found")
+
+    openlist.request = missing_directory  # type: ignore[method-assign]
+
+    await service._sync_item("m1")
+
+    state = service.states["m1"]
+    assert state["pendingSyncAt"] == retry_at
+    assert state["pendingSyncAttempts"] == 0
+    assert state["lastError"] == ""
+    assert "firstRetrySyncAt" not in state
+    assert media.published == []
+    assert openlist.requests == []
+    assert any(
+        entry["level"] == "info" and "转存目录尚未落盘" in entry["message"] for entry in logs.list()
+    )
+
+
+@pytest.mark.asyncio
+async def test_initial_share_sync_scans_parent_to_discover_transferred_media_directory() -> None:
+    settings = Settings(bdpan_binary="bdpan")
+    media = FakeMedia()
+    openlist = FakeOpenList()
+    service = BdpanAutomationService(
+        settings,
+        FakeBdpanCli(settings),
+        FakeRuntimeRepository(),  # type: ignore[arg-type]
+        media,  # type: ignore[arg-type]
+        openlist,  # type: ignore[arg-type]
+        FakeEmby(),  # type: ignore[arg-type]
+        FakePathConfig(),  # type: ignore[arg-type]
+        RuntimeLogStore(),
+    )
+    service.states["m1"] = {
+        "pendingSyncAttempts": 0,
+        "pendingSyncAt": "now",
+        "discoverParentBeforeSync": True,
+    }
+
+    await service._sync_item("m1")
+
+    assert openlist.requests[0] == (
+        "POST",
+        "/api/admin/scan/start",
+        {"path": "/temp_strm/TV/国产剧", "limit": settings.scan_limit},
+    )
+    assert media.published == ["m1"]
+    assert "discoverParentBeforeSync" not in service.states["m1"]
 
 
 @pytest.mark.asyncio

@@ -1,11 +1,24 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from typing import Any
 
 from strmflow.core.config import Settings
 from strmflow.core.errors import AppError
+from strmflow.core.media_layout import (
+    BUILTIN_MEDIA_LAYOUT,
+    UNCATEGORIZED,
+    builtin_directory_paths,
+    builtin_type_entries,
+    category_entries,
+    layout_for_type,
+    media_parent_path,
+    media_resource_path,
+    media_type_for_type,
+    normalize_category,
+)
 from strmflow.domain.models import Storage, StorageConfig
 from strmflow.services.openlist import OpenListClient
 from strmflow.services.path_config import PathConfigService
@@ -32,6 +45,8 @@ class StorageService:
         self.settings = settings
         self.openlist = openlist
         self.path_config = path_config
+        self._layout_signature: tuple[str, str] | None = None
+        self._layout_lock = asyncio.Lock()
 
     async def get_config(self) -> StorageConfig:
         data = await self.openlist.request("GET", "/api/admin/storage/list?page=1&per_page=1000")
@@ -66,6 +81,29 @@ class StorageService:
             for folder in sorted(found, key=lambda item: item["name"].casefold())
         ]
 
+    async def ensure_builtin_layout(self, *, force: bool = False) -> list[str]:
+        """Create the fixed source and target directory hierarchy when absent."""
+        source_root = self.path_config.list_root if self.path_config else self.settings.list_root
+        target_root = (
+            self.path_config.emby_strm_root if self.path_config else self.settings.emby_strm_root
+        )
+        signature = (normalize_virtual_path(source_root), normalize_virtual_path(target_root))
+        async with self._layout_lock:
+            if not force and signature == self._layout_signature:
+                return []
+            paths = list(
+                dict.fromkeys(
+                    [
+                        *builtin_directory_paths(target_root),
+                        *builtin_directory_paths(source_root),
+                    ]
+                )
+            )
+            for path in paths:
+                await self.openlist.mkdir(path)
+            self._layout_signature = signature
+            return paths
+
     async def list_media_options(
         self,
         type_dir: str | None = None,
@@ -80,8 +118,28 @@ class StorageService:
         selected_type = validate_folder_name(type_dir) if type_dir else ""
         selected_category = validate_folder_name(category) if category else ""
         if selected_category and not selected_type:
-            raise AppError(400, "请先选择一级目录")
-        parent = join_virtual_path(root, selected_type, selected_category)
+            raise AppError(400, "请先选择媒体类型")
+        if not selected_type:
+            return {
+                "level": "types",
+                "parent": root,
+                "entries": builtin_type_entries(),
+            }
+        layout = layout_for_type(selected_type)
+        if not layout:
+            raise AppError(400, "媒体类型不在系统内置范围内")
+        canonical_type = str(layout["name"])
+        if not selected_category:
+            return {
+                "level": "categories",
+                "parent": join_virtual_path(root, canonical_type),
+                "entries": category_entries(canonical_type),
+                "categoryRequired": not bool(layout.get("flat")),
+            }
+        normalized_category = normalize_category(canonical_type, selected_category)
+        if normalized_category is None:
+            raise AppError(400, "分类不在系统内置范围内")
+        parent = media_parent_path(root, canonical_type, normalized_category)
         raw_entries = await self.openlist.list_dir(parent, refresh=refresh)
         directories = [
             entry
@@ -89,57 +147,46 @@ class StorageService:
             if entry.get("is_dir") is True and isinstance(entry.get("name"), str)
         ]
         directories.sort(key=lambda entry: entry["name"].casefold())
-        if selected_type and selected_category:
-            folders = [
-                self._enrich_folder(
-                    {
-                        "name": entry["name"],
-                        "modified": entry.get("modified"),
-                        "mediaPath": join_virtual_path(parent, entry["name"]),
-                        "scanPath": join_virtual_path(parent, entry["name"]),
-                        "strmStorage": root,
-                        "strmSaveRoot": root,
-                    },
-                    root,
-                )
-                for entry in directories
-            ]
-            return {"level": "resources", "parent": parent, "folders": folders}
-        return {
-            "level": "categories" if selected_type else "types",
-            "parent": parent,
-            "entries": [
+        folders = [
+            self._enrich_folder(
                 {
                     "name": entry["name"],
-                    "path": join_virtual_path(parent, entry["name"]),
                     "modified": entry.get("modified"),
-                }
-                for entry in directories
-            ],
-        }
+                    "mediaPath": media_resource_path(
+                        root,
+                        canonical_type,
+                        normalized_category,
+                        entry["name"],
+                    ),
+                    "scanPath": media_resource_path(
+                        root,
+                        canonical_type,
+                        normalized_category,
+                        entry["name"],
+                    ),
+                    "strmStorage": root,
+                    "strmSaveRoot": root,
+                },
+                root,
+            )
+            for entry in directories
+        ]
+        return {"level": "resources", "parent": parent, "folders": folders}
 
     async def _list_classified_folders(self, list_root: str, refresh: bool) -> list[dict[str, Any]]:
         root = normalize_virtual_path(list_root)
         found: list[dict[str, Any]] = []
-        type_entries = await self.openlist.list_dir(root, refresh=refresh)
-        for type_entry in type_entries if isinstance(type_entries, list) else []:
-            if type_entry.get("is_dir") is not True or not isinstance(type_entry.get("name"), str):
-                continue
-            type_path = join_virtual_path(root, type_entry["name"])
-            category_entries = await self.openlist.list_dir(type_path, refresh=refresh)
-            for category_entry in category_entries if isinstance(category_entries, list) else []:
-                if category_entry.get("is_dir") is not True or not isinstance(
-                    category_entry.get("name"), str
-                ):
-                    continue
-                category_path = join_virtual_path(type_path, category_entry["name"])
-                resource_entries = await self.openlist.list_dir(category_path, refresh=refresh)
+        for layout in BUILTIN_MEDIA_LAYOUT:
+            type_dir = str(layout["name"])
+            for category in layout["categories"]:
+                parent = media_parent_path(root, type_dir, category)
+                resource_entries = await self.openlist.list_dir(parent, refresh=refresh)
                 for resource in resource_entries if isinstance(resource_entries, list) else []:
                     if resource.get("is_dir") is not True or not isinstance(
                         resource.get("name"), str
                     ):
                         continue
-                    path = join_virtual_path(category_path, resource["name"])
+                    path = media_resource_path(root, type_dir, category, resource["name"])
                     found.append(
                         {
                             "name": resource["name"],
@@ -169,6 +216,8 @@ class StorageService:
             "movies": "movie",
             "电影": "movie",
             "影片": "movie",
+            "其它": "tv",
+            "其他": "tv",
         }
         media_type = "tv"
         category = "未分类"
@@ -185,9 +234,11 @@ class StorageService:
         relative_parts = [part for part in str(relative or "").split("/") if part]
         if relative_parts:
             type_dir = relative_parts[0]
-            if len(relative_parts) >= 3:
+            if type_dir in {"其它", "其他"}:
+                category = UNCATEGORIZED
+            elif len(relative_parts) >= 3:
                 category = relative_parts[1]
-            media_type = aliases.get(type_dir.casefold(), media_type)
+            media_type = media_type_for_type(type_dir)
         name = str(folder.get("name") or path_base(path))
         title_match = re.match(r"^(.*?)\s*[（(](\d{4})[）)]\s*$", name)
         return {

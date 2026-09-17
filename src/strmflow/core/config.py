@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     list_root: str = "/temp_strm"
     scan_limit: float = Field(default=2, gt=0)
 
-    emby_strm_root: str = "/local_media/emby_strm"
+    emby_strm_root: str = "/local_media/emby-strm"
     media_db_path: str = ""
     emby_url: str = "http://emby:8096"
     emby_web_url: str = ""
@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     bdpan_binary: str = "bdpan"
     bdpan_timeout: int = Field(default=3600, gt=0)
     bdpan_check_interval_minutes: int = Field(default=10, ge=5, le=1440)
-    bdpan_save_root: str = "media"
+    bdpan_save_root: str = "video"
     bdpan_settle_seconds: int = Field(default=90, ge=30, le=1800)
     bdpan_max_new_items: int = Field(default=20, ge=1, le=100)
     transfer_job_retention: int = Field(default=200, ge=10, le=10_000)

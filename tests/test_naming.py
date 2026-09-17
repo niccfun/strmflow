@@ -67,6 +67,27 @@ def test_compact_quality_tags_prefer_4k_hdr_60fps() -> None:
     assert media_quality_label("S01E04.4KHDR60FPS.WEB-DL.HEVC.strm") == ("4K HDR 60FPS WEB-DL HEVC")
 
 
+def test_compact_hq_hdr_variant_beats_plain_4k_and_soft_subtitle_variant() -> None:
+    files = [
+        "S01E05 4K60FPS[软字幕].mp4",
+        "S01E05 4KHQHDR60FPS-GyWEB.mp4",
+        "S01E10 4K60FPS.mp4",
+        "S01E10 4KHQHDR60FPS-GyWEB.mp4",
+    ]
+
+    preferred, duplicates = select_preferred_episodes(files, path=lambda value: value)
+
+    assert preferred == [
+        "S01E05 4KHQHDR60FPS-GyWEB.mp4",
+        "S01E10 4KHQHDR60FPS-GyWEB.mp4",
+    ]
+    assert duplicates == [
+        "S01E05 4K60FPS[软字幕].mp4",
+        "S01E10 4K60FPS.mp4",
+    ]
+    assert media_quality_label("S01E10 4KHQHDR60FPS-GyWEB.mp4") == "4K HDR 60FPS"
+
+
 def test_initial_publish_is_canonical_and_later_upgrade_becomes_emby_version() -> None:
     service = MediaService(Settings(), None, None, None, None)  # type: ignore[arg-type]
     context = {
@@ -249,7 +270,11 @@ def test_tv_target_uses_emby_series_root() -> None:
         None,  # type: ignore[arg-type]
         None,  # type: ignore[arg-type]
         None,  # type: ignore[arg-type]
-        type("PathConfig", (), {"emby_strm_root": "/emby"})(),  # type: ignore[arg-type]
+        type(
+            "PathConfig",
+            (),
+            {"list_root": "/temp_strm", "emby_strm_root": "/emby"},
+        )(),  # type: ignore[arg-type]
     )
 
     target = service._build_target(
@@ -262,7 +287,43 @@ def test_tv_target_uses_emby_series_root() -> None:
         }
     )
 
-    assert target["targetDir"] == "/emby/tv/国产剧/示例剧 (2026)"
+    assert target["targetDir"] == "/emby/电视剧/国产剧/示例剧 (2026)"
+
+
+def test_movie_and_other_targets_follow_builtin_chinese_layout() -> None:
+    service = MediaService(
+        Settings(),
+        None,  # type: ignore[arg-type]
+        None,  # type: ignore[arg-type]
+        None,  # type: ignore[arg-type]
+        type(
+            "PathConfig",
+            (),
+            {"list_root": "/temp_strm", "emby_strm_root": "/emby"},
+        )(),  # type: ignore[arg-type]
+    )
+
+    movie = service._build_target(
+        {
+            "sourcePath": "/temp_strm/电影/华语电影/示例电影 (2026)",
+            "title": "示例电影",
+            "year": "2026",
+            "mediaType": "movie",
+            "category": "华语电影",
+        }
+    )
+    other = service._build_target(
+        {
+            "sourcePath": "/temp_strm/其它/示例资源 (2026)",
+            "title": "示例资源",
+            "year": "2026",
+            "mediaType": "tv",
+            "category": "未分类",
+        }
+    )
+
+    assert movie["targetDir"] == "/emby/电影/华语电影/示例电影 (2026)"
+    assert other["targetDir"] == "/emby/其它/示例资源 (2026)"
 
 
 @pytest.mark.anyio
